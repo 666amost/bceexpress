@@ -66,29 +66,29 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar /> {/* Komponen Navbar */}
-      <main className="flex-1 container mx-auto px-4 py-16 flex flex-col items-center">
-        {/* Hero Section in a large card */}
-        {!showScanner && (
-          <div className="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-10 flex flex-col items-center gap-6">
-            <Hero />
-            <div className="w-full text-center mt-4">
-              <p className="text-muted-foreground mb-2">or</p>
-              <button
-                onClick={() => setShowScanner(true)}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold text-lg shadow hover:scale-105 transition flex items-center justify-center gap-2"
-              >
-                <QrCode className="h-6 w-6" />
-                <span>Scan QR Code Instead</span>
-              </button>
+      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
+        <div className="max-w-7xl mx-auto">
+          {!showScanner && (
+            <div className="w-full max-w-xl mx-auto bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-6 sm:p-8 lg:p-10 flex flex-col items-center gap-6">
+              <Hero />
+              <div className="w-full text-center mt-4">
+                <p className="text-muted-foreground mb-4">or</p>
+                <button
+                  onClick={() => setShowScanner(true)}
+                  className="w-full md:max-w-md mx-auto bg-gradient-to-r from-blue-500 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold text-lg shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
+                >
+                  <QrCode className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span>Scan QR Code Instead</span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {/* Scanner Section in a separate card */}
-        {showScanner && (
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl mt-8">
-            <QRScannerQuagga onScan={handleScanSuccess} onClose={handleCloseScanner} />
-          </div>
-        )}
+          )}
+          {showScanner && (
+            <div className="w-full max-w-md mx-auto bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl shadow-2xl mt-8">
+              <QRScannerQuagga onScan={handleScanSuccess} onClose={handleCloseScanner} />
+            </div>
+          )}
+        </div>
       </main>
       <Footer /> {/* Komponen Footer */}
     </div>
