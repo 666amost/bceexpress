@@ -3,22 +3,29 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-// @ts-ignore
 import { X, Camera } from "lucide-react"
 import { BrowserQRCodeReader } from '@zxing/browser'
+import { IScannerControls } from '@zxing/browser/esm/common/IScannerControls'
+import { BarcodeFormat, DecodeHintType, Result, Exception } from '@zxing/library'
+
+interface VideoDevice {
+  deviceId: string
+  label: string
+}
 
 interface QRScannerProps {
-  onScanSuccess: (result: string) => void
+  onScan: (result: string) => void
   onClose: () => void
 }
 
-export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
+export default function QRScanner({ onScan, onClose }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null)
-  const controlsRef = useRef<{ stop: () => Promise<void> } | null>(null)
+  const controlsRef = useRef<IScannerControls | null>(null)
 
   // Check for camera permission first
   useEffect(() => {
@@ -63,7 +70,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
               try {
                 await navigator.mediaDevices.getUserMedia({ 
                   video: { 
-                    facingMode: 'environment'
+                    facingMode: 'environment',
                   } 
                 })
                 setHasPermission(true)
@@ -98,7 +105,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     checkPermission()
   }, [])
 
-  // Start QR scanning once we have permission
+  // Start scanning once we have permission
   useEffect(() => {
     let mounted = true
 
@@ -106,7 +113,20 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       try {
         if (!videoRef.current) return
 
-        const codeReader = new BrowserQRCodeReader()
+        // Configure format hints to support multiple barcode formats
+        const hints = new Map<DecodeHintType, any>()
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+        ])
+        hints.set(DecodeHintType.TRY_HARDER, true)
+
+        const codeReader = new BrowserQRCodeReader(hints)
         codeReaderRef.current = codeReader
 
         // Get available video devices
@@ -118,7 +138,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         }
 
         // Prefer environment/back camera if available
-        const selectedDeviceId = videoInputDevices.find(device => 
+        const selectedDeviceId = videoInputDevices.find((device: VideoDevice) => 
           device.label.toLowerCase().includes('back') || 
           device.label.toLowerCase().includes('environment')
         )?.deviceId || videoInputDevices[0]?.deviceId
@@ -134,25 +154,29 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           const controls = await codeReader.decodeFromVideoDevice(
             selectedDeviceId,
             videoRef.current,
-            (result, error) => {
+            (result: Result | null, error: Exception | undefined) => {
               if (mounted && result) {
-                console.log('QR code detected:', result.getText())
-                onScanSuccess(result.getText())
+                console.log('Code detected:', result.getText())
+                // Play success sound
+                if (audioRef.current) {
+                  audioRef.current.play().catch(console.error)
+                }
+                onScan(result.getText())
               }
               if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
-                console.error('QR scanning error:', error)
+                console.error('Scanning error:', error)
               }
             }
           )
           
           controlsRef.current = controls
         } catch (err) {
-          console.error('Error starting QR scanner:', err)
+          console.error('Error starting scanner:', err)
           throw new Error("Could not start the camera. Please try again or check your camera permissions.")
         }
       } catch (err) {
         console.error('Scanner initialization error:', err)
-        setError(err instanceof Error ? err.message : 'Could not start the QR scanner')
+        setError(err instanceof Error ? err.message : 'Could not start the scanner')
         setIsScanning(false)
       }
     }
@@ -172,7 +196,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         tracks.forEach(track => track.stop())
       }
     }
-  }, [onScanSuccess, hasPermission])
+  }, [onScan, hasPermission])
 
   if (hasPermission === false) {
     return (
@@ -182,7 +206,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Camera Access Required</h3>
             <p className="text-sm text-muted-foreground">
-              Please allow camera access in your browser settings to scan QR codes.
+              Please allow camera access in your browser settings to scan codes.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
               Try refreshing the page after enabling camera access.
@@ -211,6 +235,11 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       >
         <X className="h-4 w-4" />
       </Button>
+
+      {/* Success sound audio element */}
+      <audio ref={audioRef} preload="auto">
+        <source src="/sounds/beep-success.mp3" type="audio/mpeg" />
+      </audio>
 
       {error ? (
         <div className="p-6 text-center space-y-4">
