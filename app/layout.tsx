@@ -10,8 +10,16 @@ export const metadata: Metadata = {
   title: "BCE EXPRESS - Better Cargo Experience",
   description: "Track your shipments in real-time with BCE EXPRESS's advanced tracking system",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: "/icon.png",
+        href: "/icon.png",
+      },
+    ],
+    shortcut: "/icon.png",
+    apple: "/apple-icon.png",
   },
+  manifest: "/manifest.json",
   viewport: {
     width: 'device-width',
     initialScale: 1,
