@@ -19,24 +19,57 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null)
   const controlsRef = useRef<{ stop: () => Promise<void> } | null>(null)
 
+  // Check for camera permission first
   useEffect(() => {
     const checkPermission = async () => {
       try {
+        // First check if the browser supports getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError("Your browser doesn't support camera access")
+          return
+        }
+
+        // Try to get the permission status
         const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
         setHasPermission(result.state === 'granted')
         
         result.addEventListener('change', () => {
           setHasPermission(result.state === 'granted')
         })
+
+        // If permission is denied, show error
+        if (result.state === 'denied') {
+          setError("Camera access is denied. Please allow camera access in your browser settings.")
+          return
+        }
+
+        // If permission is prompt, try to get access
+        if (result.state === 'prompt') {
+          try {
+            await navigator.mediaDevices.getUserMedia({ video: true })
+            setHasPermission(true)
+          } catch (err) {
+            console.error('Error requesting camera permission:', err)
+            setError("Could not access camera. Please allow camera access when prompted.")
+          }
+        }
       } catch (err) {
         // Browser might not support permission query for camera
-        setHasPermission(null)
+        console.log('Permission API not supported, trying direct access')
+        try {
+          await navigator.mediaDevices.getUserMedia({ video: true })
+          setHasPermission(true)
+        } catch (err) {
+          console.error('Error accessing camera:', err)
+          setError("Could not access camera. Please make sure you have a camera connected and have granted camera permissions.")
+        }
       }
     }
 
     checkPermission()
   }, [])
 
+  // Start QR scanning once we have permission
   useEffect(() => {
     let mounted = true
 
@@ -49,7 +82,12 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
 
         // Get available video devices
         const videoInputDevices = await BrowserQRCodeReader.listVideoInputDevices()
+        console.log('Available cameras:', videoInputDevices)
         
+        if (!videoInputDevices || videoInputDevices.length === 0) {
+          throw new Error("No cameras detected. Please make sure your camera is connected.")
+        }
+
         // Prefer environment/back camera if available
         const selectedDeviceId = videoInputDevices.find(device => 
           device.label.toLowerCase().includes('back') || 
@@ -57,10 +95,11 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         )?.deviceId || videoInputDevices[0]?.deviceId
 
         if (!selectedDeviceId) {
-          throw new Error('No camera found')
+          throw new Error("Could not select a camera. Please make sure your camera is connected and accessible.")
         }
 
         setIsScanning(true)
+        console.log('Starting scanner with device:', selectedDeviceId)
 
         // Start scanning
         const controls = await codeReader.decodeFromVideoDevice(
@@ -68,6 +107,7 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           videoRef.current,
           (result, error) => {
             if (mounted && result) {
+              console.log('QR code detected:', result.getText())
               onScanSuccess(result.getText())
             }
             if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
@@ -79,11 +119,12 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         controlsRef.current = controls
       } catch (err) {
         console.error('Error starting scanner:', err)
-        setError(err instanceof Error ? err.message : 'Could not access camera')
+        setError(err instanceof Error ? err.message : 'Could not start the QR scanner')
       }
     }
 
-    if (hasPermission !== false) {
+    if (hasPermission === true) {
+      console.log('Starting scanner with permission granted')
       startScanner()
     }
 
@@ -108,6 +149,9 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
             <h3 className="font-semibold">Camera Access Required</h3>
             <p className="text-sm text-muted-foreground">
               Please allow camera access in your browser settings to scan QR codes.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Try refreshing the page after enabling camera access.
             </p>
           </div>
           <Button variant="outline" onClick={onClose}>
@@ -135,12 +179,20 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           <div className="space-y-2">
             <p className="text-destructive font-medium">{error}</p>
             <p className="text-sm text-muted-foreground">
-              Make sure you have granted camera permissions and are using a supported browser.
+              Make sure you have a camera connected and have granted camera permissions.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Try refreshing the page or checking your browser settings.
             </p>
           </div>
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
+          <div className="space-y-2">
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh Page
+            </Button>
+            <Button variant="outline" onClick={onClose} className="ml-2">
+              Close
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="aspect-square relative">
@@ -148,6 +200,8 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
             ref={videoRef}
             className="w-full h-full object-cover"
             playsInline
+            muted
+            autoPlay
           />
           <div className="absolute inset-0">
             <div className="absolute inset-0 border-2 border-primary/50 rounded-lg m-4" />
@@ -155,6 +209,14 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
               <div className="w-48 h-48 border-2 border-primary animate-pulse rounded-lg" />
             </div>
           </div>
+          {!isScanning && !error && (
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+              <div className="text-center space-y-4">
+                <Camera className="w-8 h-8 mx-auto animate-pulse" />
+                <p className="text-sm">Initializing camera...</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Card>
