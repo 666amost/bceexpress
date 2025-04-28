@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+// @ts-ignore
 import { X, Camera } from "lucide-react"
 import { BrowserQRCodeReader } from '@zxing/browser'
 
@@ -29,40 +30,68 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           return
         }
 
-        // Try to get the permission status
-        const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
-        setHasPermission(result.state === 'granted')
-        
-        result.addEventListener('change', () => {
-          setHasPermission(result.state === 'granted')
-        })
-
-        // If permission is denied, show error
-        if (result.state === 'denied') {
-          setError("Camera access is denied. Please allow camera access in your browser settings.")
-          return
-        }
-
-        // If permission is prompt, try to get access
-        if (result.state === 'prompt') {
+        try {
+          // Try to access the camera directly first
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'environment',
+            } 
+          })
+          
+          // If we get here, we have camera access
+          stream.getTracks().forEach(track => track.stop()) // Clean up the test stream
+          setHasPermission(true)
+          setError(null)
+          
+        } catch (err) {
+          console.error('Initial camera access error:', err)
+          
+          // Try to get the permission status as fallback
           try {
-            await navigator.mediaDevices.getUserMedia({ video: true })
-            setHasPermission(true)
-          } catch (err) {
-            console.error('Error requesting camera permission:', err)
-            setError("Could not access camera. Please allow camera access when prompted.")
+            const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
+            
+            if (result.state === 'denied') {
+              setError("Camera access is denied. Please allow camera access in your browser settings.")
+              setHasPermission(false)
+              return
+            }
+            
+            if (result.state === 'prompt') {
+              // Let the user know we're waiting for their permission
+              setError("Please allow camera access when prompted.")
+              
+              try {
+                await navigator.mediaDevices.getUserMedia({ 
+                  video: { 
+                    facingMode: 'environment'
+                  } 
+                })
+                setHasPermission(true)
+                setError(null)
+              } catch (err) {
+                console.error('Error requesting camera permission:', err)
+                setError("Could not access camera. Please check your camera permissions.")
+                setHasPermission(false)
+              }
+            }
+            
+            result.addEventListener('change', () => {
+              setHasPermission(result.state === 'granted')
+              if (result.state === 'granted') {
+                setError(null)
+              }
+            })
+            
+          } catch (permErr) {
+            console.error('Permission API not supported:', permErr)
+            setError("Could not access camera. Please check your camera permissions and try again.")
+            setHasPermission(false)
           }
         }
       } catch (err) {
-        // Browser might not support permission query for camera
-        console.log('Permission API not supported, trying direct access')
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true })
-          setHasPermission(true)
-        } catch (err) {
-          console.error('Error accessing camera:', err)
-          setError("Could not access camera. Please make sure you have a camera connected and have granted camera permissions.")
-        }
+        console.error('Camera permission check error:', err)
+        setError("Could not access camera. Please make sure you have a camera connected and have granted camera permissions.")
+        setHasPermission(false)
       }
     }
 
@@ -101,25 +130,30 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         setIsScanning(true)
         console.log('Starting scanner with device:', selectedDeviceId)
 
-        // Start scanning
-        const controls = await codeReader.decodeFromVideoDevice(
-          selectedDeviceId,
-          videoRef.current,
-          (result, error) => {
-            if (mounted && result) {
-              console.log('QR code detected:', result.getText())
-              onScanSuccess(result.getText())
+        try {
+          const controls = await codeReader.decodeFromVideoDevice(
+            selectedDeviceId,
+            videoRef.current,
+            (result, error) => {
+              if (mounted && result) {
+                console.log('QR code detected:', result.getText())
+                onScanSuccess(result.getText())
+              }
+              if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
+                console.error('QR scanning error:', error)
+              }
             }
-            if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
-              console.error('QR scanning error:', error)
-            }
-          }
-        )
-        
-        controlsRef.current = controls
+          )
+          
+          controlsRef.current = controls
+        } catch (err) {
+          console.error('Error starting QR scanner:', err)
+          throw new Error("Could not start the camera. Please try again or check your camera permissions.")
+        }
       } catch (err) {
-        console.error('Error starting scanner:', err)
+        console.error('Scanner initialization error:', err)
         setError(err instanceof Error ? err.message : 'Could not start the QR scanner')
+        setIsScanning(false)
       }
     }
 
@@ -154,9 +188,14 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
               Try refreshing the page after enabling camera access.
             </p>
           </div>
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh Page
+            </Button>
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       </Card>
     )
@@ -185,11 +224,11 @@ export function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
               Try refreshing the page or checking your browser settings.
             </p>
           </div>
-          <div className="space-y-2">
+          <div className="space-x-2">
             <Button variant="outline" onClick={() => window.location.reload()}>
               Refresh Page
             </Button>
-            <Button variant="outline" onClick={onClose} className="ml-2">
+            <Button variant="outline" onClick={onClose}>
               Close
             </Button>
           </div>
