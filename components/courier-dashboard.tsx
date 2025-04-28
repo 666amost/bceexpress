@@ -169,9 +169,9 @@ export function CourierDashboard() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Logout
-          </Button>
+        <Button variant="outline" onClick={handleLogout}>
+          <LogOut className="h-4 w-4 mr-2" /> Logout
+        </Button>
         </div>
       </div>
 
@@ -183,51 +183,51 @@ export function CourierDashboard() {
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Bulk Shipments</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
-          {totalBulkShipments > 0 && (
-            <Button
+                {totalBulkShipments > 0 && (
+                  <Button
               variant="outline"
-              size="sm"
-              onClick={() => setShowBulkDetails(true)}
+                    size="sm"
+                    onClick={() => setShowBulkDetails(true)}
               className="absolute right-6 top-6"
-            >
-              <Eye className="h-4 w-4 mr-1" /> View
-            </Button>
-          )}
-        </div>
+                  >
+                    <Eye className="h-4 w-4 mr-1" /> View
+                  </Button>
+                )}
+              </div>
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle className="h-6 w-6 text-green-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
-          </div>
+            </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
-          {completedCount > 0 && (
-            <Button
+                {completedCount > 0 && (
+                  <Button
               variant="outline"
-              size="sm"
-              onClick={() => setShowCompletedTodayDetails(true)}
+                    size="sm"
+                    onClick={() => setShowCompletedTodayDetails(true)}
               className="absolute right-6 top-6"
-            >
-              <Eye className="h-4 w-4 mr-1" /> View
-            </Button>
-          )}
-        </div>
-      </div>
+                  >
+                    <Eye className="h-4 w-4 mr-1" /> View
+                  </Button>
+                )}
+            </div>
+          </div>
 
       {/* Action Buttons */}
       <div className="flex flex-col md:flex-row gap-4 mb-10">
-        <Button
+            <Button
           className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black font-semibold py-6 text-lg flex-1 shadow"
-          onClick={() => setIsBulkModalOpen(true)}
-        >
-          Bulk Shipped Update
-        </Button>
-        <Button
+              onClick={() => setIsBulkModalOpen(true)}
+            >
+              Bulk Shipped Update
+            </Button>
+            <Button
           className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-6 text-lg flex-1 shadow"
           onClick={() => router.push('/courier/update')}
-        >
-          Update Shipment Status
-        </Button>
-      </div>
+            >
+              Update Shipment Status
+            </Button>
+          </div>
 
       <BulkUpdateModal
         isOpen={isBulkModalOpen}

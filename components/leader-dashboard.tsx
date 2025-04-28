@@ -229,97 +229,97 @@ export function LeaderDashboard() {
           <User className="h-8 w-8 text-blue-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Couriers</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{couriers.length}</span>
-        </div>
+            </div>
         <div className="bg-orange-50/70 dark:bg-orange-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
           <Package className="h-8 w-8 text-orange-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Shipments</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalShipments}</span>
-        </div>
+            </div>
         <div className="bg-yellow-50/70 dark:bg-yellow-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
           <AlertCircle className="h-8 w-8 text-yellow-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalPending}</span>
-        </div>
+            </div>
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
           <CheckCircle className="h-8 w-8 text-green-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Deliveries</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalCompleted}</span>
-        </div>
+            </div>
       </div>
 
       {/* Courier Performance */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 mb-10">
-        <Tabs defaultValue="couriers" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="couriers">Couriers</TabsTrigger>
-            <TabsTrigger value="shipments">Shipments</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="couriers" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="couriers">Couriers</TabsTrigger>
+              <TabsTrigger value="shipments">Shipments</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="couriers">
+            <TabsContent value="couriers">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {couriers.map((courier) => (
+                {couriers.map((courier) => (
                 <div
-                  key={courier.id}
+                    key={courier.id}
                   className={`bg-zinc-50 dark:bg-zinc-800 rounded-xl shadow p-6 flex flex-col gap-2 transition hover:shadow-2xl cursor-pointer border border-transparent hover:border-blue-400 ${selectedCourier === courier.id ? "border-blue-500 bg-blue-50/60 dark:bg-blue-900/30" : ""}`}
-                  onClick={() => setSelectedCourier(courier.id)}
-                >
+                    onClick={() => setSelectedCourier(courier.id)}
+                  >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                       <User className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <div>
+                        </div>
+                        <div>
                       <h3 className="font-medium text-lg text-zinc-800 dark:text-zinc-100">{courier.name}</h3>
                       <p className="text-xs text-zinc-400">{courier.email}</p>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                   <div className="flex gap-4 mt-2">
                     <div className="flex flex-col items-center">
                       <Package className="h-4 w-4 text-blue-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.total || 0}</span>
                       <span className="text-xs text-zinc-400">Total</span>
-                    </div>
+                        </div>
                     <div className="flex flex-col items-center">
                       <AlertCircle className="h-4 w-4 text-yellow-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.pending || 0}</span>
                       <span className="text-xs text-zinc-400">Pending</span>
-                    </div>
+                        </div>
                     <div className="flex flex-col items-center">
                       <CheckCircle className="h-4 w-4 text-green-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.completed || 0}</span>
                       <span className="text-xs text-zinc-400">Completed</span>
-                    </div>
-                  </div>
-                  {courier.latestLatitude && courier.latestLongitude && (
+                        </div>
+                      </div>
+                      {courier.latestLatitude && courier.latestLongitude && (
                     <div className="mt-3">
                       <p className="text-xs text-zinc-400">Last Location:</p>
-                      <a
-                        href={`https://www.google.com/maps/place/${courier.latestLatitude},${courier.latestLongitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                            <a
+                              href={`https://www.google.com/maps/place/${courier.latestLatitude},${courier.latestLongitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:underline"
-                      >
-                        {courier.latestLatitude?.toFixed(6)}, {courier.latestLongitude?.toFixed(6)}
-                      </a>
-                    </div>
-                  )}
+                            >
+                              {courier.latestLatitude?.toFixed(6)}, {courier.latestLongitude?.toFixed(6)}
+                            </a>
+                        </div>
+                      )}
                 </div>
-              ))}
-              {couriers.length === 0 && (
-                <div className="col-span-full text-center py-8 text-muted-foreground">
-                  No couriers found. Please check your database.
-                </div>
-              )}
-            </div>
-          </TabsContent>
+                ))}
+                {couriers.length === 0 && (
+                  <div className="col-span-full text-center py-8 text-muted-foreground">
+                    No couriers found. Please check your database.
+                  </div>
+                )}
+              </div>
+            </TabsContent>
 
-          <TabsContent value="shipments">
-            {selectedCourier ? (
-              <CourierShipmentList courierId={selectedCourier} />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">Select a courier to view their shipments</div>
-            )}
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="shipments">
+              {selectedCourier ? (
+                <CourierShipmentList courierId={selectedCourier} />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">Select a courier to view their shipments</div>
+              )}
+            </TabsContent>
+          </Tabs>
       </div>
 
       {/* Debug info - remove in production */}
