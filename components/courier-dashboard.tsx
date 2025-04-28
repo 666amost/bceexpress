@@ -1,0 +1,323 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Loader2, LogOut, Eye, Package, CheckCircle } from "lucide-react"
+import { supabaseClient } from "@/lib/auth"
+import { BulkUpdateModal } from "./bulk-update-modal"
+import { useToast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+
+export function CourierDashboard() {
+  const [isLoading, setIsLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [completedCount, setCompletedCount] = useState(0)
+  const [lastCompletedAwb, setLastCompletedAwb] = useState("")
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
+  const [totalBulkShipments, setTotalBulkShipments] = useState(0)
+  const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
+  const [showBulkDetails, setShowBulkDetails] = useState(false)
+  const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
+  const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
+
+  const router = useRouter()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    async function loadUserProfile() {
+      try {
+        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
+        if (sessionError) {
+          console.error("Error getting session:", sessionError)
+          setIsLoading(false)
+          return
+        }
+        if (!sessionData?.session?.user?.id) {
+          router.push("/courier")
+          return
+        }
+
+        const userId = sessionData.session.user.id
+        const { data: userData, error: userError } = await supabaseClient
+          .from("users")
+          .select("*")
+          .eq("id", userId)
+          .single()
+
+        if (userError) {
+          console.error("Error fetching user profile:", userError)
+          setIsLoading(false)
+          return
+        }
+
+        setCurrentUser(userData)
+        loadShipmentData(userData)
+      } catch (err) {
+        console.error("Error loading dashboard:", err)
+        setIsLoading(false)
+      }
+    }
+
+    loadUserProfile()
+  }, [router])
+
+  const loadShipmentData = async (user: any) => {
+    setIsLoading(true)
+    try {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayISOString = today.toISOString()
+      const courierId = user?.id
+      const courierName = user?.name || user?.email?.split("@")[0] || ""
+      console.log("Courier ID for filtering bulk:", courierId)
+      console.log("Courier Name for filtering completed:", courierName)
+      console.log("Today ISO String:", todayISOString)
+
+      // Get total bulk shipments assigned to this courier
+      const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
+        .from("shipments")
+        .select("*")
+        .eq("current_status", "out_for_delivery")
+        .eq("courier_id", courierId)
+        .order("created_at", { ascending: false })
+
+      if (bulkShipmentsError) {
+        console.error("Error fetching bulk shipments:", bulkShipmentsError)
+      } else {
+        setTotalBulkShipments(bulkShipmentsData?.length || 0)
+        setBulkShipmentAwbs(bulkShipmentsData || [])
+        console.log("Bulk Shipments Data:", bulkShipmentsData)
+      }
+
+      // Count completed today by this courier (using notes as before)
+      const { data: completedTodayData, error: completedTodayError } = await supabaseClient
+        .from("shipment_history")
+        .select("*")
+        .eq("status", "delivered")
+        .ilike("notes", `%${courierName}%`)
+        .gte("created_at", todayISOString)
+
+      if (completedTodayError) {
+        console.error("Error fetching completed today:", completedTodayError)
+      } else {
+        setCompletedCount(completedTodayData?.length || 0)
+        setCompletedTodayShipments(completedTodayData || [])
+        console.log("Completed Today Data:", completedTodayData)
+        if (completedTodayData && completedTodayData.length > 0) {
+          const sortedData = [...completedTodayData].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )
+          setLastCompletedAwb(sortedData[0].awb_number)
+        } else {
+          setLastCompletedAwb("")
+        }
+      }
+    } catch (error) {
+      console.error("Error loading shipment data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBulkUpdateSuccess = (count: number) => {
+    toast({
+      title: "Bulk Update Successful",
+      description: `${count} shipments have been updated to "Shipped" status.`,
+    })
+    if (currentUser) {
+      loadShipmentData(currentUser)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await supabaseClient.auth.signOut()
+      router.push("/courier")
+    } catch (err) {
+      console.error("Error signing out:", err)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  const displayName = currentUser?.name || currentUser?.email?.split("@")[0] || ""
+  const emailDisplay = currentUser?.email || ""
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Courier Dashboard</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+            Welcome, <span className="font-semibold">{displayName}</span>
+          </p>
+          <p className="text-sm text-zinc-400">{emailDisplay}</p>
+          {lastCompletedAwb && (
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Logout
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+        <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
+          <div className="flex items-center gap-3 mb-2">
+            <Package className="h-6 w-6 text-blue-500" />
+            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Bulk Shipments</span>
+          </div>
+          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
+          {totalBulkShipments > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkDetails(true)}
+              className="absolute right-6 top-6"
+            >
+              <Eye className="h-4 w-4 mr-1" /> View
+            </Button>
+          )}
+        </div>
+        <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
+          <div className="flex items-center gap-3 mb-2">
+            <CheckCircle className="h-6 w-6 text-green-500" />
+            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
+          </div>
+          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
+          {completedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCompletedTodayDetails(true)}
+              className="absolute right-6 top-6"
+            >
+              <Eye className="h-4 w-4 mr-1" /> View
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col md:flex-row gap-4 mb-10">
+        <Button
+          className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black font-semibold py-6 text-lg flex-1 shadow"
+          onClick={() => setIsBulkModalOpen(true)}
+        >
+          Bulk Shipped Update
+        </Button>
+        <Button
+          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-6 text-lg flex-1 shadow"
+          onClick={() => router.push('/courier/update')}
+        >
+          Update Shipment Status
+        </Button>
+      </div>
+
+      <BulkUpdateModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onSuccess={handleBulkUpdateSuccess}
+      />
+
+      {/* Bulk Shipments Details Dialog */}
+      <Dialog open={showBulkDetails} onOpenChange={setShowBulkDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Shipments Details</DialogTitle>
+            <DialogDescription>
+              These are the shipments that have been marked as "Out For Delivery" and are pending delivery
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto mt-4">
+            {bulkShipmentAwbs.length > 0 ? (
+              <div className="space-y-3">
+                {bulkShipmentAwbs.map((shipment) => (
+                  <div
+                    key={shipment.awb_number}
+                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-blue-500" />
+                        <span className="font-mono font-medium">{shipment.awb_number}</span>
+                        <Badge variant="outline" className="ml-2">
+                          Out For Delivery
+                        </Badge>
+                      </div>
+                      <p className="text-sm mt-1">
+                        {shipment.receiver_name !== "Auto Generated"
+                          ? `${shipment.receiver_name} - ${shipment.receiver_address}`
+                          : "Auto Generated Shipment"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Updated: {new Date(shipment.updated_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button size="sm" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                      Update
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">No bulk shipments found</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Completed Today Details Dialog */}
+      <Dialog open={showCompletedTodayDetails} onOpenChange={setShowCompletedTodayDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Shipments Completed Today</DialogTitle>
+            <DialogDescription>These are the shipments that you have marked as "Delivered" today.</DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto mt-4">
+            {completedTodayShipments.length > 0 ? (
+              <div className="space-y-3">
+                {completedTodayShipments.map((shipment) => (
+                  <div
+                    key={shipment.id}
+                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="font-mono font-medium">{shipment.awb_number}</span>
+                      </div>
+                      <p className="text-sm mt-1">Location: {shipment.location}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Completed at: {new Date(shipment.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">No shipments completed today</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
