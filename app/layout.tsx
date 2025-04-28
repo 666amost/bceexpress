@@ -4,27 +4,15 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 
-const inter = Inter({ subsets: ["latin"], display: 'swap' })
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "BCE EXPRESS - Better Cargo Experience",
   description: "Track your shipments in real-time with BCE EXPRESS's advanced tracking system",
   icons: {
-    icon: [
-      {
-        url: "/icon.png",
-        href: "/icon.png",
-      },
-    ],
-    shortcut: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: "/favicon.ico",
   },
-  manifest: "/manifest.json",
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  },
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -33,17 +21,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="h-full">
-      <body className={`${inter.className} antialiased min-h-screen bg-background`}>
-        <ThemeProvider 
-          attribute="class" 
-          defaultTheme="light" 
-          enableSystem 
-          disableTransitionOnChange
-        >
-          <div className="relative flex min-h-screen flex-col">
-            {children}
-          </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          {children}
         </ThemeProvider>
       </body>
     </html>

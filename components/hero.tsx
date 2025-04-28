@@ -22,37 +22,47 @@ export function Hero() {
   }
 
   return (
-    <div className="w-full">
-      <div className="flex flex-col items-center justify-center space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
-            Your Reliable Logistics Partner
-          </h1>
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-[42rem] mx-auto">
-            Track your shipments in real-time with BCE EXPRESS&apos;s advanced tracking system
-          </p>
+    <div className="bg-background text-foreground py-16">
+      <div className="container mx-auto px-4 text-center">
+        <div className="mb-8 flex justify-center">
+          {/* Logo hitam untuk light mode */}
+          <Image
+            src="/images/bce-logo.png"
+            alt="BCE EXPRESS - Better Cargo Experience"
+            width={400}
+            height={120}
+            className="h-auto block dark:hidden"
+            priority
+          />
+          {/* Logo putih untuk dark mode */}
+          <Image
+            src="/images/bce-logo-white.png"
+            alt="BCE EXPRESS - Better Cargo Experience"
+            width={400}
+            height={120}
+            className="h-auto hidden dark:block"
+            priority
+          />
         </div>
-
-        <Card className="w-full max-w-md bg-white dark:bg-zinc-900 shadow-xl">
-          <CardHeader className="space-y-1 bg-primary text-primary-foreground p-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold text-center">Track Your Shipment</h2>
+        <h1 className="text-4xl md:text-5xl font-bold mb-4">Your Reliable Logistics Partner</h1>
+        <p className="text-xl mb-8 max-w-2xl mx-auto text-muted-foreground">
+          Track your shipments in real-time with BCE EXPRESS&apos;s advanced tracking system
+        </p>
+        <Card className="max-w-md mx-auto shadow-xl border-0">
+          <CardHeader className="bg-primary text-white p-4 rounded-t-lg">
+            <h2 className="text-xl font-semibold">Track Your Shipment</h2>
           </CardHeader>
           <CardContent className="p-6">
-            <form onSubmit={handleTrack} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={handleTrack} className="flex">
               <Input
                 type="text"
                 placeholder="Enter AWB Number"
                 value={awbNumber}
                 onChange={(e) => setAwbNumber(e.target.value)}
-                className="flex-1 h-11"
+                className="flex-grow rounded-r-none focus:ring-primary"
               />
-              <Button 
-                type="submit" 
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-              >
-                <Search className="h-5 w-5 mr-2" /> 
-                Track
+              <Button type="submit" className="rounded-l-none">
+                <Search className="h-4 w-4 mr-2" /> Track
               </Button>
             </form>
           </CardContent>
