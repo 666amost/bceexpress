@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -22,9 +22,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.className} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
+          <div className="relative flex min-h-screen flex-col">
+            {children}
+          </div>
         </ThemeProvider>
       </body>
     </html>

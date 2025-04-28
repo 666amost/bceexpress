@@ -9,10 +9,8 @@ import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Hero } from "@/components/hero" // Asumsikan komponen ini ada dan berisi form input AWB
 import { Footer } from "@/components/footer"
-import { QRScannerQuagga } from "@/components/qr-scanner-quagga"
-
-// Import ikon dari lucide-react
-import { QrCode } from "lucide-react" // Menggunakan ikon QrCode
+import { QrCode } from "lucide-react"
+import { QRScanner } from "@/components/qr-scanner"
 
 // ID untuk elemen div tempat scanner akan dirender di dalam QRScanner.tsx
 // Pastikan ID ini sama dengan yang digunakan di komponen QRScanner Anda
@@ -69,13 +67,13 @@ export default function Home() {
       <main className="flex-1 container mx-auto px-4 py-16 flex flex-col items-center">
         {/* Hero Section in a large card */}
         {!showScanner && (
-          <div className="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-10 flex flex-col items-center gap-6">
+          <div className="w-full max-w-xl bg-card rounded-2xl shadow-xl p-10 flex flex-col items-center gap-6">
             <Hero />
             <div className="w-full text-center mt-4">
               <p className="text-muted-foreground mb-2">or</p>
               <button
                 onClick={() => setShowScanner(true)}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold text-lg shadow hover:scale-105 transition flex items-center justify-center gap-2"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-4 rounded-lg font-semibold text-lg shadow hover:scale-105 transition flex items-center justify-center gap-2"
               >
                 <QrCode className="h-6 w-6" />
                 <span>Scan QR Code Instead</span>
@@ -85,8 +83,8 @@ export default function Home() {
         )}
         {/* Scanner Section in a separate card */}
         {showScanner && (
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl mt-8">
-            <QRScannerQuagga onScan={handleScanSuccess} onClose={handleCloseScanner} />
+          <div className="w-full max-w-md bg-card p-8 rounded-2xl shadow-2xl mt-8">
+            <QRScanner onScan={handleScanSuccess} onClose={handleCloseScanner} />
           </div>
         )}
       </main>

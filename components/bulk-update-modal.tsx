@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Loader2, QrCode } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
-import { QRScannerQuagga } from "@/components/qr-scanner-quagga"
+import { QRScanner } from "@/components/qr-scanner"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -62,9 +62,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       const newAwbList = [...currentAwbs, result]
       setAwbNumbers(newAwbList.join("\n"))
     }
-
-    // Close the scanner
-    setShowScanner(false)
   }
 
   const handleSubmit = async () => {
@@ -162,7 +159,20 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={showScanner ? "sm:max-w-md" : "sm:max-w-md"}>
         {showScanner ? (
-          <QRScannerQuagga onScan={handleQRScan} onClose={() => setShowScanner(false)} />
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Scan QR Code</DialogTitle>
+              <DialogDescription>
+                Position the QR code within the frame to scan. The scanner will automatically detect valid codes.
+              </DialogDescription>
+            </DialogHeader>
+            <QRScanner onScanSuccess={handleQRScan} onClose={() => setShowScanner(false)} />
+            <div className="text-center">
+              <Button variant="outline" onClick={() => setShowScanner(false)}>
+                Close Scanner
+              </Button>
+            </div>
+          </div>
         ) : (
           <>
             <DialogHeader>

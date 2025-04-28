@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Camera, MapPin, Upload, X, CheckCircle, ArrowLeft, QrCode } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
-import { QRScannerQuagga } from "@/components/qr-scanner-quagga"
+import { QRScanner } from "@/components/qr-scanner"
 import imageCompression from "browser-image-compression"
 
 // Create a client component wrapper for the search params
@@ -88,7 +88,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const handleQRScan = (result: string) => {
     setAwbNumber(result)
-    setShowScanner(false)
     fetchShipmentDetails(result)
   }
 
@@ -336,11 +335,16 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   if (showScanner) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <QRScannerQuagga onScan={handleQRScan} onClose={() => setShowScanner(false)} />
-        </CardContent>
-      </Card>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="w-full max-w-md">
+          <QRScanner onScanSuccess={handleQRScan} onClose={() => setShowScanner(false)} />
+          <div className="text-center mt-4">
+            <Button variant="outline" onClick={() => setShowScanner(false)}>
+              Close Scanner
+            </Button>
+          </div>
+        </div>
+      </div>
     )
   }
 
