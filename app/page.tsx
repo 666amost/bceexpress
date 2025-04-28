@@ -66,25 +66,31 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar /> {/* Komponen Navbar */}
-      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
-        <div className="max-w-7xl mx-auto">
-          {!showScanner && (
-            <div className="w-full max-w-xl mx-auto bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-6 sm:p-8 lg:p-10 flex flex-col items-center gap-6">
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-4xl mx-auto">
+          {!showScanner ? (
+            <div className="w-full bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-6 sm:p-8 lg:p-10">
               <Hero />
-              <div className="w-full text-center mt-4">
-                <p className="text-muted-foreground mb-4">or</p>
+              <div className="mt-8 text-center">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white dark:bg-zinc-900 px-4 text-sm text-muted-foreground">or</span>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowScanner(true)}
-                  className="w-full md:max-w-md mx-auto bg-gradient-to-r from-blue-500 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold text-lg shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
+                  className="mt-6 w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 space-x-2"
                 >
-                  <QrCode className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <QrCode className="h-5 w-5" />
                   <span>Scan QR Code Instead</span>
                 </button>
               </div>
             </div>
-          )}
-          {showScanner && (
-            <div className="w-full max-w-md mx-auto bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl shadow-2xl mt-8">
+          ) : (
+            <div className="w-full max-w-md mx-auto bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-6">
               <QRScannerQuagga onScan={handleScanSuccess} onClose={handleCloseScanner} />
             </div>
           )}
