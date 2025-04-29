@@ -98,6 +98,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       // Get current user session
       const { data: session } = await supabaseClient.auth.getSession()
       const userName = currentUser || session?.session?.user?.email?.split("@")[0] || "courier"
+      const courierId = session?.session?.user?.id
 
       // Process each AWB number
       for (const awb of awbList) {
@@ -126,6 +127,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               created_at: currentDate,
               updated_at: currentDate,
               updated_by: userName,
+              courier_id: courierId,
             },
           ])
         } else {
@@ -136,6 +138,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               current_status: status,
               updated_at: currentDate,
               updated_by: userName,
+              courier_id: courierId,
             })
             .eq("awb_number", awb)
         }
