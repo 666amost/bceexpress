@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input" // Menggunakan komponen Input dari shadcn/ui
 import { Label } from "@/components/ui/label" // Menggunakan komponen Label dari shadcn/ui
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { supabaseClient } from "@/lib/auth"
 // Import ikon yang dibutuhkan dari lucide-react
 import { Loader2, Eye, EyeOff } from "lucide-react"
@@ -19,6 +20,18 @@ export function CourierAuth() {
   const [loginPassword, setLoginPassword] = useState("")
   // State baru untuk mengontrol visibilitas password
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false)
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem("courierCredentials")
+    if (savedCredentials) {
+      const { email, password, rememberMe } = JSON.parse(savedCredentials)
+      setLoginEmail(email)
+      setLoginPassword(password)
+      setRememberMe(rememberMe)
+    }
+  }, [])
 
   // Fungsi untuk mengganti status visibilitas password
   const togglePasswordVisibility = () => {
@@ -46,6 +59,21 @@ export function CourierAuth() {
         }
         setIsLoading(false)
         return
+      }
+
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem(
+          "courierCredentials",
+          JSON.stringify({
+            email: loginEmail,
+            password: loginPassword,
+            rememberMe,
+          })
+        )
+      } else {
+        // Clear saved credentials if remember me is unchecked
+        localStorage.removeItem("courierCredentials")
       }
 
       // Redirect to dashboard
@@ -120,6 +148,21 @@ export function CourierAuth() {
                   </button>
                 </div>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <label
+                  htmlFor="remember"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Remember me
+                </label>
+              </div>
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
