@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { supabaseClient } from "@/lib/auth"
 import { toast } from "sonner"
 
@@ -12,15 +13,17 @@ export function CourierLoginForm() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
 
   // Load saved credentials on mount
   useEffect(() => {
     const savedCredentials = localStorage.getItem("courierCredentials")
     if (savedCredentials) {
-      const { email, password } = JSON.parse(savedCredentials)
+      const { email, password, rememberMe } = JSON.parse(savedCredentials)
       setEmail(email)
       setPassword(password)
+      setRememberMe(rememberMe)
     }
   }, [])
 
@@ -53,14 +56,20 @@ export function CourierLoginForm() {
         return
       }
 
-      // Always save credentials for couriers
-      localStorage.setItem(
-        "courierCredentials",
-        JSON.stringify({
-          email,
-          password,
-        })
-      )
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem(
+          "courierCredentials",
+          JSON.stringify({
+            email,
+            password,
+            rememberMe,
+          })
+        )
+      } else {
+        // Clear saved credentials if remember me is unchecked
+        localStorage.removeItem("courierCredentials")
+      }
 
       toast.success("Login berhasil!", {
         description: "Selamat datang kembali!",
@@ -110,6 +119,20 @@ export function CourierLoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="remember"
+            checked={rememberMe}
+            onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+          />
+          <label
+            htmlFor="remember"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Remember me
+          </label>
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>

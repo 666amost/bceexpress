@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Package } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
 
 interface BulkShipmentsDetailsProps {
   shipments: Array<{
@@ -30,21 +31,20 @@ export function BulkShipmentsDetails({ shipments }: BulkShipmentsDetailsProps) {
                 <div className="flex items-center gap-2">
                   <Package className="h-5 w-5 text-blue-500" />
                   <span className="font-mono font-medium">{shipment.awb_number}</span>
+                  <Badge variant="outline" className="text-xs">OFD</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">Auto Generated Shipment</p>
                 <p className="text-xs text-muted-foreground">
                   Updated: {new Date(shipment.updated_at).toLocaleString()}
                 </p>
               </div>
-              <div className="flex items-center gap-4 min-w-[120px]">
-                <span className="text-sm font-medium text-blue-600">Out For Delivery</span>
-                <Button
-                  onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}
-                  className="whitespace-nowrap"
-                >
-                  Update
-                </Button>
-              </div>
+              <Button
+                onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}
+                size="sm"
+                className="ml-2"
+              >
+                Update
+              </Button>
             </div>
           </Card>
         ))}
