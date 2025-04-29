@@ -10,14 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Camera } from "lucide-react"
-import { QRScanner } from "@/components/qr-scanner"
+import { Label } from "@/components/ui/label"
+import { Camera, Loader2 } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
+import { QRScanner } from "./qr-scanner"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -29,9 +26,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [awbNumbers, setAwbNumbers] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [showScanner, setShowScanner] = useState(false)
-  const [scannedAwbs, setScannedAwbs] = useState<string[]>([])
 
   useEffect(() => {
     // Get current user
@@ -45,10 +41,14 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           .single()
 
         if (userData) {
-          setCurrentUser(userData.name || userData.email?.split("@")[0])
+          setCurrentUser(userData)
         } else {
+          // If user record doesn't exist but we have session, create a basic user object
           const username = data.session.user.email?.split("@")[0] || "courier"
-          setCurrentUser(username)
+          setCurrentUser({
+            name: username,
+            email: data.session.user.email,
+          })
         }
       }
     }
@@ -58,14 +58,16 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
   const handleQRScan = (result: string) => {
     // Add the scanned AWB to the list
-    const currentAwbs = awbNumbers.trim() ? awbNumbers.split(/\n|,|\s+/) : []
+    const currentAwbs = awbNumbers.trim() ? awbNumbers.split(/[\n,\s]+/) : []
 
     // Check if the AWB is already in the list
     if (!currentAwbs.includes(result)) {
       const newAwbList = [...currentAwbs, result]
       setAwbNumbers(newAwbList.join("\n"))
-      setScannedAwbs(prev => [...prev, result])
     }
+
+    // Close the scanner
+    setShowScanner(false)
   }
 
   const handleSubmit = async () => {
@@ -95,10 +97,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       const status = "out_for_delivery"
       const currentDate = new Date().toISOString()
 
-      // Get current user session
-      const { data: session } = await supabaseClient.auth.getSession()
-      const userName = currentUser || session?.session?.user?.email?.split("@")[0] || "courier"
-      const courierId = session?.session?.user?.id
+      // Get courier name
+      const courierName = currentUser?.name || currentUser?.email?.split("@")[0] || "courier"
 
       // Process each AWB number
       for (const awb of awbList) {
@@ -126,8 +126,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               current_status: status,
               created_at: currentDate,
               updated_at: currentDate,
-              updated_by: userName,
-              courier_id: courierId,
             },
           ])
         } else {
@@ -137,8 +135,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             .update({
               current_status: status,
               updated_at: currentDate,
-              updated_by: userName,
-              courier_id: courierId,
             })
             .eq("awb_number", awb)
         }
@@ -149,9 +145,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             awb_number: awb,
             status,
             location,
-            notes: `Bulk update - Out for Delivery by ${userName}`,
+            notes: `Bulk update - Out for Delivery by ${courierName}`,
             created_at: currentDate,
-            updated_by: userName,
           },
         ])
 
@@ -160,7 +155,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
       onSuccess(successCount)
       setAwbNumbers("")
-      setScannedAwbs([])
       onClose()
     } catch (error) {
       console.error("Bulk update error:", error)
@@ -174,20 +168,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={showScanner ? "sm:max-w-md" : "sm:max-w-md"}>
         {showScanner ? (
-          <div className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>Scan QR Code</DialogTitle>
-              <DialogDescription>
-                Position the QR code within the frame to scan. The scanner will automatically detect valid codes.
-              </DialogDescription>
-            </DialogHeader>
-            <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
-            <div className="text-center">
-              <Button variant="outline" onClick={() => setShowScanner(false)}>
-                Close Scanner
-              </Button>
-            </div>
-          </div>
+          <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
         ) : (
           <>
             <DialogHeader>
@@ -220,22 +201,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                   onChange={(e) => setAwbNumbers(e.target.value)}
                   className="font-mono"
                 />
-                <div className="flex flex-wrap gap-2">
-                  {scannedAwbs.map((awb, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-md text-sm"
-                    >
-                      <span>{awb}</span>
-                      <span className="text-green-500">✓</span>
-                    </div>
-                  ))}
-                </div>
                 <p className="text-xs text-muted-foreground">contoh: BCE123456789, BCE987654321, BE0423056087
-                jika ada coli tambah titik (.) contoh &quot;50532.2c&quot;</p>
+                jika ada coli tambah titik (.) contoh "50532.2c"</p>
                 {currentUser && (
                   <p className="text-xs text-blue-600 dark:text-blue-400">
-                    Updates will be attributed to: {currentUser}
+                    Updates will be attributed to: {currentUser.name || currentUser.email?.split("@")[0]}
                   </p>
                 )}
               </div>
@@ -248,7 +218,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               <Button onClick={handleSubmit} disabled={isLoading}>
                 {isLoading ? (
                   <>
-                    <span className="mr-2 h-4 w-4 animate-spin">⌛</span> Processing...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
                   </>
                 ) : (
                   "Update All For Delivery"
