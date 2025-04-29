@@ -10,11 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, QrCode } from "lucide-react"
-import { supabaseClient } from "@/lib/auth"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Camera } from "lucide-react"
 import { QRScanner } from "@/components/qr-scanner"
+import { supabaseClient } from "@/lib/auth"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -166,7 +169,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 Position the QR code within the frame to scan. The scanner will automatically detect valid codes.
               </DialogDescription>
             </DialogHeader>
-            <QRScanner onScanSuccess={handleQRScan} onClose={() => setShowScanner(false)} />
+            <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
             <div className="text-center">
               <Button variant="outline" onClick={() => setShowScanner(false)}>
                 Close Scanner
@@ -193,7 +196,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                     onClick={() => setShowScanner(true)}
                     className="flex items-center gap-1"
                   >
-                    <QrCode className="h-4 w-4" />
+                    <Camera className="h-4 w-4" />
                     <span>Scan QR</span>
                   </Button>
                 </div>
@@ -222,7 +225,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               <Button onClick={handleSubmit} disabled={isLoading}>
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                    <span className="mr-2 h-4 w-4 animate-spin">⌛</span> Processing...
                   </>
                 ) : (
                   "Update All For Delivery"

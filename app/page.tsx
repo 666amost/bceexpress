@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Hero } from "@/components/hero" // Asumsikan komponen ini ada dan berisi form input AWB
 import { Footer } from "@/components/footer"
-import { QrCode } from "lucide-react"
+import { Camera } from "lucide-react"
 import { QRScanner } from "@/components/qr-scanner"
 
 // ID untuk elemen div tempat scanner akan dirender di dalam QRScanner.tsx
@@ -75,7 +75,7 @@ export default function Home() {
                 onClick={() => setShowScanner(true)}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-4 rounded-lg font-semibold text-lg shadow hover:scale-105 transition flex items-center justify-center gap-2"
               >
-                <QrCode className="h-6 w-6" />
+                <Camera className="h-6 w-6" />
                 <span>Scan QR Code Instead</span>
               </button>
             </div>

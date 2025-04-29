@@ -9,8 +9,19 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Camera, MapPin, Upload, X, CheckCircle, ArrowLeft, QrCode } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  ChevronLeft,
+  Scan,
+  MapPin,
+  Upload,
+  X,
+  Camera,
+  Check,
+  AlertCircle,
+  Zap,
+  ZapOff
+} from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
@@ -43,6 +54,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const [shipmentDetails, setShipmentDetails] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [showScanner, setShowScanner] = useState(false)
+  const [scannerError, setScannerError] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -87,9 +99,31 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   }
 
   const handleQRScan = (result: string) => {
+    if (!result) {
+      setScannerError("Invalid QR code")
+      return
+    }
+    
+    setShowScanner(false) // Close scanner after successful scan
     setAwbNumber(result)
     fetchShipmentDetails(result)
+    setScannerError(null)
   }
+
+  const handleScannerClose = () => {
+    setShowScanner(false)
+    setScannerError(null)
+  }
+
+  // Add cleanup effect for scanner
+  useEffect(() => {
+    return () => {
+      if (showScanner) {
+        setShowScanner(false)
+        setScannerError(null)
+      }
+    }
+  }, [])
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -315,7 +349,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Status Updated Successfully!</h3>
             <p className="text-muted-foreground mb-6">
@@ -337,7 +371,13 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="w-full max-w-md">
-          <QRScanner onScanSuccess={handleQRScan} onClose={() => setShowScanner(false)} />
+          <QRScanner
+            onScan={(result) => {
+              setAwbNumber(result)
+              setShowScanner(false)
+            }}
+            onClose={() => setShowScanner(false)}
+          />
           <div className="text-center mt-4">
             <Button variant="outline" onClick={() => setShowScanner(false)}>
               Close Scanner
@@ -348,12 +388,20 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     )
   }
 
+  if (scannerError) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{scannerError}</AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="mb-6">
           <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
+            <ChevronLeft className="w-6 h-6" /> Back to Dashboard
           </Button>
         </div>
 
@@ -384,7 +432,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   onClick={() => setShowScanner(true)}
                   className="flex items-center gap-1"
                 >
-                  <QrCode className="h-4 w-4" />
+                  <Scan className="w-6 h-6" />
                   <span>Scan QR</span>
                 </Button>
               </div>
@@ -422,7 +470,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   required
                 />
                 <Button type="button" onClick={getCurrentLocation} className="rounded-l-none">
-                  <MapPin className="h-4 w-4 mr-2" /> GPS
+                  <MapPin className="w-6 h-6" /> GPS
                 </Button>
               </div>
               {gpsCoords && (
@@ -467,7 +515,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                     <Camera className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
                     <p className="text-muted-foreground mb-2">Upload photo proof of delivery</p>
                     <Button type="button" onClick={() => fileInputRef.current?.click()}>
-                      <Upload className="h-4 w-4 mr-2" /> Select Photo
+                      <Upload className="w-6 h-6" /> Select Photo
                     </Button>
                   </div>
                 )}
