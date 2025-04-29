@@ -26,6 +26,8 @@ import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
 import imageCompression from "browser-image-compression"
+import browserBeep from "browser-beep"
+import { toast } from "sonner"
 
 // Create a client component wrapper for the search params
 function CourierUpdateFormWithSearchParams() {
@@ -55,6 +57,8 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [showScanner, setShowScanner] = useState(false)
   const [scannerError, setScannerError] = useState<string | null>(null)
+  const beepRef = useRef<ReturnType<typeof browserBeep> | null>(null)
+  const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -87,6 +91,35 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
   }, [initialAwb])
 
+  useEffect(() => {
+    // Initialize beep sound with 100% volume
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    beepRef.current = browserBeep({ 
+      frequency: 800,
+      context: audioContext
+    })
+    
+    return () => {
+      if (audioContext) {
+        audioContext.close()
+      }
+      if (beepTimeoutRef.current) {
+        clearTimeout(beepTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const playBeep = () => {
+    if (beepRef.current && !beepTimeoutRef.current) {
+      beepRef.current(1) // Play beep once at full volume
+      
+      // Set timeout to prevent multiple beeps
+      beepTimeoutRef.current = setTimeout(() => {
+        beepTimeoutRef.current = null
+      }, 1000) // Prevent beep for 1 second
+    }
+  }
+
   const fetchShipmentDetails = async (awb: string) => {
     try {
       const { data, error } = await supabaseClient.from("shipments").select("*").eq("awb_number", awb).single()
@@ -108,6 +141,11 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     setAwbNumber(result)
     fetchShipmentDetails(result)
     setScannerError(null)
+    playBeep()
+    toast.success("AWB berhasil di-scan!", {
+      description: result,
+      duration: 2000,
+    })
   }
 
   const handleScannerClose = () => {
