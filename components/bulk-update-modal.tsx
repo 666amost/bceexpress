@@ -47,7 +47,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         if (userData) {
           setCurrentUser(userData.name || userData.email?.split("@")[0])
         } else {
-          // If user record doesn't exist but we have session, create a basic user object
           const username = data.session.user.email?.split("@")[0] || "courier"
           setCurrentUser(username)
         }
@@ -96,6 +95,10 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       const status = "out_for_delivery"
       const currentDate = new Date().toISOString()
 
+      // Get current user session
+      const { data: session } = await supabaseClient.auth.getSession()
+      const userName = currentUser || session?.session?.user?.email?.split("@")[0] || "courier"
+
       // Process each AWB number
       for (const awb of awbList) {
         // Check if shipment exists
@@ -122,6 +125,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               current_status: status,
               created_at: currentDate,
               updated_at: currentDate,
+              updated_by: userName,
             },
           ])
         } else {
@@ -131,6 +135,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             .update({
               current_status: status,
               updated_at: currentDate,
+              updated_by: userName,
             })
             .eq("awb_number", awb)
         }
@@ -141,8 +146,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             awb_number: awb,
             status,
             location,
-            notes: `Bulk update - Out for Delivery by ${currentUser}`,
+            notes: `Bulk update - Out for Delivery by ${userName}`,
             created_at: currentDate,
+            updated_by: userName,
           },
         ])
 

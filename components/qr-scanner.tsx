@@ -81,6 +81,10 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       const status = "out_for_delivery"
       const location = "Sorting Center"
 
+      // Get current user session
+      const { data: session } = await supabaseClient.auth.getSession()
+      const userName = currentUser || session?.session?.user?.email?.split("@")[0] || "courier"
+
       // Check if shipment exists
       const { data: existingShipment } = await supabaseClient
         .from("shipments")
@@ -105,6 +109,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
             current_status: status,
             created_at: currentDate,
             updated_at: currentDate,
+            updated_by: userName,
           },
         ])
       } else {
@@ -114,6 +119,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           .update({
             current_status: status,
             updated_at: currentDate,
+            updated_by: userName,
           })
           .eq("awb_number", awbNumber)
       }
@@ -124,8 +130,9 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           awb_number: awbNumber,
           status,
           location,
-          notes: `Bulk update - Out for Delivery by ${currentUser}`,
+          notes: `Bulk update - Out for Delivery by ${userName}`,
           created_at: currentDate,
+          updated_by: userName,
         },
       ])
 
