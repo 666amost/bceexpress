@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Camera } from "lucide-react"
 import browserBeep from "browser-beep"
+import { toast } from "sonner"
 
 interface QRScannerProps {
   onScan: (result: string) => void
@@ -16,6 +17,8 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const beepRef = useRef<ReturnType<typeof browserBeep> | null>(null)
+  const lastScannedRef = useRef<string>("")
+  const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     // Initialize beep sound with 100% volume
@@ -32,12 +35,20 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       if (audioContext) {
         audioContext.close()
       }
+      if (beepTimeoutRef.current) {
+        clearTimeout(beepTimeoutRef.current)
+      }
     }
   }, [])
 
   const playBeep = () => {
-    if (beepRef.current) {
+    if (beepRef.current && !beepTimeoutRef.current) {
       beepRef.current(1) // Play beep once at full volume
+      
+      // Set timeout to prevent multiple beeps
+      beepTimeoutRef.current = setTimeout(() => {
+        beepTimeoutRef.current = null
+      }, 1000) // Prevent beep for 1 second
     }
   }
 
@@ -56,14 +67,29 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           qrbox: { width: 250, height: 250 },
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
-          // Play success beep at full volume
+          // Prevent duplicate scans of the same code
+          if (decodedText === lastScannedRef.current) {
+            return
+          }
+          
+          lastScannedRef.current = decodedText
+          
+          // Play success beep
           playBeep()
+          
+          // Show success notification
+          toast.success("QR Code berhasil di-scan!", {
+            description: decodedText,
+            duration: 2000,
+          })
           
           // Handle the scanned code
           onScan(decodedText)
           
-          // Don't stop scanning - continue for next code
-          setIsScanning(true)
+          // Reset last scanned after a short delay to allow rescanning the same code
+          setTimeout(() => {
+            lastScannedRef.current = ""
+          }, 2000)
         },
         (errorMessage: string) => {
           // Ignore errors - they're usually just "No QR code found" messages
@@ -73,6 +99,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       setIsScanning(true)
     } catch (err) {
       console.error("Error starting scanner:", err)
+      toast.error("Gagal memulai kamera. Silakan coba lagi.")
     }
   }
 
