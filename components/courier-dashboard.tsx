@@ -96,12 +96,12 @@ export function CourierDashboard() {
         setBulkShipmentAwbs(bulkShipmentsData || [])
       }
 
-      // Get pending deliveries (shipments from before today that are still out_for_delivery)
+      // Get pending deliveries (shipments from before today that are still out_for_delivery or shipped)
       const { data: pendingData, error: pendingError } = await supabaseClient
         .from("shipments")
         .select("*")
-        .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
+        .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
         .order("created_at", { ascending: false })
 
