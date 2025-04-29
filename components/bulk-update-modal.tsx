@@ -31,6 +31,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [showScanner, setShowScanner] = useState(false)
+  const [scannedAwbs, setScannedAwbs] = useState<string[]>([])
 
   useEffect(() => {
     // Get current user
@@ -64,6 +65,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     if (!currentAwbs.includes(result)) {
       const newAwbList = [...currentAwbs, result]
       setAwbNumbers(newAwbList.join("\n"))
+      setScannedAwbs(prev => [...prev, result])
     }
   }
 
@@ -149,6 +151,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
       onSuccess(successCount)
       setAwbNumbers("")
+      setScannedAwbs([])
       onClose()
     } catch (error) {
       console.error("Bulk update error:", error)
@@ -208,6 +211,17 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                   onChange={(e) => setAwbNumbers(e.target.value)}
                   className="font-mono"
                 />
+                <div className="flex flex-wrap gap-2">
+                  {scannedAwbs.map((awb, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-md text-sm"
+                    >
+                      <span>{awb}</span>
+                      <span className="text-green-500">✓</span>
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-muted-foreground">contoh: BCE123456789, BCE987654321, BE0423056087
                 jika ada coli tambah titik (.) contoh &quot;50532.2c&quot;</p>
                 {currentUser && (
