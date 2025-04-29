@@ -202,7 +202,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">contoh: BCE123456789, BCE987654321, BE0423056087
-                jika ada coli tambah titik (.) contoh "50532.2c"</p>
+                hati-hati dijalan</p>
                 {currentUser && (
                   <p className="text-xs text-blue-600 dark:text-blue-400">
                     Updates will be attributed to: {currentUser.name || currentUser.email?.split("@")[0]}

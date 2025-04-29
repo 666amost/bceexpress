@@ -172,9 +172,18 @@ export function CourierDashboard() {
   const emailDisplay = currentUser?.email || ""
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="relative max-w-5xl mx-auto px-4 py-8 overflow-hidden">
+      {/* Watermark Background */}
+      <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04]">
+        {Array.from({ length: 48 }).map((_, i) => (
+          <div key={i} className="text-black dark:text-white -rotate-[36deg]">
+            <span className="font-semibold text-sm whitespace-nowrap">BCE Express</span>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Courier Dashboard</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">
