@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, LogOut, Eye, Package, CheckCircle } from "lucide-react"
+import { Loader2Icon, LogOutIcon, EyeIcon, PackageIcon, CheckCircle2Icon } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { useToast } from "@/hooks/use-toast"
@@ -18,8 +18,11 @@ export function CourierDashboard() {
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const [totalBulkShipments, setTotalBulkShipments] = useState(0)
+  const [pendingDeliveries, setPendingDeliveries] = useState(0)
   const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
+  const [pendingShipments, setPendingShipments] = useState<any[]>([])
   const [showBulkDetails, setShowBulkDetails] = useState(false)
+  const [showPendingDetails, setShowPendingDetails] = useState(false)
   const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
 
@@ -70,18 +73,20 @@ export function CourierDashboard() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const todayISOString = today.toISOString()
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayISOString = yesterday.toISOString()
+      
       const courierId = user?.id
       const courierName = user?.name || user?.email?.split("@")[0] || ""
-      console.log("Courier ID for filtering bulk:", courierId)
-      console.log("Courier Name for filtering completed:", courierName)
-      console.log("Today ISO String:", todayISOString)
 
-      // Get total bulk shipments assigned to this courier
+      // Get today's bulk shipments
       const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
         .from("shipments")
         .select("*")
         .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
+        .gte("created_at", todayISOString)
         .order("created_at", { ascending: false })
 
       if (bulkShipmentsError) {
@@ -89,10 +94,25 @@ export function CourierDashboard() {
       } else {
         setTotalBulkShipments(bulkShipmentsData?.length || 0)
         setBulkShipmentAwbs(bulkShipmentsData || [])
-        console.log("Bulk Shipments Data:", bulkShipmentsData)
       }
 
-      // Count completed today by this courier (using notes as before)
+      // Get pending deliveries (shipments from before today that are still out_for_delivery)
+      const { data: pendingData, error: pendingError } = await supabaseClient
+        .from("shipments")
+        .select("*")
+        .eq("current_status", "out_for_delivery")
+        .eq("courier_id", courierId)
+        .lt("created_at", todayISOString)
+        .order("created_at", { ascending: false })
+
+      if (pendingError) {
+        console.error("Error fetching pending deliveries:", pendingError)
+      } else {
+        setPendingDeliveries(pendingData?.length || 0)
+        setPendingShipments(pendingData || [])
+      }
+
+      // Count completed today
       const { data: completedTodayData, error: completedTodayError } = await supabaseClient
         .from("shipment_history")
         .select("*")
@@ -105,7 +125,6 @@ export function CourierDashboard() {
       } else {
         setCompletedCount(completedTodayData?.length || 0)
         setCompletedTodayShipments(completedTodayData || [])
-        console.log("Completed Today Data:", completedTodayData)
         if (completedTodayData && completedTodayData.length > 0) {
           const sortedData = [...completedTodayData].sort(
             (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -144,7 +163,7 @@ export function CourierDashboard() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -170,48 +189,67 @@ export function CourierDashboard() {
         </div>
         <div className="flex gap-2">
         <Button variant="outline" onClick={handleLogout}>
-          <LogOut className="h-4 w-4 mr-2" /> Logout
+          <LogOutIcon className="h-4 w-4 mr-2" /> Logout
         </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
         <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <Package className="h-6 w-6 text-blue-500" />
-            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Bulk Shipments</span>
+            <PackageIcon className="h-6 w-6 text-blue-500" />
+            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Today's Assignments</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
-                {totalBulkShipments > 0 && (
-                  <Button
+          {totalBulkShipments > 0 && (
+            <Button
               variant="outline"
-                    size="sm"
-                    onClick={() => setShowBulkDetails(true)}
+              size="sm"
+              onClick={() => setShowBulkDetails(true)}
               className="absolute right-6 top-6"
-                  >
-                    <Eye className="h-4 w-4 mr-1" /> View
-                  </Button>
-                )}
-              </div>
+            >
+              <EyeIcon className="h-4 w-4 mr-1" /> View
+            </Button>
+          )}
+        </div>
+
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <CheckCircle className="h-6 w-6 text-green-500" />
+            <CheckCircle2Icon className="h-6 w-6 text-green-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
-            </div>
-          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
-                {completedCount > 0 && (
-                  <Button
-              variant="outline"
-                    size="sm"
-                    onClick={() => setShowCompletedTodayDetails(true)}
-              className="absolute right-6 top-6"
-                  >
-                    <Eye className="h-4 w-4 mr-1" /> View
-                  </Button>
-                )}
-            </div>
           </div>
+          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
+          {completedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCompletedTodayDetails(true)}
+              className="absolute right-6 top-6"
+            >
+              <EyeIcon className="h-4 w-4 mr-1" /> View
+            </Button>
+          )}
+        </div>
+
+        <div className="bg-yellow-50/70 dark:bg-yellow-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
+          <div className="flex items-center gap-3 mb-2">
+            <PackageIcon className="h-6 w-6 text-yellow-500" />
+            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
+          </div>
+          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{pendingDeliveries}</span>
+          {pendingDeliveries > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPendingDetails(true)}
+              className="absolute right-6 top-6"
+            >
+              <EyeIcon className="h-4 w-4 mr-1" /> View
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex flex-col md:flex-row gap-4 mb-10">
@@ -255,7 +293,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-blue-500" />
+                        <PackageIcon className="h-4 w-4 text-blue-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="ml-2">
                           Out For Delivery
@@ -283,6 +321,52 @@ export function CourierDashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Pending Deliveries Dialog */}
+      <Dialog open={showPendingDetails} onOpenChange={setShowPendingDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Pending Deliveries</DialogTitle>
+            <DialogDescription>
+              These are shipments from previous days that are still pending delivery
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto mt-4">
+            {pendingShipments.length > 0 ? (
+              <div className="space-y-3">
+                {pendingShipments.map((shipment) => (
+                  <div
+                    key={shipment.awb_number}
+                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <PackageIcon className="h-4 w-4 text-yellow-500" />
+                        <span className="font-mono font-medium">{shipment.awb_number}</span>
+                        <Badge variant="outline" className="text-xs">OFD</Badge>
+                      </div>
+                      <p className="text-sm mt-1">
+                        {shipment.receiver_name !== "Auto Generated"
+                          ? `${shipment.receiver_name} - ${shipment.receiver_address}`
+                          : "Auto Generated Shipment"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Created: {new Date(shipment.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button size="sm" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                      Update
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">No pending deliveries found</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Completed Today Details Dialog */}
       <Dialog open={showCompletedTodayDetails} onOpenChange={setShowCompletedTodayDetails}>
         <DialogContent className="max-w-3xl">
@@ -301,7 +385,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle2Icon className="h-4 w-4 text-green-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                       </div>
                       <p className="text-sm mt-1">Location: {shipment.location}</p>
