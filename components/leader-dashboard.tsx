@@ -14,6 +14,7 @@ export function LeaderDashboard() {
   const [user, setUser] = useState<any>(null)
   const [couriers, setCouriers] = useState<any[]>([])
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("couriers")
   const [courierStats, setCourierStats] = useState<
     Record<string, { total: number; completed: number; pending: number }>
   >({})
@@ -249,7 +250,7 @@ export function LeaderDashboard() {
 
       {/* Courier Performance */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 mb-10">
-          <Tabs defaultValue="couriers" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="couriers">Couriers</TabsTrigger>
               <TabsTrigger value="shipments">Shipments</TabsTrigger>
@@ -260,8 +261,12 @@ export function LeaderDashboard() {
                 {couriers.map((courier) => (
                 <div
                     key={courier.id}
-                  className={`bg-zinc-50 dark:bg-zinc-800 rounded-xl shadow p-6 flex flex-col gap-2 transition hover:shadow-2xl cursor-pointer border border-transparent hover:border-blue-400 ${selectedCourier === courier.id ? "border-blue-500 bg-blue-50/60 dark:bg-blue-900/30" : ""}`}
+                    className={`bg-zinc-50 dark:bg-zinc-800 rounded-xl shadow p-6 flex flex-col gap-2 transition hover:shadow-2xl cursor-pointer border border-transparent hover:border-blue-400 ${selectedCourier === courier.id ? "border-blue-500 bg-blue-50/60 dark:bg-blue-900/30" : ""}`}
                     onClick={() => setSelectedCourier(courier.id)}
+                    onDoubleClick={() => {
+                      setSelectedCourier(courier.id);
+                      setActiveTab("shipments");
+                    }}
                   >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
