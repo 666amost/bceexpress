@@ -46,7 +46,7 @@ export function Hero() {
         </div>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">Your Reliable Logistics Partner</h1>
         <p className="text-xl mb-8 max-w-2xl mx-auto text-muted-foreground">
-          Track your shipments in real-time with BCE EXPRESS&apos;s advanced tracking system
+          Track your shipments in real-time with BCE EXPRESS advanced tracking system
         </p>
         <Card className="max-w-md mx-auto shadow-xl border-0">
           <CardHeader className="bg-primary text-white p-4 rounded-t-lg">
@@ -56,7 +56,7 @@ export function Hero() {
             <form onSubmit={handleTrack} className="flex">
               <Input
                 type="text"
-                placeholder="Enter AWB Number"
+                placeholder="Masukkan Nomor Resi"
                 value={awbNumber}
                 onChange={(e) => setAwbNumber(e.target.value)}
                 className="flex-grow rounded-r-none focus:ring-primary"

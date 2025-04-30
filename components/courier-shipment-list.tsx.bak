@@ -10,10 +10,9 @@ import { supabaseClient } from "@/lib/auth";
 
 interface CourierShipmentListProps {
   courierId: string;
-  onDeleteShipment?: (shipmentId: string) => void;
 }
 
-export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShipmentListProps) {
+export function CourierShipmentList({ courierId }: CourierShipmentListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [courier, setCourier] = useState<any>(null);
   const [shipments, setShipments] = useState<any[]>([]); // State untuk semua shipment yang terkait dengan kurir
@@ -320,14 +319,23 @@ function ShipmentList({
                   </div>
 
                   <div>
+                    {/* === Bagian Tampilan Lokasi yang Diperbaiki === */}
                     <p className="text-sm text-muted-foreground">Latest Update</p>
+                    {/* Tampilkan location jika ada, kalau tidak, cek latitude/longitude */}
                     <p className="font-medium">
-                      {shipment.latest_update?.location ||
-                       (shipment.latest_update?.latitude != null && shipment.latest_update?.longitude != null
-                         ? `${shipment.latest_update.latitude?.toFixed(6)}, ${shipment.latest_update.longitude?.toFixed(6)}`
-                         : "No location"
-                       )}
+                        {shipment.latest_update?.location ||
+                         (shipment.latest_update?.latitude != null && shipment.latest_update?.longitude != null // Periksa null atau undefined
+                           ? `${shipment.latest_update.latitude?.toFixed(6)}, ${shipment.latest_update.longitude?.toFixed(6)}` // Tampilkan koordinat jika lokasi kosong tapi koordinat ada
+                           : "No location" // Jika location kosong dan koordinat kosong
+                         )
+                        }
                     </p>
+                     {/* Jika perlu menampilkan Altitude (jika ada di database dan Anda tambahkan di select), tambahkan di sini */}
+                     {/* Contoh: */}
+                     {/* {shipment.latest_update?.altitude != null && (
+                        <p className="text-sm text-muted-foreground">Altitude: {shipment.latest_update.altitude} m</p>
+                     )} */}
+                    {/* === Akhir Bagian Tampilan Lokasi === */}
                     <p className="text-sm">{shipment.latest_update?.notes || "No notes"}</p>
                     <p className="text-xs text-muted-foreground">
                       {shipment.latest_update ? new Date(shipment.latest_update.created_at).toLocaleString() : ""}

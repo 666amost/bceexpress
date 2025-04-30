@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, LogOut, User, Package, CheckCircle, AlertCircle } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { CourierShipmentList } from "./courier-shipment-list"
+import { Input } from "@/components/ui/input"
 
 export function LeaderDashboard() {
   const [isLoading, setIsLoading] = useState(true)
@@ -22,6 +23,8 @@ export function LeaderDashboard() {
   const [totalCompleted, setTotalCompleted] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
   const [debugInfo, setDebugInfo] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any>(null)
 
   const router = useRouter()
 
@@ -209,6 +212,53 @@ export function LeaderDashboard() {
     loadCouriers()
   }
 
+  const handleSearch = async () => {
+    if (searchQuery.trim()) {
+      const { data, error } = await supabaseClient.from('shipments').select('*').eq('awb_number', searchQuery).single();
+      if (error) {
+        console.error('Error searching shipment:', error);
+        setSearchResults({ error: 'Shipment not found' });
+      } else {
+        const courierData = await supabaseClient.from('users').select('name').eq('id', data.courier_id).single();
+        setSearchResults({ ...data, courier: courierData.data ? courierData.data.name : 'Unknown' });
+      }
+    }
+  };
+
+  // Update deleteShipmentHistory to include type for awbNumber
+  async function deleteShipmentHistory(awbNumber: string) {
+    const { data, error } = await supabaseClient.from('shipment_history').delete().eq('awb_number', awbNumber);
+    if (error) {
+      console.error('Error deleting shipment history:', error);
+      alert(`Deletion from history failed: ${error.message || 'Unknown error'}`);
+    } else {
+      console.log('Shipment history deleted successfully:', data);
+      return true;  // Return success for chaining
+    }
+    return false;
+  }
+
+  // Update handleDeleteShipment to use the new function
+  const handleDeleteShipment = async (awbNumber: string) => {
+    if (window.confirm('Are you sure you want to delete this shipment?')) {
+      try {
+        const historyDeleted = await deleteShipmentHistory(awbNumber);
+        if (historyDeleted) {
+          const { error } = await supabaseClient.from('shipments').delete().eq('awb_number', awbNumber);
+          if (error) {
+            console.error('Error deleting from shipments:', error);
+            alert(`Deletion failed: ${error.message || 'Unknown error'}`);
+          } else {
+            await loadCouriers();  // Refresh data
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        alert('An unexpected error occurred during deletion.');
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -262,6 +312,7 @@ export function LeaderDashboard() {
             <TabsList className="mb-4">
               <TabsTrigger value="couriers">Couriers</TabsTrigger>
               <TabsTrigger value="shipments">Shipments</TabsTrigger>
+              <TabsTrigger value="search">Search</TabsTrigger>
             </TabsList>
 
             <TabsContent value="couriers">
@@ -330,6 +381,35 @@ export function LeaderDashboard() {
                 <CourierShipmentList courierId={selectedCourier} />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">Select a courier to view their shipments</div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="search">
+              <div className="mb-4 flex gap-2">
+                <Input placeholder="Cari nomor resi (AWB)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Button onClick={handleSearch}>Cari</Button>
+              </div>
+              {searchResults ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Hasil Pencarian</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {searchResults.error ? (
+                      <p>{searchResults.error}</p>
+                    ) : (
+                      <div>
+                        <p><strong>Nomor Resi:</strong> {searchResults.awb_number}</p>
+                        <p><strong>Kurir:</strong> {searchResults.courier}</p>
+                        <Button onClick={() => handleDeleteShipment(searchResults.awb_number)} className="mt-2 bg-red-500">
+                          Delete Shipment
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <p>Masukkan nomor resi untuk mencari.</p>
               )}
             </TabsContent>
           </Tabs>
