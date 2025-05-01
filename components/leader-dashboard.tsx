@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, LogOut, User, Package, CheckCircle, AlertCircle } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
-import { CourierShipmentList } from "./courier-shipment-list"
 import { Input } from "@/components/ui/input"
+import dynamic from 'next/dynamic'
+
+const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { ssr: false, loading: () => <div>Loading shipments...</div> })
 
 export function LeaderDashboard() {
   const [isLoading, setIsLoading] = useState(true)
