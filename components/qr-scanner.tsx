@@ -156,9 +156,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          },
+          aspectRatio: 1,
           showTorchButtonIfSupported: true,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
@@ -201,9 +199,30 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         }
       )
 
-      // Enable flash automatically if supported
-      if (scannerRef.current.getRunningTrackCapabilities()?.torch) {
-        await scannerRef.current.applyTorch(true)
+      // Wait a bit for camera to initialize
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      try {
+        // Try to access torch/flash using the HTML5QrCode instance
+        const scanner = scannerRef.current
+        if (scanner) {
+          // @ts-ignore - We know this method exists even if TypeScript doesn't
+          const stream = scanner.getVideoElement()?.srcObject as MediaStream
+          if (stream) {
+            const videoTrack = stream.getVideoTracks()[0]
+            const capabilities = videoTrack.getCapabilities()
+            if (capabilities.torch) {
+              await videoTrack.applyConstraints({
+                advanced: [{ torch: true }]
+              })
+              console.log('Flash enabled successfully')
+            } else {
+              console.log('Torch/flash not supported on this device')
+            }
+          }
+        }
+      } catch (flashError) {
+        console.error('Error enabling flash:', flashError)
       }
       
       setIsScanning(true)
