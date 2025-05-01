@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Camera } from "lucide-react"
+import { Camera, Flashlight } from "lucide-react"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
 import { supabaseClient } from "@/lib/auth"
@@ -16,6 +16,7 @@ interface QRScannerProps {
 
 export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
+  const [isFlashOn, setIsFlashOn] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const beepRef = useRef<ReturnType<typeof browserBeep> | null>(null)
   const lastScannedRef = useRef<string>("")
@@ -143,6 +144,33 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
     }
   }
 
+  const toggleFlash = async () => {
+    try {
+      const scanner = scannerRef.current
+      if (scanner) {
+        // @ts-ignore - We know this method exists even if TypeScript doesn't
+        const stream = scanner.getVideoElement()?.srcObject as MediaStream
+        if (stream) {
+          const videoTrack = stream.getVideoTracks()[0]
+          const capabilities = videoTrack.getCapabilities()
+          if (capabilities.torch) {
+            await videoTrack.applyConstraints({
+              advanced: [{ torch: !isFlashOn }]
+            })
+            setIsFlashOn(!isFlashOn)
+            console.log('Flash toggled:', !isFlashOn)
+          } else {
+            console.log('Torch/flash not supported on this device')
+            toast.error("Flash tidak didukung pada perangkat ini")
+          }
+        }
+      }
+    } catch (flashError) {
+      console.error('Error toggling flash:', flashError)
+      toast.error("Gagal mengaktifkan flash")
+    }
+  }
+
   const startScanning = async () => {
     try {
       const devices = await Html5Qrcode.getCameras()
@@ -157,7 +185,6 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1,
-          showTorchButtonIfSupported: true,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
           // Prevent duplicate scans of the same code
@@ -198,32 +225,6 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           // Ignore errors - they're usually just "No QR code found" messages
         }
       )
-
-      // Wait a bit for camera to initialize
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      try {
-        // Try to access torch/flash using the HTML5QrCode instance
-        const scanner = scannerRef.current
-        if (scanner) {
-          // @ts-ignore - We know this method exists even if TypeScript doesn't
-          const stream = scanner.getVideoElement()?.srcObject as MediaStream
-          if (stream) {
-            const videoTrack = stream.getVideoTracks()[0]
-            const capabilities = videoTrack.getCapabilities()
-            if (capabilities.torch) {
-              await videoTrack.applyConstraints({
-                advanced: [{ torch: true }]
-              })
-              console.log('Flash enabled successfully')
-            } else {
-              console.log('Torch/flash not supported on this device')
-            }
-          }
-        }
-      } catch (flashError) {
-        console.error('Error enabling flash:', flashError)
-      }
       
       setIsScanning(true)
     } catch (err) {
@@ -254,14 +255,35 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         <div id="qr-reader" className="w-full max-w-sm mx-auto" />
         <div className="flex justify-center space-x-2">
           {!isScanning ? (
-            <Button onClick={startScanning} className="flex items-center gap-2">
-              <Camera className="w-4 h-4" />
-              Start Camera
-            </Button>
+            <>
+              <Button onClick={startScanning} className="flex items-center gap-2">
+                <Camera className="w-4 h-4" />
+                Start Camera
+              </Button>
+              <Button 
+                onClick={toggleFlash} 
+                variant="outline" 
+                className="flex items-center gap-2"
+                disabled={!isScanning}
+              >
+                <Flashlight className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
+                Flash
+              </Button>
+            </>
           ) : (
-            <Button onClick={stopScanning} variant="destructive">
-              Stop Camera
-            </Button>
+            <>
+              <Button onClick={stopScanning} variant="destructive">
+                Stop Camera
+              </Button>
+              <Button 
+                onClick={toggleFlash} 
+                variant="outline" 
+                className="flex items-center gap-2"
+              >
+                <Flashlight className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
+                Flash
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={onClose}>
             Close
