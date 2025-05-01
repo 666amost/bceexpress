@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Camera, Flashlight } from "lucide-react"
+import { Camera, Flashlight, Zap } from "lucide-react"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
 import { supabaseClient } from "@/lib/auth"
@@ -149,19 +149,28 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       const scanner = scannerRef.current
       if (scanner) {
         // @ts-ignore - We know this method exists even if TypeScript doesn't
-        const stream = scanner.getVideoElement()?.srcObject as MediaStream
-        if (stream) {
-          const videoTrack = stream.getVideoTracks()[0]
-          const capabilities = videoTrack.getCapabilities()
-          if (capabilities.torch) {
-            await videoTrack.applyConstraints({
-              advanced: [{ torch: !isFlashOn }]
-            })
-            setIsFlashOn(!isFlashOn)
-            console.log('Flash toggled:', !isFlashOn)
-          } else {
-            console.log('Torch/flash not supported on this device')
-            toast.error("Flash tidak didukung pada perangkat ini")
+        const videoElement = scanner.getVideoElement()
+        if (videoElement) {
+          // @ts-ignore - We know this property exists even if TypeScript doesn't
+          const track = videoElement.srcObject?.getVideoTracks()[0]
+          if (track) {
+            // @ts-ignore - We know these methods exist even if TypeScript doesn't
+            const capabilities = track.getCapabilities()
+            if (capabilities.torch) {
+              try {
+                // @ts-ignore - We know this method exists even if TypeScript doesn't
+                await track.applyConstraints({
+                  advanced: [{ torch: !isFlashOn }]
+                })
+                setIsFlashOn(!isFlashOn)
+                toast.success(`Flash ${!isFlashOn ? 'dinyalakan' : 'dimatikan'}`)
+              } catch (constraintError) {
+                console.error('Error applying torch constraint:', constraintError)
+                toast.error("Gagal mengaktifkan flash")
+              }
+            } else {
+              toast.error("Flash tidak didukung pada perangkat ini")
+            }
           }
         }
       }
@@ -226,6 +235,8 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         }
       )
       
+      // Reset flash state when starting new scan
+      setIsFlashOn(false)
       setIsScanning(true)
     } catch (err) {
       console.error("Error starting scanner:", err)
@@ -266,7 +277,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
                 className="flex items-center gap-2"
                 disabled={!isScanning}
               >
-                <Flashlight className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
+                <Camera className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
                 Flash
               </Button>
             </>
@@ -280,7 +291,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
                 variant="outline" 
                 className="flex items-center gap-2"
               >
-                <Flashlight className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
+                <Camera className={`w-4 h-4 ${isFlashOn ? 'text-yellow-500' : ''}`} />
                 Flash
               </Button>
             </>
