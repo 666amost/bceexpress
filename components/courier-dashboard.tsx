@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2Icon, LogOutIcon, EyeIcon, PackageIcon, CheckCircle2Icon } from "lucide-react"
+import { Loader2, LogOut, Eye, Package as PackageIcon, CheckCircle } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
+import { GoogleMapsButton } from "@/components/google-maps-button"
 
 export function CourierDashboard() {
   const [isLoading, setIsLoading] = useState(true)
@@ -163,7 +165,7 @@ export function CourierDashboard() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -197,9 +199,10 @@ export function CourierDashboard() {
           )}
         </div>
         <div className="flex gap-2">
-        <Button variant="outline" onClick={handleLogout}>
-          <LogOutIcon className="h-4 w-4 mr-2" /> Logout
-        </Button>
+          <GoogleMapsButton />
+          <Button variant="outline" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Logout
+          </Button>
         </div>
       </div>
 
@@ -218,14 +221,14 @@ export function CourierDashboard() {
               onClick={() => setShowBulkDetails(true)}
               className="absolute right-6 top-6"
             >
-              <EyeIcon className="h-4 w-4 mr-1" /> View
+              <Eye className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
 
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <CheckCircle2Icon className="h-6 w-6 text-green-500" />
+            <CheckCircle className="h-6 w-6 text-green-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
@@ -236,7 +239,7 @@ export function CourierDashboard() {
               onClick={() => setShowCompletedTodayDetails(true)}
               className="absolute right-6 top-6"
             >
-              <EyeIcon className="h-4 w-4 mr-1" /> View
+              <Eye className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
@@ -254,7 +257,7 @@ export function CourierDashboard() {
               onClick={() => setShowPendingDetails(true)}
               className="absolute right-6 top-6"
             >
-              <EyeIcon className="h-4 w-4 mr-1" /> View
+              <Eye className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
@@ -388,7 +391,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle2Icon className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                       </div>
                       <p className="text-sm mt-1">Location: {shipment.location}</p>

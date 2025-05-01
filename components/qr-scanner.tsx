@@ -156,6 +156,10 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
+          showTorchButtonIfSupported: true,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
           // Prevent duplicate scans of the same code
@@ -196,6 +200,11 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           // Ignore errors - they're usually just "No QR code found" messages
         }
       )
+
+      // Enable flash automatically if supported
+      if (scannerRef.current.getRunningTrackCapabilities()?.torch) {
+        await scannerRef.current.applyTorch(true)
+      }
       
       setIsScanning(true)
     } catch (err) {
