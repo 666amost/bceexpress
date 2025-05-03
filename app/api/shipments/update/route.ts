@@ -25,6 +25,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
     }
 
+    // Integrasi ke REST API cabang jika status delivered dan ada photo_url
+    if (status === "delivered" && result.photo_url) {
+      try {
+        const axios = (await import("axios")).default;
+        const FormData = (await import("form-data")).default;
+        // Download gambar dari Supabase Storage
+        const imageResponse = await fetch(result.photo_url);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const formData = new FormData();
+        formData.append("no_resi", awb_number);
+        formData.append("keterangan", notes || "Diterima langsung");
+        formData.append("nama_kuri", location || "Kurir");
+        formData.append("pemindai", location || "Kurir");
+        formData.append("gambar", Buffer.from(imageBuffer), { filename: "bukti.jpg", contentType: "image/jpeg" });
+        await axios.post(
+          "https://www.best.borneokepsid.com/api/trackings",
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+              "X-API-KEY": "borneo-test-api-key",
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          }
+        );
+      } catch (err) {
+        console.error("Gagal sync ke API cabang:", err);
+        // Tidak mengganggu response utama
+      }
+    }
+
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
     console.error("API error:", error)
