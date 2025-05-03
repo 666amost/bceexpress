@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         formData.append("pemindai", location || "Kurir");
         formData.append("gambar", result.photo_url);
         await axios.post(
-          "https://www.best.borneokepsi.com/api/trackings",
+          "https://www.best.borneoekspedisi.com/api/trackings",
           formData,
           {
             headers: {
