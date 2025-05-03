@@ -3,7 +3,12 @@ import { addShipmentHistory } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json({ error: 'Invalid JSON format in request body' }, { status: 400 });
+    }
     const { awb_number, status, location, notes, photo_url, latitude, longitude } = body
 
     if (!awb_number || !status || !location) {
@@ -40,7 +45,7 @@ export async function POST(request: NextRequest) {
         formData.append("armada", "");
         formData.append("plat_armada", "");
         formData.append("pemindai", location || "Kurir");
-        formData.append("gambar", Buffer.from(imageBuffer), { filename: "bukti.jpg", contentType: "image/jpeg" });
+        formData.append("gambar", result.photo_url);
         await axios.post(
           "https://www.best.borneokepsi.com/api/trackings",
           formData,
