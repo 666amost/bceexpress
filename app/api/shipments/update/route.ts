@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
         formData.append("no_resi", awb_number);
         formData.append("keterangan", notes || "Diterima langsung");
         formData.append("nama_kuri", location || "Kurir");
+        formData.append("armada", "");
+        formData.append("plat_armada", "");
         formData.append("pemindai", location || "Kurir");
         formData.append("gambar", Buffer.from(imageBuffer), { filename: "bukti.jpg", contentType: "image/jpeg" });
         await axios.post(
@@ -52,7 +54,15 @@ export async function POST(request: NextRequest) {
           }
         );
       } catch (err) {
-        console.error("Gagal sync ke API cabang:", err);
+        const errorAny = err as any;
+        let errorLog: any = { message: "Gagal sync ke API cabang", error: errorAny };
+        if (errorAny.response) {
+          errorLog.response = {
+            status: errorAny.response.status,
+            data: errorAny.response.data,
+          };
+        }
+        console.error(JSON.stringify(errorLog));
         // Tidak mengganggu response utama
       }
     }
