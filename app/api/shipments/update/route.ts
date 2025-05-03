@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         formData.append("pemindai", location || "Kurir");
         formData.append("gambar", Buffer.from(imageBuffer), { filename: "bukti.jpg", contentType: "image/jpeg" });
         await axios.post(
-          "https://www.best.borneokepsid.com/api/trackings",
+          "https://www.best.borneokepsi.com/api/trackings",
           formData,
           {
             headers: {
