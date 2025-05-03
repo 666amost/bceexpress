@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         const formData = new FormData();
         formData.append("no_resi", awb_number);
         formData.append("keterangan", notes || "Diterima langsung");
-        formData.append("nama_kuri", location || "Kurir");
+        formData.append("nama_kurir", location || "Kurir");
         formData.append("armada", "");
         formData.append("plat_armada", "");
         formData.append("pemindai", location || "Kurir");
