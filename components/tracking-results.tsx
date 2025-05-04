@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Package, CheckCircle, AlertTriangle, Truck, TruckIcon as TruckLoading, Box } from "lucide-react"
+import { MapPin, Package, CheckCircle, AlertTriangle, Truck, Box } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 
@@ -110,7 +110,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
       case "processed":
         return <Box className="h-5 w-5" />
       case "shipped":
-        return <TruckLoading className="h-5 w-5" />
+        return <Truck className="h-5 w-5" />
       case "in_transit":
         return <Truck className="h-5 w-5" />
       case "out_for_delivery":
@@ -137,7 +137,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
       <CardHeader className="bg-primary text-primary-foreground">
         <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left px-4 sm:px-6 overflow-hidden">
           <h2 className="text-2xl font-bold mb-2 sm:mb-0">Shipment Details</h2>
-          <Badge variant="secondary" className="bg-primary-foreground text-primary font-mono text-4xl font-bold w-full sm:w-auto text-center mx-auto sm:mx-0 max-w-full truncate">
+          <Badge variant="secondary" className="bg-primary-foreground text-primary font-mono text-2xl sm:text-4xl font-bold w-full sm:w-auto text-center sm:text-left mx-auto sm:mx-0 max-w-full overflow-x-auto whitespace-nowrap">
             AWB: {awbNumber}
           </Badge>
         </div>
