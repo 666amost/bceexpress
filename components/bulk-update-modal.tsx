@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label"
 import { Camera, Loader2 } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
+import QRCode from "qrcode"
+import JsBarcode from "jsbarcode"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -97,8 +99,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       const status = "out_for_delivery"
       const currentDate = new Date().toISOString()
 
-      // Get courier name
+      // Get courier name and ID
       const courierName = currentUser?.name || currentUser?.email?.split("@")[0] || "courier"
+      const courierId = currentUser?.id
 
       // Process each AWB number
       for (const awb of awbList) {
@@ -109,7 +112,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           .eq("awb_number", awb)
           .single()
 
-        // If shipment doesn't exist, create it
+        // If shipment doesn't exist, create it with courier_id
         if (!existingShipment) {
           await supabaseClient.from("shipments").insert([
             {
@@ -126,15 +129,17 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               current_status: status,
               created_at: currentDate,
               updated_at: currentDate,
+              courier_id: courierId,
             },
           ])
         } else {
-          // Update existing shipment
+          // Update existing shipment with courier_id
           await supabaseClient
             .from("shipments")
             .update({
               current_status: status,
               updated_at: currentDate,
+              courier_id: courierId,
             })
             .eq("awb_number", awb)
         }

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         formData.append("armada", "");
         formData.append("plat_armada", "");
         formData.append("pemindai", location || "Kurir");
-        formData.append("gambar", result.photo_url);
+        formData.append("gambar", result.photo_url || "");
         await axios.post(
           "https://www.best.borneoekspedisi.com/api/trackings",
           formData,

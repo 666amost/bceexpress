@@ -82,10 +82,10 @@ export function CourierDashboard() {
       const courierId = user?.id
       const courierName = user?.name || user?.email?.split("@")[0] || ""
 
-      // Get today's bulk shipments
+      // Get today's bulk shipments with only necessary fields
       const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
         .from("shipments")
-        .select("*")
+        .select("awb_number, current_status, receiver_name, receiver_address")
         .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
@@ -93,15 +93,16 @@ export function CourierDashboard() {
 
       if (bulkShipmentsError) {
         console.error("Error fetching bulk shipments:", bulkShipmentsError)
+        throw new Error("Failed to load bulk shipments. Please try again.")
       } else {
         setTotalBulkShipments(bulkShipmentsData?.length || 0)
         setBulkShipmentAwbs(bulkShipmentsData || [])
       }
 
-      // Get pending deliveries (shipments from before today that are still out_for_delivery or shipped)
+      // Get pending deliveries with only necessary fields
       const { data: pendingData, error: pendingError } = await supabaseClient
         .from("shipments")
-        .select("*")
+        .select("awb_number, current_status, receiver_name, receiver_address")
         .eq("courier_id", courierId)
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
@@ -109,21 +110,23 @@ export function CourierDashboard() {
 
       if (pendingError) {
         console.error("Error fetching pending deliveries:", pendingError)
+        throw new Error("Failed to load pending deliveries. Please try again.")
       } else {
         setPendingDeliveries(pendingData?.length || 0)
         setPendingShipments(pendingData || [])
       }
 
-      // Count completed today
+      // Get completed today with only necessary fields
       const { data: completedTodayData, error: completedTodayError } = await supabaseClient
         .from("shipment_history")
-        .select("*")
+        .select("awb_number, status, created_at")
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
 
       if (completedTodayError) {
         console.error("Error fetching completed today:", completedTodayError)
+        throw new Error("Failed to load completed shipments. Please try again.")
       } else {
         setCompletedCount(completedTodayData?.length || 0)
         setCompletedTodayShipments(completedTodayData || [])
@@ -138,6 +141,7 @@ export function CourierDashboard() {
       }
     } catch (error) {
       console.error("Error loading shipment data:", error)
+      // You could add a toast or alert here for user feedback
     } finally {
       setIsLoading(false)
     }
