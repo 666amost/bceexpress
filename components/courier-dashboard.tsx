@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, LogOut, Eye, Package as PackageIcon, CheckCircle } from "lucide-react"
+import { Loader2, LogOut, Eye, Package2 as PackageIcon, CheckCircle } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { useToast } from "@/hooks/use-toast"
@@ -390,7 +390,7 @@ export function CourierDashboard() {
               <div className="space-y-3">
                 {completedTodayShipments.map((shipment) => (
                   <div
-                    key={shipment.id}
+                    key={shipment.awb_number}
                     className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
                   >
                     <div>

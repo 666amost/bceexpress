@@ -56,6 +56,16 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
     }
   }
 
+  // At the top of the TrackingResults function, after the existing imports and before fetching shipment data
+  let isCourier = false;
+  const sessionResponse = await supabaseClient.auth.getSession();
+  if (sessionResponse.data && sessionResponse.data.session?.user) {
+    const { data: profile } = await supabaseClient.from('users').select('role').eq('id', sessionResponse.data.session.user.id).single();
+    if (profile?.role === 'courier') {
+      isCourier = true;
+    }
+  }
+
   if (shipmentError || !shipment) {
     return (
       <div className="text-center py-12">
@@ -125,9 +135,9 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
   return (
     <Card className="shadow-lg border border-border/40">
       <CardHeader className="bg-primary text-primary-foreground">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Shipment Details</h2>
-          <Badge variant="secondary" className="bg-primary-foreground text-primary font-mono">
+        <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left px-4 sm:px-6 overflow-hidden">
+          <h2 className="text-2xl font-bold mb-2 sm:mb-0">Shipment Details</h2>
+          <Badge variant="secondary" className="bg-primary-foreground text-primary font-mono text-4xl font-bold w-full sm:w-auto text-center mx-auto sm:mx-0 max-w-full truncate">
             AWB: {awbNumber}
           </Badge>
         </div>
@@ -155,7 +165,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
                 <br />
                 {shipment.sender_address}
                 <br />
-                {shipment.sender_phone}
+                {isCourier ? shipment.sender_phone : 'Hidden for privacy'}
               </p>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg">
@@ -165,7 +175,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
                 <br />
                 {shipment.receiver_address}
                 <br />
-                {shipment.receiver_phone}
+                {isCourier ? shipment.receiver_phone : 'Hidden for privacy'}
               </p>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg">
