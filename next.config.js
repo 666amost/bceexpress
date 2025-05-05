@@ -4,7 +4,14 @@ const nextConfig = {
     ignoreBuildErrors: true
   },
   images: {
-    domains: ['qvuvgfvvsmmuiunlajud.supabase.co'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'qvuvgfvvsmmuiunlajud.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
     minimumCacheTTL: 60,
   },
   env: {
