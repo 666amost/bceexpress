@@ -47,7 +47,7 @@ export function Footer() {
                 <Phone className="h-4 w-4 mr-2 text-primary" /> +62 821-1409-7704
               </li>
               <li className="flex items-center">
-                <Mail className="h-4 w-4 mr-2 text-primary" /> info@bceexpress.com
+                <Mail className="h-4 w-4 mr-2 text-primary" /> robert@bceexpress.com
               </li>
               <li className="flex items-center">
                 <MapPin className="h-4 w-4 mr-2 text-primary" /> Jakarta, Indonesia
