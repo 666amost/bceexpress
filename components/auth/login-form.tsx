@@ -33,13 +33,30 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
+      // Check network connectivity first
+      if (!navigator.onLine) {
+        setError("No internet connection. Please check your network and try again.")
+        setIsLoading(false)
+        return
+      }
+
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
-        setError(error.message)
+        console.error("Login error:", error)
+        if (error.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please try again.")
+        } else if (error.message.includes("Email not confirmed")) {
+          setError("Please confirm your email address before logging in.")
+        } else if (error.message.includes("Failed to fetch")) {
+          setError("Unable to connect to the server. Please check your internet connection and try again.")
+        } else {
+          setError(error.message)
+        }
+        setIsLoading(false)
         return
       }
 
@@ -65,7 +82,15 @@ export function LoginForm() {
       router.push("/courier/dashboard")
     } catch (err) {
       console.error("Login error:", err)
-      setError("An unexpected error occurred. Please try again.")
+      if (err instanceof Error) {
+        if (err.message.includes("Failed to fetch")) {
+          setError("Unable to connect to the server. Please check your internet connection and try again.")
+        } else {
+          setError(err.message)
+        }
+      } else {
+        setError("An unexpected error occurred. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
