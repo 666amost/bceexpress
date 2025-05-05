@@ -258,7 +258,7 @@ export default function BranchDashboard() {
     }
 
     getImages().then(({ qrData, barcodeData }) => {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         printContent += `
           <div class="resi-label">
             <div class="label-header">
@@ -283,7 +283,7 @@ export default function BranchDashboard() {
               Mohon jangan dilipat. Scan barcode/QR untuk tracking. Pastikan data sesuai sebelum pengiriman.
             </div>
           </div>
-          ${i < 2 ? '<div class="cut-line"></div>' : ''}
+          ${i < 1 ? '<div class="cut-line" style="margin: 10px 0;"></div>' : ''}
         `;
       }
       printContent += '</div>';
@@ -388,7 +388,7 @@ export default function BranchDashboard() {
         <div class="resi-sheet">
       `;
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         printContent += `
           <div class="resi-label">
             <div class="label-header">
@@ -413,7 +413,7 @@ export default function BranchDashboard() {
               Mohon jangan dilipat. Scan barcode/QR untuk tracking. Pastikan data sesuai sebelum pengiriman.
             </div>
           </div>
-          ${i < 2 ? '<div class="cut-line"></div>' : ''}
+          ${i < 1 ? '<div class="cut-line" style="margin: 10px 0;"></div>' : ''}
         `;
       }
       printContent += '</div>';

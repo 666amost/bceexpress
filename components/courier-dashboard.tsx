@@ -85,11 +85,11 @@ export function CourierDashboard() {
       // Get today's bulk shipments with only necessary fields
       const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, receiver_name, receiver_address")
+        .select("awb_number, current_status, receiver_name, receiver_address, updated_at")
         .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
 
       if (bulkShipmentsError) {
         console.error("Error fetching bulk shipments:", bulkShipmentsError)
@@ -102,7 +102,7 @@ export function CourierDashboard() {
       // Get pending deliveries with only necessary fields
       const { data: pendingData, error: pendingError } = await supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, receiver_name, receiver_address")
+        .select("awb_number, current_status, receiver_name, receiver_address, created_at")
         .eq("courier_id", courierId)
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
@@ -123,6 +123,7 @@ export function CourierDashboard() {
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
+        .order("created_at", { ascending: false })
 
       if (completedTodayError) {
         console.error("Error fetching completed today:", completedTodayError)
@@ -141,7 +142,11 @@ export function CourierDashboard() {
       }
     } catch (error) {
       console.error("Error loading shipment data:", error)
-      // You could add a toast or alert here for user feedback
+      toast({
+        title: "Error",
+        description: "Failed to load shipment data. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }

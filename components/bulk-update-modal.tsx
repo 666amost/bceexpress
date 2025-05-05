@@ -73,23 +73,35 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   }
 
   const handleSubmit = async () => {
-    if (!awbNumbers.trim()) {
-      setError("Please enter at least one AWB number")
-      return
-    }
-
     setIsLoading(true)
-    setError(null)
-
+    setError("")
     try {
-      // Parse AWB numbers (split by newline, comma, or space)
       const awbList = awbNumbers
-        .split(/[\n,\s]+/)
+        .split("\n")
         .map((awb) => awb.trim())
         .filter((awb) => awb.length > 0)
 
       if (awbList.length === 0) {
-        setError("No valid AWB numbers found")
+        setError("Please enter at least one AWB number")
+        setIsLoading(false)
+        return
+      }
+
+      // Validate date format
+      const currentDate = new Date()
+      if (isNaN(currentDate.getTime())) {
+        setError("Invalid date format")
+        setIsLoading(false)
+        return
+      }
+
+      // Get current user session
+      const { data: session } = await supabaseClient.auth.getSession()
+      const courierId = session?.session?.user?.id
+      const courierName = session?.session?.user?.name || session?.session?.user?.email?.split("@")[0] || "courier"
+
+      if (!courierId) {
+        setError("No courier session found")
         setIsLoading(false)
         return
       }
@@ -97,11 +109,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       let successCount = 0
       const location = "Sorting Center"
       const status = "out_for_delivery"
-      const currentDate = new Date().toISOString()
-
-      // Get courier name and ID
-      const courierName = currentUser?.name || currentUser?.email?.split("@")[0] || "courier"
-      const courierId = currentUser?.id
 
       // Process each AWB number
       for (const awb of awbList) {
@@ -127,8 +134,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               dimensions: "10x10x10",
               service_type: "Standard",
               current_status: status,
-              created_at: currentDate,
-              updated_at: currentDate,
+              created_at: currentDate.toISOString(),
+              updated_at: currentDate.toISOString(),
               courier_id: courierId,
             },
           ])
@@ -138,7 +145,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             .from("shipments")
             .update({
               current_status: status,
-              updated_at: currentDate,
+              updated_at: currentDate.toISOString(),
               courier_id: courierId,
             })
             .eq("awb_number", awb)
@@ -151,7 +158,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             status,
             location,
             notes: `Bulk update - Out for Delivery by ${courierName}`,
-            created_at: currentDate,
+            created_at: currentDate.toISOString(),
           },
         ])
 
