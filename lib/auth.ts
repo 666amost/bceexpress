@@ -9,12 +9,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
+// Ensure the URL is properly formatted
+const formattedUrl = supabaseUrl.startsWith('https://') ? supabaseUrl : `https://${supabaseUrl}`
+
 // Create Supabase client with proper configuration
-export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabaseClient = createClient<Database>(formattedUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    storageKey: 'bcexpress-auth',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined
   },
   global: {
     headers: {
@@ -24,7 +29,7 @@ export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKe
 })
 
 // Create a separate client for server-side operations
-export const supabaseServerClient = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabaseServerClient = createClient(formattedUrl, supabaseAnonKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false
@@ -60,21 +65,22 @@ export async function signOut(): Promise<{ error: string | null }> {
 
 export async function getCurrentUser(): Promise<UserSession | null> {
   try {
-    const { data } = await supabaseClient.auth.getSession()
+    const { data, error: sessionError } = await supabaseClient.auth.getSession()
 
-    if (!data.session || !data.session.user) {
+    if (sessionError || !data.session || !data.session.user) {
+      console.error("Session error:", sessionError)
       return null
     }
 
     // Get user profile from our custom users table
-    const { data: userData, error } = await supabaseClient
+    const { data: userData, error: userError } = await supabaseClient
       .from("users")
       .select("*")
       .eq("id", data.session.user.id)
       .single()
 
-    if (error || !userData) {
-      console.error("Get user profile error:", error)
+    if (userError || !userData) {
+      console.error("Get user profile error:", userError)
       return null
     }
 
