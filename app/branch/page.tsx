@@ -343,6 +343,86 @@ export default function BranchDashboard() {
     }
   };
 
+  const handlePrintManifestLabel = async (shipment: Shipment) => {
+    if (!shipment.awb_number) {
+      alert('AWB number is missing for this shipment.');
+      return;
+    }
+
+    const printWindow = window.open('', '', 'width=800,height=1100');
+    if (!printWindow) {
+      alert('Gagal membuka jendela cetak.');
+      return;
+    }
+
+    async function getImages() {
+      const qrCanvas = document.createElement('canvas');
+      await QRCode.toCanvas(qrCanvas, shipment.awb_number, { margin: 0, scale: 8, errorCorrectionLevel: 'H' });
+      const qrData = qrCanvas.toDataURL('image/png');
+      const barcodeCanvas = document.createElement('canvas');
+      JsBarcode(barcodeCanvas, shipment.awb_number, { format: 'CODE128', width: 6, height: 110, displayValue: false, margin: 0 });
+      const barcodeData = barcodeCanvas.toDataURL('image/png');
+      return { qrData, barcodeData };
+    }
+
+    getImages().then(({ qrData, barcodeData }) => {
+      let printContent = `
+        <style>
+          @page { size: letter portrait; margin: 0; }
+          body { margin: 0; padding: 0; }
+          .resi-sheet { width: 100vw; height: 100vh; min-height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
+          .resi-label { width: 100vw; height: 32.7vh; min-height: 32.7vh; max-height: 32.7vh; box-sizing: border-box; padding: 0 8px 0 8px; display: flex; flex-direction: column; justify-content: flex-start; }
+          .cut-line { width: 100vw; border-bottom: 2px dashed #000; margin: 0; }
+          .label-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #000; padding: 4px 0 4px 0; }
+          .logo { height: 38px; margin-right: 12px; }
+          .resi-number { font-size: 2em; font-weight: bold; letter-spacing: 2px; text-align: right; }
+          .barcode-row { width: 100%; display: flex; justify-content: center; align-items: center; margin: 4px 0 4px 0; }
+          .barcode-img { width: 97%; height: 80px; object-fit: contain; }
+          .main-row { display: flex; flex-direction: row; align-items: flex-start; gap: 16px; margin-top: 4px; }
+          .qr-block { flex: 0 0 140px; display: flex; align-items: flex-start; justify-content: center; }
+          .qr-img { width: 130px; height: 130px; object-fit: contain; }
+          .info-block { flex: 1; font-size: 1.15em; font-weight: bold; line-height: 1.4; word-break: break-word; }
+          .address-block { margin-bottom: 8px; }
+          .instruction { font-size: 0.95em; color: #222; border-top: 1px solid #000; margin-top: 4px; padding-top: 2px; }
+        </style>
+        <div class="resi-sheet">
+      `;
+
+      for (let i = 0; i < 3; i++) {
+        printContent += `
+          <div class="resi-label">
+            <div class="label-header">
+              <img src="/images/bce-logo.png" class="logo" />
+              <div class="resi-number">${shipment.awb_number}</div>
+            </div>
+            <div class="barcode-row">
+              <img src="${barcodeData}" class="barcode-img" />
+            </div>
+            <div class="main-row">
+              <div class="info-block">
+                <div class="address-block">To:<br>${shipment.receiver_name}<br>${shipment.receiver_address}<br>Telp: ${shipment.receiver_phone}</div>
+                <div class="address-block">From:<br>${shipment.sender_name}<br>${shipment.sender_address}<br>Telp: ${shipment.sender_phone}</div>
+                <div>Berat: ${shipment.weight} kg &nbsp; | &nbsp; Dimensi: ${shipment.dimensions}</div>
+                <div>Layanan: ${shipment.service_type}</div>
+              </div>
+              <div class="qr-block">
+                <img src="${qrData}" class="qr-img" />
+              </div>
+            </div>
+            <div class="instruction">
+              Mohon jangan dilipat. Scan barcode/QR untuk tracking. Pastikan data sesuai sebelum pengiriman.
+            </div>
+          </div>
+          ${i < 2 ? '<div class="cut-line"></div>' : ''}
+        `;
+      }
+      printContent += '</div>';
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    });
+  };
+
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Branch Dashboard</h1>
@@ -522,10 +602,11 @@ export default function BranchDashboard() {
                     <div>Layanan</div>
                     <div>Ongkos Kirim</div>
                     <div>Coli</div>
+                    <div>Aksi</div>
                   </div>
                   <div className="divide-y">
                     {manifestData.map((item) => (
-                      <div key={item.awb_number || item.id} className="grid grid-cols-7 gap-4 p-4 hover:bg-gray-50">
+                      <div key={item.awb_number || item.id} className="grid grid-cols-8 gap-4 p-4 hover:bg-gray-50">
                         <div>{new Date(item.created_at).toLocaleDateString()}</div>
                         <div>{item.awb_number}</div>
                         <div>{item.receiver_name}</div>
@@ -533,6 +614,7 @@ export default function BranchDashboard() {
                         <div>{item.service_type}</div>
                         <div>{item.ongkos_kirim ? item.ongkos_kirim.toString() : 'N/A'}</div>
                         <div>{item.coli ? item.coli.toString() : '1'}</div>
+                        <div><Button onClick={() => handlePrintManifestLabel(item)} variant="outline" size="sm">Cetak Label</Button></div>
                       </div>
                     ))}
                   </div>
