@@ -1,23 +1,70 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getShipmentByAwb, getShipmentHistory } from "@/lib/db"
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseServerClient } from '@/lib/auth'
 
-export async function GET(request: NextRequest, { params }: { params: { awb: string } }) {
+interface Params {
+  awb: string
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Params }
+): Promise<NextResponse> {
   try {
-    const awbNumber = params.awb
+    const awb = params.awb
 
-    // Get shipment details
-    const shipment = await getShipmentByAwb(awbNumber)
-
-    if (!shipment) {
-      return NextResponse.json({ error: "Shipment not found" }, { status: 404 })
+    if (!awb) {
+      return NextResponse.json(
+        { error: 'AWB number is required' },
+        { status: 400 }
+      )
     }
 
-    // Get shipment history
-    const history = await getShipmentHistory(awbNumber)
+    // Fetch shipment details
+    const { data: shipment, error: shipmentError } = await supabaseServerClient
+      .from('shipments')
+      .select('*')
+      .eq('awb', awb)
+      .single()
 
-    return NextResponse.json({ shipment, history })
+    if (shipmentError) {
+      console.error('Error fetching shipment:', shipmentError)
+      return NextResponse.json(
+        { error: 'Failed to fetch shipment details' },
+        { status: 500 }
+      )
+    }
+
+    if (!shipment) {
+      return NextResponse.json(
+        { error: 'Shipment not found' },
+        { status: 404 }
+      )
+    }
+
+    // Fetch shipment history
+    const { data: history, error: historyError } = await supabaseServerClient
+      .from('shipment_history')
+      .select('*')
+      .eq('awb', awb)
+      .order('created_at', { ascending: false })
+
+    if (historyError) {
+      console.error('Error fetching history:', historyError)
+      return NextResponse.json(
+        { error: 'Failed to fetch shipment history' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      shipment,
+      history: history || []
+    })
   } catch (error) {
-    console.error("API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/shipments/[awb]:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
