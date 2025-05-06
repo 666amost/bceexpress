@@ -1,136 +1,171 @@
+"use client"  // New: Mark as client component to support hooks like useEffect
+
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Package, CheckCircle, AlertTriangle, Truck, Box } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
+import { useState, useEffect, useRef } from "react"
+import { gsap } from 'gsap'
 
-export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
-  // Fetch shipment data directly from Supabase
-  const { data: shipment, error: shipmentError } = await supabaseClient
-    .from("shipments")
-    .select("*")
-    .eq("awb_number", awbNumber)
-    .single()
+export function TrackingResults({ awbNumber }: { awbNumber: string }) {
+  const [shipment, setShipment] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [courierName, setCourierName] = useState("BCE Express");
+  const [lastUpdateTime, setLastUpdateTime] = useState("");
+  const [isCourier, setIsCourier] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
-  // Fetch shipment history
-  const { data: history, error: historyError } = await supabaseClient
-    .from("shipment_history")
-    .select("*")
-    .eq("awb_number", awbNumber)
-    .order("created_at", { ascending: false })
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: shipmentData, error: shipmentError } = await supabaseClient
+          .from("shipments")
+          .select("*")
+          .eq("awb_number", awbNumber)
+          .single();
 
-  // Get the courier who last updated this shipment
-  let courierName = "BCE Express"
-  let lastUpdateTime = ""
-
-  if (history && history.length > 0) {
-    // Get the most recent history entry
-    const latestEntry = history[0]
-    lastUpdateTime = new Date(latestEntry.created_at).toLocaleString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-    })
-
-    // Try to extract courier name from notes
-    if (latestEntry.notes) {
-      // Check for patterns like "by [name]" or "- [name]"
-      const byMatch = latestEntry.notes.match(/by\s+(\w+)/i)
-      const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i)
-
-      if (byMatch && byMatch[1]) {
-        courierName = byMatch[1]
-      } else if (dashMatch && dashMatch[1]) {
-        courierName = dashMatch[1]
-      } else if (latestEntry.notes.includes("Bulk update")) {
-        // For bulk updates, try to extract the name after "Bulk update - Shipped by "
-        const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i)
-        if (bulkMatch && bulkMatch[1]) {
-          courierName = bulkMatch[1]
+        if (shipmentError) {
+          setError("Shipment not found");
+          return;
         }
+
+        const { data: historyData, error: historyError } = await supabaseClient
+          .from("shipment_history")
+          .select("*")
+          .eq("awb_number", awbNumber)
+          .order("created_at", { ascending: false });
+
+        if (historyError) {
+          console.error(historyError);
+        }
+
+        setShipment(shipmentData);
+        setHistory(historyData || []);
+
+        if (historyData && historyData.length > 0) {
+          const latestEntry = historyData[0];
+          setLastUpdateTime(
+            new Date(latestEntry.created_at).toLocaleString("id-ID", {
+              timeZone: "Asia/Jakarta",
+              year: "numeric",
+              month: "numeric",
+              day: "numeric",
+              hour: "numeric",
+              minute: "numeric",
+              second: "numeric",
+            })
+          );
+
+          if (latestEntry.notes) {
+            const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
+            const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
+            const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i);
+
+            if (byMatch && byMatch[1]) {
+              setCourierName(byMatch[1]);
+            } else if (dashMatch && dashMatch[1]) {
+              setCourierName(dashMatch[1]);
+            } else if (bulkMatch && bulkMatch[1]) {
+              setCourierName(bulkMatch[1]);
+            }
+          }
+        }
+
+        const sessionResponse = await supabaseClient.auth.getSession();
+        if (sessionResponse.data && sessionResponse.data.session?.user) {
+          const { data: profile } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('id', sessionResponse.data.session.user.id)
+            .single();
+          if (profile?.role === 'courier') {
+            setIsCourier(true);
+          }
+        }
+
+        const getProgressPercentage = (status: ShipmentStatus) => {
+          switch (status) {
+            case "processed":
+              return 0;
+            case "shipped":
+              return 25;
+            case "in_transit":
+              return 50;
+            case "out_for_delivery":
+              return 75;
+            case "delivered":
+              return 100;
+            case "exception":
+              return 50;
+            default:
+              return 0;
+          }
+        };
+        setProgressPercentage(getProgressPercentage(shipmentData.current_status as ShipmentStatus));
+      } catch (err) {
+        setError("An error occurred while fetching data");
       }
-    }
-  }
+    };
 
-  // At the top of the TrackingResults function, after the existing imports and before fetching shipment data
-  let isCourier = false;
-  const sessionResponse = await supabaseClient.auth.getSession();
-  if (sessionResponse.data && sessionResponse.data.session?.user) {
-    const { data: profile } = await supabaseClient.from('users').select('role').eq('id', sessionResponse.data.session.user.id).single();
-    if (profile?.role === 'courier') {
-      isCourier = true;
-    }
-  }
+    fetchData();
+  }, [awbNumber]);
 
-  if (shipmentError || !shipment) {
+  useEffect(() => {
+    if (shipment && progressBarRef.current) {
+      gsap.from(progressBarRef.current, {
+        width: '0%',
+        duration: 2,
+        ease: 'power3.out',
+        onComplete: () => setIsAnimationComplete(true),
+      });
+    }
+  }, [progressPercentage]);
+
+  if (error) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-foreground mb-4">Shipment Not Found</h2>
-        <p className="text-muted-foreground mb-6">
-          We couldn&apos;t find any shipment with the AWB number: <span className="font-mono">{awbNumber}</span>
-        </p>
-        <p className="text-muted-foreground">
-          Please check the AWB number and try again, or contact our customer service for assistance.
-        </p>
+        <h2 className="text-2xl font-bold text-foreground mb-4">Error</h2>
+        <p className="text-muted-foreground">{error}</p>
       </div>
-    )
+    );
   }
 
-  const shipmentHistory = history || []
-
-  // Calculate progress percentage based on status
-  const getProgressPercentage = (status: ShipmentStatus) => {
-    switch (status) {
-      case "processed":
-        return 0
-      case "shipped":
-        return 25
-      case "in_transit":
-        return 50
-      case "out_for_delivery":
-        return 75
-      case "delivered":
-        return 100
-      case "exception":
-        return 50
-      default:
-        return 0
-    }
+  if (!shipment) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold text-foreground mb-4">Loading...</h2>
+      </div>
+    );
   }
 
-  const progressPercentage = getProgressPercentage(shipment.current_status as ShipmentStatus)
-
-  // Get status icon
   const getStatusIcon = (status: ShipmentStatus) => {
     switch (status) {
       case "processed":
-        return <Box className="h-5 w-5" />
+        return <Box className="h-5 w-5" />;
       case "shipped":
-        return <Truck className="h-5 w-5" />
+        return <Truck className="h-5 w-5" />;
       case "in_transit":
-        return <Truck className="h-5 w-5" />
+        return <Truck className="h-5 w-5" />;
       case "out_for_delivery":
-        return <Truck className="h-5 w-5" />
+        return <Truck className="h-5 w-5" />;
       case "delivered":
-        return <CheckCircle className="h-5 w-5" />
+        return <CheckCircle className="h-5 w-5" />;
       case "exception":
-        return <AlertTriangle className="h-5 w-5" />
+        return <AlertTriangle className="h-5 w-5" />;
       default:
-        return <Package className="h-5 w-5" />
+        return <Package className="h-5 w-5" />;
     }
-  }
+  };
 
-  // Format status text
   const formatStatus = (status: string) => {
-    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-  }
+    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
 
-  // Check if this is an auto-generated shipment
-  const isAutoGenerated = shipment.sender_name === "Auto Generated" && shipment.receiver_name === "Auto Generated"
+  const isAutoGenerated = shipment.sender_name === "Auto Generated" && shipment.receiver_name === "Auto Generated";
 
   return (
     <Card className="shadow-lg border border-border/40">
@@ -193,11 +228,11 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
 
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-4">
-            Current Status: <span className="text-primary">{formatStatus(shipment.current_status)}</span>
+            Current Status: <span className={shipment.current_status === "delivered" ? (isAnimationComplete ? "text-green-500" : "text-primary") : "text-primary"}>{formatStatus(shipment.current_status)}</span>
           </h3>
 
           <div className="tracking-progress">
-            <div className="tracking-progress-bar" style={{ width: `${progressPercentage}%` }}></div>
+            <div ref={progressBarRef} className="tracking-progress-bar" style={{ width: `${progressPercentage}%` }}></div>
             <div
               className={`status-dot ${progressPercentage >= 0 ? "active" : "inactive"}`}
               style={{ left: "0%" }}
@@ -232,7 +267,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-4">Tracking History</h3>
           <div className="space-y-4">
-            {shipmentHistory.map((item) => (
+            {history.map((item) => (
               <div key={item.id} className="flex">
                 <div className="mr-4">
                   <div
@@ -290,7 +325,7 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
               </div>
             ))}
 
-            {shipmentHistory.length === 0 && (
+            {history.length === 0 && (
               <p className="text-muted-foreground italic">No tracking history available yet.</p>
             )}
           </div>
@@ -298,11 +333,11 @@ export async function TrackingResults({ awbNumber }: { awbNumber: string }) {
 
         {/* Bagian Proof of Delivery yang menampilkan foto di luar hyperlink */}
         {/* Komentari atau hapus blok kode di bawah ini jika Anda hanya ingin foto muncul saat hyperlink diklik */}
-        {/* {shipment.current_status === "delivered" && shipmentHistory.some((item) => item.photo_url) && (
+        {/* {shipment.current_status === "delivered" && history.some((item) => item.photo_url) && (
           <div>
             <h3 className="text-lg font-semibold mb-4">Proof of Delivery</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {shipmentHistory
+              {history
                 .filter((item) => item.photo_url)
                 .map((item) => (
                   <div key={`pod-${item.id}`} className="border rounded-lg p-2">

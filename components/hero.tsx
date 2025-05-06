@@ -2,27 +2,37 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Image from "next/image"
+import { gsap } from 'gsap'
 
 export function Hero() {
   const [awbNumber, setAwbNumber] = useState("")
   const router = useRouter()
+  const heroRef = useRef<HTMLDivElement>(null)
 
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault()
     if (awbNumber.trim()) {
-      router.push(`/track/${awbNumber}`)
+      if (heroRef.current) {
+        gsap.to(heroRef.current, {
+          opacity: 0,
+          duration: 0.5,
+          onComplete: () => {
+            router.push(`/track/${awbNumber}`)
+          }
+        })
+      }
     }
   }
 
   return (
-    <div className="bg-background text-foreground py-16">
+    <div ref={heroRef} className="bg-background text-foreground py-16">
       <div className="container mx-auto px-4 text-center">
         <div className="mb-8 flex justify-center">
           {/* Logo hitam untuk light mode */}
