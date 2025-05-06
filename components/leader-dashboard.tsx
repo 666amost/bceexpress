@@ -9,6 +9,7 @@ import { Loader2, LogOut, User, Package, CheckCircle, AlertCircle } from "lucide
 import { supabaseClient } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
 import dynamic from 'next/dynamic'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { ssr: false, loading: () => <div>Loading shipments...</div> })
 
@@ -27,6 +28,8 @@ export function LeaderDashboard() {
   const [debugInfo, setDebugInfo] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any>(null)
+  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
+  const [pendingShipments, setPendingShipments] = useState<any[]>([])
 
   const router = useRouter()
 
@@ -140,11 +143,12 @@ export function LeaderDashboard() {
           
           const total = shipmentsResult.data?.length || 0
           const completed = shipmentsResult.data?.filter((shipment) => shipment.current_status === "delivered").length || 0
-          const pending = shipmentsResult.data?.filter((shipment) => shipment.current_status !== "delivered").length || 0
+          const pendingShipmentsList = shipmentsResult.data?.filter((shipment) => shipment.current_status !== "delivered") || []
+          const pending = pendingShipmentsList.length
           
           if (historyResult.error) {
             console.error(`Error fetching history for ${courier.name}:`, historyResult.error)
-            return { total, completed, pending, latestLatitude: null, latestLongitude: null }
+            return { total, completed, pending, latestLatitude: null, latestLongitude: null, pendingShipments: null }
           }
           
           const courierUsername = courier.email.split("@")[0]
@@ -161,10 +165,11 @@ export function LeaderDashboard() {
           
           setDebugInfo(`Courier ${courier.name}: ${total} total, ${completed} completed, ${pending} pending, Lat: ${latestLatitude}, Lon: ${latestLongitude}`)
           
-          return { id: courier.id, total, completed, pending, latestLatitude, latestLongitude }
+          return { id: courier.id, total, completed, pending, latestLatitude, latestLongitude, pendingShipments: pendingShipmentsList }
         })
         
         const results = await Promise.all(promises)
+        let allPendingShipments: any[] = []
         const stats: Record<string, { total: number; completed: number; pending: number }> = {}
         let totalShipmentCount = 0
         let totalCompletedCount = 0
@@ -176,9 +181,14 @@ export function LeaderDashboard() {
             totalShipmentCount += result.total
             totalCompletedCount += result.completed
             totalPendingCount += result.pending
+            
+            if (result.pendingShipments) {
+              allPendingShipments = [...allPendingShipments, ...result.pendingShipments.map(shipment => ({ ...shipment, courierId: result.id }))]
+            }
           }
         })
         
+        setPendingShipments(allPendingShipments)
         setCourierStats(stats)
         setTotalShipments(totalShipmentCount)
         setTotalCompleted(totalCompletedCount)
@@ -300,7 +310,8 @@ export function LeaderDashboard() {
           <AlertCircle className="h-8 w-8 text-yellow-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalPending}</span>
-            </div>
+          <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm">(view)</Button>
+        </div>
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
           <CheckCircle className="h-8 w-8 text-green-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Deliveries</span>
@@ -424,6 +435,36 @@ export function LeaderDashboard() {
           <pre>{debugInfo}</pre>
         </div>
       )}
+
+      <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
+        <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Pending Deliveries</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
+            <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-100 dark:bg-gray-800">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/2">AWB Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/2">Courier</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                {pendingShipments.map((shipment) => (
+                  <tr key={shipment.awb_number} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 truncate">
+                      {shipment.awb_number}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 truncate">
+                      {couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
