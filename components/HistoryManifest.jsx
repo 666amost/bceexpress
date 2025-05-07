@@ -8,6 +8,7 @@ export default function HistoryManifest({ mode }) {
   const [editPotongan, setEditPotongan] = useState(0);
   const [editStatus, setEditStatus] = useState('lunas');
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -43,6 +44,15 @@ export default function HistoryManifest({ mode }) {
 
   return (
     <div className="mt-6">
+      <div className="flex items-center gap-2 mb-2">
+        <span>Search:</span>
+        <input
+          className="border rounded px-2 py-1 text-sm"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by AWB, customer, etc."
+        />
+      </div>
       <div className="overflow-x-auto bg-white rounded shadow border">
         <table className="min-w-full text-sm">
           <thead>
@@ -66,25 +76,40 @@ export default function HistoryManifest({ mode }) {
             ) : data.length === 0 ? (
               <tr><td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">Belum ada data manifest.</td></tr>
             ) : (
-              data.map((m, idx) => (
-                <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50">
-                  <td className="px-2 py-1">{m.awb_no}</td>
-                  <td className="px-2 py-1">{m.awb_date}</td>
-                  <td className="px-2 py-1">{m.kirim_via}</td>
-                  <td className="px-2 py-1">{m.kota_tujuan}</td>
-                  <td className="px-2 py-1">{m.agent_customer}</td>
-                  <td className="px-2 py-1">{m.metode_pembayaran}</td>
-                  <td className="px-2 py-1">{m.nama_pengirim}</td>
-                  <td className="px-2 py-1">{m.nama_penerima}</td>
-                  <td className="px-2 py-1 text-right">{m.berat_kg}</td>
-                  <td className="px-2 py-1 text-right">{m.total}</td>
-                  {mode === "pelunasan" && (
-                    <td className="px-2 py-1">
-                      <button className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded" onClick={() => openEditModal(m)}>Edit</button>
-                    </td>
-                  )}
-                </tr>
-              ))
+              data
+                .filter(item =>
+                  item.awb_no.toLowerCase().includes(search.toLowerCase()) ||
+                  item.kota_tujuan.toLowerCase().includes(search.toLowerCase()) ||
+                  item.agent_customer.toLowerCase().includes(search.toLowerCase()) ||
+                  item.nama_pengirim.toLowerCase().includes(search.toLowerCase()) ||
+                  item.nama_penerima.toLowerCase().includes(search.toLowerCase())
+                )
+                .map((m, idx) => (
+                  <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50">
+                    <td className="px-2 py-1">{m.awb_no}</td>
+                    <td className="px-2 py-1">{m.awb_date}</td>
+                    <td className="px-2 py-1">{m.kirim_via}</td>
+                    <td className="px-2 py-1">{m.kota_tujuan}</td>
+                    <td className="px-2 py-1">{m.agent_customer}</td>
+                    <td className="px-2 py-1">{m.metode_pembayaran}</td>
+                    <td className="px-2 py-1">{m.nama_pengirim}</td>
+                    <td className="px-2 py-1">{m.nama_penerima}</td>
+                    <td className="px-2 py-1 text-right">{m.berat_kg}</td>
+                    <td className="px-2 py-1 text-right">{m.total}</td>
+                    {mode === "pelunasan" && (
+                      <td className="px-2 py-1 flex gap-2">
+                        <button className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded" onClick={() => openEditModal(m)}>Edit</button>
+                        <button className="bg-green-400 hover:bg-green-500 text-xs px-2 py-1 rounded" onClick={() => window.print()}>Reprint</button>
+                        <button className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded" onClick={async () => {
+                          if (confirm('Hapus item ini?')) {
+                            await supabaseClient.from('manifest').delete().eq('id', m.id);
+                            setData(data.filter(item => item.id !== m.id));
+                          }
+                        }}>Delete</button>
+                      </td>
+                    )}
+                  </tr>
+                ))
             )}
           </tbody>
         </table>
