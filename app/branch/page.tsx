@@ -20,6 +20,7 @@ export default function BranchDashboard() {
   const [selectedSubMenu, setSelectedSubMenu] = useState('input');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showAwbForm, setShowAwbForm] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -48,14 +49,41 @@ export default function BranchDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <SidebarDashboard
-        selectedMenu={selectedMenu}
-        setSelectedMenu={setSelectedMenu}
-        selectedSubMenu={selectedSubMenu}
-        setSelectedSubMenu={setSelectedSubMenu}
-      />
-      <main className="flex-1 p-4 md:p-8 w-full ml-72">
+    <div className="flex min-h-screen bg-gray-100 relative">
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
+      
+      <aside className={`fixed top-0 left-0 h-screen w-full md:w-72 z-50 bg-white flex flex-col select-none border-r border-gray-200 shadow-xl p-4 md:p-6 transition-all duration-300 overflow-y-auto transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <SidebarDashboard
+          selectedMenu={selectedMenu}
+          setSelectedMenu={setSelectedMenu}
+          selectedSubMenu={selectedSubMenu}
+          setSelectedSubMenu={setSelectedSubMenu}
+        />
+      </aside>
+      
+      <button
+        className="md:hidden fixed top-4 left-4 z-60 bg-blue-600 text-white p-2 rounded-lg shadow-md"
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      >
+        {isSidebarOpen ? (
+          // Close icon (X)
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          // Hamburger icon
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+          </svg>
+        )}
+      </button>
+      
+      <main className={`flex-1 p-4 md:p-8 w-full ${isSidebarOpen ? 'ml-72 md:ml-72' : 'md:ml-72'} z-10`}>
         <div className="bg-white rounded-xl shadow-xl p-8 w-full">
           {selectedMenu === 'awb' && selectedSubMenu === 'input' && (
             showAwbForm ? (
