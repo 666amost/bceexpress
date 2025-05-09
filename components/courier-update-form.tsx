@@ -9,19 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  ChevronLeft,
-  Scan,
-  MapPin,
-  Upload,
-  X,
-  Camera,
-  Check,
-  AlertCircle,
-  Zap,
-  ZapOff
-} from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ChevronLeft, Scan, MapPin, Upload, X, Camera, Check } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
@@ -94,11 +83,11 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   useEffect(() => {
     // Initialize beep sound with 100% volume
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    beepRef.current = browserBeep({ 
+    beepRef.current = browserBeep({
       frequency: 800,
-      context: audioContext
+      context: audioContext,
     })
-    
+
     return () => {
       if (audioContext) {
         audioContext.close()
@@ -112,7 +101,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const playBeep = () => {
     if (beepRef.current && !beepTimeoutRef.current) {
       beepRef.current(1) // Play beep once at full volume
-      
+
       // Set timeout to prevent multiple beeps
       beepTimeoutRef.current = setTimeout(() => {
         beepTimeoutRef.current = null
@@ -122,12 +111,46 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const fetchShipmentDetails = async (awb: string) => {
     try {
-      const { data, error } = await supabaseClient.from("shipments").select("*").eq("awb_number", awb).single()
-      if (!error && data) {
-        setShipmentDetails(data)
+      // First check if the shipment already exists
+      const { data: shipmentData, error: shipmentError } = await supabaseClient
+        .from("shipments")
+        .select("*")
+        .eq("awb_number", awb)
+        .single()
+
+      if (!shipmentError && shipmentData) {
+        setShipmentDetails(shipmentData)
+        return
+      }
+
+      // If shipment doesn't exist, check if it exists in manifest
+      const { data: manifestData, error: manifestError } = await supabaseClient
+        .from("manifest")
+        .select("*")
+        .eq("awb_no", awb)
+        .single()
+
+      if (!manifestError && manifestData) {
+        // If found in manifest, show the data but don't create shipment yet
+        setShipmentDetails({
+          awb_number: manifestData.awb_no,
+          receiver_name: manifestData.nama_penerima,
+          receiver_address: manifestData.alamat_penerima,
+          receiver_phone: manifestData.nomor_penerima,
+          sender_name: manifestData.nama_pengirim,
+          sender_phone: manifestData.nomor_pengirim,
+          weight: manifestData.berat_kg,
+          current_status: "in_transit", // Default status for new shipments from manifest
+          from_manifest: true, // Flag to indicate this data is from manifest
+        })
+
+        toast.info("Data ditemukan di manifest", {
+          description: "Data akan otomatis diisi dari manifest",
+          duration: 3000,
+        })
       }
     } catch (err) {
-      console.error("Error fetching shipment details:", err)
+      console.error("Error fetching details:", err)
     }
   }
 
@@ -136,7 +159,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       setScannerError("Invalid QR code")
       return
     }
-    
+
     setShowScanner(false) // Close scanner after successful scan
     setAwbNumber(result)
     fetchShipmentDetails(result)
@@ -238,26 +261,54 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
   }
 
-  const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
+  const createShipmentFromManifest = async (awbNumber: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabaseClient
-        .from("shipments")
-        .select("awb_number")
-        .eq("awb_number", awbNumber)
-        .single()
+      // Call the RPC function to create shipment from manifest
+      const { data, error } = await supabaseClient.rpc("create_shipment_from_manifest", { awb_number: awbNumber })
+
       if (error) {
-        console.error("Error checking shipment:", error)
-        return false
+        console.error("Error creating shipment from manifest:", error)
+        // If the RPC fails, try to create a basic shipment
+        return await createBasicShipment(awbNumber)
       }
-      return !!data
+
+      return true
     } catch (error) {
-      console.error("Error checking shipment:", error)
-      return false
+      console.error("Error calling RPC:", error)
+      return await createBasicShipment(awbNumber)
     }
   }
 
-  const createShipment = async (awbNumber: string): Promise<boolean> => {
+  const createBasicShipment = async (awbNumber: string): Promise<boolean> => {
     try {
+      // If shipmentDetails exists and has from_manifest flag, use that data
+      if (shipmentDetails && shipmentDetails.from_manifest) {
+        const { error } = await supabaseClient.from("shipments").insert([
+          {
+            awb_number: awbNumber,
+            sender_name: shipmentDetails.sender_name || "Auto Generated",
+            sender_address: shipmentDetails.sender_address || "Auto Generated",
+            sender_phone: shipmentDetails.sender_phone || "Auto Generated",
+            receiver_name: shipmentDetails.receiver_name || "Auto Generated",
+            receiver_address: shipmentDetails.receiver_address || "Auto Generated",
+            receiver_phone: shipmentDetails.receiver_phone || "Auto Generated",
+            weight: shipmentDetails.weight || 1,
+            dimensions: shipmentDetails.dimensions || "10x10x10",
+            service_type: shipmentDetails.service_type || "Standard",
+            current_status: status as string,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ])
+
+        if (error) {
+          console.error("Error creating shipment from manifest data:", error)
+          return false
+        }
+        return true
+      }
+
+      // Fallback to basic auto-generated shipment
       const { error } = await supabaseClient.from("shipments").insert([
         {
           awb_number: awbNumber,
@@ -275,13 +326,32 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           updated_at: new Date().toISOString(),
         },
       ])
+
       if (error) {
-        console.error("Error creating shipment:", error)
+        console.error("Error creating basic shipment:", error)
         return false
       }
       return true
     } catch (error) {
       console.error("Error creating shipment:", error)
+      return false
+    }
+  }
+
+  const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("shipments")
+        .select("awb_number")
+        .eq("awb_number", awbNumber)
+        .single()
+      if (error) {
+        console.error("Error checking shipment:", error)
+        return false
+      }
+      return !!data
+    } catch (error) {
+      console.error("Error checking shipment:", error)
       return false
     }
   }
@@ -345,7 +415,8 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     try {
       const shipmentExists = await checkShipmentExists(awbNumber)
       if (!shipmentExists) {
-        const created = await createShipment(awbNumber)
+        // Try to create shipment from manifest first
+        const created = await createShipmentFromManifest(awbNumber)
         if (!created) {
           setError("Failed to create shipment. Please try again.")
           setIsLoading(false)
@@ -448,7 +519,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             <h3 className="font-medium mb-1">Shipment Details</h3>
             <p className="text-sm">Receiver: {shipmentDetails.receiver_name}</p>
             <p className="text-sm">Address: {shipmentDetails.receiver_address}</p>
-            <p className="text-sm">Current Status: {shipmentDetails.current_status.replace(/_/g, " ")}</p>
+            <p className="text-sm">
+              Current Status: {shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}
+            </p>
+            {shipmentDetails.from_manifest && (
+              <p className="text-sm text-green-600 font-medium mt-1">Data loaded from manifest</p>
+            )}
           </div>
         )}
 
@@ -478,7 +554,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                 id="courier-awb"
                 placeholder="Enter AWB Number"
                 value={awbNumber}
-                onChange={(e) => setAwbNumber(e.target.value)}
+                onChange={(e) => {
+                  setAwbNumber(e.target.value)
+                  if (e.target.value.length >= 10) {
+                    fetchShipmentDetails(e.target.value)
+                  }
+                }}
                 required
               />
             </div>

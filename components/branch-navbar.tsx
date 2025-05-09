@@ -1,0 +1,400 @@
+"use client"
+
+import { useState, useRef, useEffect } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+
+interface BranchNavbarProps {
+  selectedMenu: string
+  selectedSubMenu: string
+  onMenuChange: (menu: string, submenu?: string) => void
+}
+
+export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChange }: BranchNavbarProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isTransactionSubmenuOpen, setIsTransactionSubmenuOpen] = useState(false)
+  const [isDesktopSubmenuOpen, setIsDesktopSubmenuOpen] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordInput, setPasswordInput] = useState("")
+  const [passwordError, setPasswordError] = useState("")
+  const [menuToAccess, setMenuToAccess] = useState<string>("")
+  const router = useRouter()
+  const submenuRef = useRef<HTMLDivElement>(null)
+
+  // Close desktop submenu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (submenuRef.current && !submenuRef.current.contains(event.target as Node)) {
+        setIsDesktopSubmenuOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    const { supabaseClient } = await import("@/lib/auth")
+    await supabaseClient.auth.signOut()
+    router.push("/branch/login")
+  }
+
+  const handlePasswordSubmit = () => {
+    if (passwordInput === "bceadmin666") {
+      setShowPasswordModal(false)
+      setPasswordInput("")
+      setPasswordError("")
+      onMenuChange(menuToAccess)
+    } else {
+      setPasswordError("Password salah!")
+    }
+  }
+
+  const handleProtectedMenuClick = (menu: string) => {
+    setMenuToAccess(menu)
+    setShowPasswordModal(true)
+  }
+
+  return (
+    <nav className="bg-white shadow-md fixed w-full z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex">
+            <div className="flex-shrink-0 flex items-center">
+              <Link href="/">
+                <div className="flex items-center">
+                  <Image
+                    src="/images/bce-logo.png"
+                    alt="BCE EXPRESS"
+                    width={150}
+                    height={48}
+                    className="h-10 w-auto"
+                    priority
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none"
+                      e.currentTarget.nextSibling?.classList.remove("hidden")
+                    }}
+                  />
+                  <span className="text-xl font-bold text-blue-600 hidden">BCE EXPRESS</span>
+                </div>
+              </Link>
+            </div>
+          </div>
+
+          <div className="hidden md:ml-6 md:flex md:items-center md:space-x-4">
+            <div className="relative" ref={submenuRef}>
+              <button
+                className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
+                  selectedMenu === "awb" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  setIsDesktopSubmenuOpen(!isDesktopSubmenuOpen)
+                  onMenuChange("awb")
+                }}
+              >
+                Transaction
+                <svg
+                  className={`w-4 h-4 ml-1 transform ${isDesktopSubmenuOpen ? "rotate-180" : ""}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {isDesktopSubmenuOpen && (
+                <div className="absolute left-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "input_resi" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => {
+                      onMenuChange("awb", "input_resi")
+                      setIsDesktopSubmenuOpen(false)
+                    }}
+                  >
+                    Input Resi
+                  </button>
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "search_manifest" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => {
+                      onMenuChange("awb", "search_manifest")
+                      setIsDesktopSubmenuOpen(false)
+                    }}
+                  >
+                    Search Manifest
+                  </button>
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "pelunasan" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => {
+                      onMenuChange("awb", "pelunasan")
+                      setIsDesktopSubmenuOpen(false)
+                    }}
+                  >
+                    Pelunasan Resi
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                selectedMenu === "payment" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => onMenuChange("payment")}
+            >
+              Data Payment
+            </button>
+
+            <button
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                selectedMenu === "daily_report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => handleProtectedMenuClick("daily_report")}
+            >
+              Daily Report
+            </button>
+
+            <button
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                selectedMenu === "recap" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => handleProtectedMenuClick("recap")}
+            >
+              Recap
+            </button>
+
+            <button
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                selectedMenu === "outstanding" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => handleProtectedMenuClick("outstanding")}
+            >
+              Outstanding Report
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              Logout
+            </button>
+          </div>
+
+          <div className="flex items-center md:hidden">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+            >
+              <span className="sr-only">Open main menu</span>
+              {isMenuOpen ? (
+                <svg
+                  className="block h-6 w-6"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg
+                  className="block h-6 w-6"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {isMenuOpen && (
+        <div className="md:hidden">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <div className="space-y-1">
+              <button
+                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
+                  selectedMenu === "awb" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  onMenuChange("awb")
+                  setIsTransactionSubmenuOpen(!isTransactionSubmenuOpen)
+                }}
+              >
+                Transaction
+                <svg
+                  className={`inline-block w-4 h-4 ml-1 transform ${isTransactionSubmenuOpen ? "rotate-180" : ""}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {(selectedMenu === "awb" || isTransactionSubmenuOpen) && (
+                <div className="pl-4 space-y-1">
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "input_resi" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => {
+                      onMenuChange("awb", "input_resi")
+                      setIsMenuOpen(false)
+                      setIsTransactionSubmenuOpen(false)
+                    }}
+                  >
+                    Input Resi
+                  </button>
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "search_manifest" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => {
+                      onMenuChange("awb", "search_manifest")
+                      setIsMenuOpen(false)
+                      setIsTransactionSubmenuOpen(false)
+                    }}
+                  >
+                    Search Manifest
+                  </button>
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "pelunasan" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => {
+                      onMenuChange("awb", "pelunasan")
+                      setIsMenuOpen(false)
+                      setIsTransactionSubmenuOpen(false)
+                    }}
+                  >
+                    Pelunasan Resi
+                  </button>
+                </div>
+              )}
+
+              <button
+                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
+                  selectedMenu === "payment" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  onMenuChange("payment")
+                  setIsMenuOpen(false)
+                  setIsTransactionSubmenuOpen(false)
+                }}
+              >
+                Data Payment
+              </button>
+
+              <button
+                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
+                  selectedMenu === "daily_report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  handleProtectedMenuClick("daily_report")
+                  setIsMenuOpen(false)
+                }}
+              >
+                Daily Report
+              </button>
+
+              <button
+                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
+                  selectedMenu === "recap" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  handleProtectedMenuClick("recap")
+                  setIsMenuOpen(false)
+                }}
+              >
+                Recap
+              </button>
+
+              <button
+                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
+                  selectedMenu === "outstanding" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  handleProtectedMenuClick("outstanding")
+                  setIsMenuOpen(false)
+                }}
+              >
+                Outstanding Report
+              </button>
+
+              <button
+                onClick={() => {
+                  handleLogout()
+                  setIsMenuOpen(false)
+                  setIsTransactionSubmenuOpen(false)
+                }}
+                className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">Masukkan Password</h3>
+            <div className="mb-4">
+              <input
+                type="password"
+                className="w-full border rounded px-3 py-2"
+                placeholder="Password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handlePasswordSubmit()
+                }}
+              />
+              {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded"
+                onClick={() => {
+                  setShowPasswordModal(false)
+                  setPasswordInput("")
+                  setPasswordError("")
+                }}
+              >
+                Batal
+              </button>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handlePasswordSubmit}>
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </nav>
+  )
+}

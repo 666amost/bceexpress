@@ -111,3 +111,32 @@ export async function uploadImage(file: File, awbNumber: string): Promise<string
 
   return data.publicUrl
 }
+
+// Check if AWB exists in manifest
+export async function checkManifestAwb(awbNumber: string): Promise<any> {
+  const { data, error } = await supabase.from("manifest").select("*").eq("awb_no", awbNumber).single()
+
+  if (error) {
+    console.error("Error checking manifest:", error)
+    return null
+  }
+
+  return data
+}
+
+// Create shipment from manifest
+export async function createShipmentFromManifest(awbNumber: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc("create_shipment_from_manifest", { awb_number: awbNumber })
+
+    if (error) {
+      console.error("Error creating shipment from manifest:", error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error calling RPC:", error)
+    return false
+  }
+}

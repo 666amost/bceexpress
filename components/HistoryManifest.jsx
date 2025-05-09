@@ -1,46 +1,56 @@
-import React, { useEffect, useState } from "react";
-import { supabaseClient } from "../lib/auth";
+"use client"
+
+import { useEffect, useState } from "react"
+import { supabaseClient } from "../lib/auth"
+import PrintLayout from "./PrintLayout"
 
 export default function HistoryManifest({ mode }) {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [editData, setEditData] = useState(null);
-  const [editPotongan, setEditPotongan] = useState(0);
-  const [editStatus, setEditStatus] = useState('lunas');
-  const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editData, setEditData] = useState(null)
+  const [editPotongan, setEditPotongan] = useState(0)
+  const [editStatus, setEditStatus] = useState("lunas")
+  const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState("")
+  const [printData, setPrintData] = useState(null)
+  const [showPrintLayout, setShowPrintLayout] = useState(false)
 
   useEffect(() => {
-    setLoading(true);
+    setLoading(true)
     supabaseClient
       .from("manifest")
       .select("*")
       .order("awb_date", { ascending: false })
       .then(({ data }) => {
-        setData(data || []);
-        setLoading(false);
-      });
-  }, [saving]);
+        setData(data || [])
+        setLoading(false)
+      })
+  }, [saving])
 
   const openEditModal = (row) => {
-    setEditData(row);
-    setEditPotongan(row.potongan || 0);
-    setEditStatus(row.status_pelunasan || 'lunas');
-  };
+    setEditData(row)
+    setEditPotongan(row.potongan || 0)
+    setEditStatus(row.status_pelunasan || "lunas")
+  }
   const closeEditModal = () => {
-    setEditData(null);
-    setEditPotongan(0);
-    setEditStatus('lunas');
-  };
+    setEditData(null)
+    setEditPotongan(0)
+    setEditStatus("lunas")
+  }
   const handleEditSave = async () => {
-    setSaving(true);
+    setSaving(true)
     await supabaseClient
-      .from('manifest')
+      .from("manifest")
       .update({ status_pelunasan: editStatus, potongan: editPotongan })
-      .eq('id', editData.id);
-    setSaving(false);
-    closeEditModal();
-  };
+      .eq("id", editData.id)
+    setSaving(false)
+    closeEditModal()
+  }
+
+  const handlePrint = (row) => {
+    setPrintData(row)
+    setShowPrintLayout(true)
+  }
 
   return (
     <div className="mt-6">
@@ -72,17 +82,26 @@ export default function HistoryManifest({ mode }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">Loading...</td></tr>
+              <tr>
+                <td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">
+                  Loading...
+                </td>
+              </tr>
             ) : data.length === 0 ? (
-              <tr><td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">Belum ada data manifest.</td></tr>
+              <tr>
+                <td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">
+                  Belum ada data manifest.
+                </td>
+              </tr>
             ) : (
               data
-                .filter(item =>
-                  item.awb_no.toLowerCase().includes(search.toLowerCase()) ||
-                  item.kota_tujuan.toLowerCase().includes(search.toLowerCase()) ||
-                  item.agent_customer.toLowerCase().includes(search.toLowerCase()) ||
-                  item.nama_pengirim.toLowerCase().includes(search.toLowerCase()) ||
-                  item.nama_penerima.toLowerCase().includes(search.toLowerCase())
+                .filter(
+                  (item) =>
+                    item.awb_no.toLowerCase().includes(search.toLowerCase()) ||
+                    item.kota_tujuan.toLowerCase().includes(search.toLowerCase()) ||
+                    item.agent_customer.toLowerCase().includes(search.toLowerCase()) ||
+                    item.nama_pengirim.toLowerCase().includes(search.toLowerCase()) ||
+                    item.nama_penerima.toLowerCase().includes(search.toLowerCase()),
                 )
                 .map((m, idx) => (
                   <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50">
@@ -98,14 +117,29 @@ export default function HistoryManifest({ mode }) {
                     <td className="px-2 py-1 text-right">{m.total}</td>
                     {mode === "pelunasan" && (
                       <td className="px-2 py-1 flex gap-2">
-                        <button className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded" onClick={() => openEditModal(m)}>Edit</button>
-                        <button className="bg-green-400 hover:bg-green-500 text-xs px-2 py-1 rounded" onClick={() => window.print()}>Reprint</button>
-                        <button className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded" onClick={async () => {
-                          if (confirm('Hapus item ini?')) {
-                            await supabaseClient.from('manifest').delete().eq('id', m.id);
-                            setData(data.filter(item => item.id !== m.id));
-                          }
-                        }}>Delete</button>
+                        <button
+                          className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded"
+                          onClick={() => openEditModal(m)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="bg-green-400 hover:bg-green-500 text-xs px-2 py-1 rounded"
+                          onClick={() => handlePrint(m)}
+                        >
+                          Reprint
+                        </button>
+                        <button
+                          className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
+                          onClick={async () => {
+                            if (confirm("Hapus item ini?")) {
+                              await supabaseClient.from("manifest").delete().eq("id", m.id)
+                              setData(data.filter((item) => item.id !== m.id))
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -120,30 +154,79 @@ export default function HistoryManifest({ mode }) {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">Edit Pelunasan Resi</h3>
-              <button onClick={closeEditModal} className="text-gray-500 hover:text-red-500 text-xl">&times;</button>
+              <button onClick={closeEditModal} className="text-gray-500 hover:text-red-500 text-xl">
+                &times;
+              </button>
             </div>
             <div className="mb-4">
-              <div className="mb-2">No STTB: <b>{editData.awb_no}</b></div>
-              <div className="mb-2">Total: <b>{editData.total}</b></div>
+              <div className="mb-2">
+                No STTB: <b>{editData.awb_no}</b>
+              </div>
+              <div className="mb-2">
+                Total: <b>{editData.total}</b>
+              </div>
               <div className="mb-2">
                 <label className="block text-xs font-semibold mb-1">Status Pelunasan</label>
-                <select className="border rounded px-2 py-1 text-sm w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value)}>
+                <select
+                  className="border rounded px-2 py-1 text-sm w-full"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                >
                   <option value="lunas">Lunas</option>
                   <option value="belum lunas">Belum Lunas</option>
                 </select>
               </div>
               <div className="mb-2">
                 <label className="block text-xs font-semibold mb-1">Potongan</label>
-                <input type="number" className="border rounded px-2 py-1 text-sm w-full" value={editPotongan} onChange={e=>setEditPotongan(e.target.value)} />
+                <input
+                  type="number"
+                  className="border rounded px-2 py-1 text-sm w-full"
+                  value={editPotongan}
+                  onChange={(e) => setEditPotongan(e.target.value)}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">Batal</button>
-              <button onClick={handleEditSave} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">{saving ? 'Menyimpan...' : 'Simpan'}</button>
+              <button onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">
+                Batal
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700"
+              >
+                {saving ? "Menyimpan..." : "Simpan"}
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Print Layout */}
+      {showPrintLayout && printData && (
+        <div className="fixed inset-0 bg-white z-50 p-4">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-bold">Print Preview</h2>
+            <button
+              onClick={() => {
+                setShowPrintLayout(false)
+                setPrintData(null)
+              }}
+              className="bg-red-500 text-white px-4 py-2 rounded"
+            >
+              Close
+            </button>
+          </div>
+          <div className="print-container">
+            <PrintLayout data={printData} />
+          </div>
+          <div className="mt-4 flex justify-center">
+            <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">
+              Print
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  );
-} 
+  )
+}

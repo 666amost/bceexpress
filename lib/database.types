@@ -18,6 +18,8 @@ export interface Database {
           current_status: string
           created_at: string
           updated_at: string
+          courier_id: string | null
+          updated_by: string | null
         }
         Insert: {
           awb_number: string
@@ -33,6 +35,8 @@ export interface Database {
           current_status: string
           created_at?: string
           updated_at?: string
+          courier_id?: string | null
+          updated_by?: string | null
         }
         Update: {
           awb_number?: string
@@ -48,6 +52,8 @@ export interface Database {
           current_status?: string
           created_at?: string
           updated_at?: string
+          courier_id?: string | null
+          updated_by?: string | null
         }
       }
       shipment_history: {
@@ -61,6 +67,7 @@ export interface Database {
           created_at: string
           latitude: number | null
           longitude: number | null
+          updated_by: string | null
         }
         Insert: {
           id?: string
@@ -72,6 +79,7 @@ export interface Database {
           created_at?: string
           latitude?: number | null
           longitude?: number | null
+          updated_by?: string | null
         }
         Update: {
           id?: string
@@ -83,6 +91,7 @@ export interface Database {
           created_at?: string
           latitude?: number | null
           longitude?: number | null
+          updated_by?: string | null
         }
       }
       users: {
@@ -94,7 +103,7 @@ export interface Database {
           created_at: string
         }
         Insert: {
-          id?: string
+          id: string
           email: string
           name: string
           role: string
@@ -108,11 +117,97 @@ export interface Database {
           created_at?: string
         }
       }
+      manifest: {
+        Row: {
+          id: string
+          awb_no: string
+          awb_date: string
+          kirim_via: string
+          kota_tujuan: string
+          wilayah: string
+          metode_pembayaran: string
+          agent_customer: string
+          nama_pengirim: string
+          nomor_pengirim: string
+          nama_penerima: string
+          nomor_penerima: string
+          alamat_penerima: string
+          coli: number
+          berat_kg: number
+          harga_per_kg: number
+          sub_total: number
+          biaya_admin: number
+          biaya_packaging: number
+          biaya_transit: number
+          total: number
+          status_pelunasan: string | null
+          potongan: number | null
+          buktimembayar: boolean | null
+        }
+        Insert: {
+          id?: string
+          awb_no: string
+          awb_date: string
+          kirim_via: string
+          kota_tujuan: string
+          wilayah: string
+          metode_pembayaran: string
+          agent_customer: string
+          nama_pengirim: string
+          nomor_pengirim: string
+          nama_penerima: string
+          nomor_penerima: string
+          alamat_penerima: string
+          coli: number
+          berat_kg: number
+          harga_per_kg: number
+          sub_total: number
+          biaya_admin: number
+          biaya_packaging: number
+          biaya_transit: number
+          total: number
+          status_pelunasan?: string | null
+          potongan?: number | null
+          buktimembayar?: boolean | null
+        }
+        Update: {
+          id?: string
+          awb_no?: string
+          awb_date?: string
+          kirim_via?: string
+          kota_tujuan?: string
+          wilayah?: string
+          metode_pembayaran?: string
+          agent_customer?: string
+          nama_pengirim?: string
+          nomor_pengirim?: string
+          nama_penerima?: string
+          nomor_penerima?: string
+          alamat_penerima?: string
+          coli?: number
+          berat_kg?: number
+          harga_per_kg?: number
+          sub_total?: number
+          biaya_admin?: number
+          biaya_packaging?: number
+          biaya_transit?: number
+          total?: number
+          status_pelunasan?: string | null
+          potongan?: number | null
+          buktimembayar?: boolean | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      create_shipment_from_manifest: {
+        Args: {
+          awb_number: string
+        }
+        Returns: undefined
+      }
       [_ in never]: never
     }
     Enums: {

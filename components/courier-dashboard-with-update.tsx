@@ -1,5 +1,4 @@
-// This is a backup of the courier dashboard with both action buttons visible
-import { Card, CardContent } from "@/components/ui/card"
+"use client"
 import { Button } from "@/components/ui/button"
 import { Loader2, LogOut, Eye, Package, CheckCircle } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
@@ -75,7 +74,7 @@ export function CourierDashboardWithUpdate() {
       const yesterday = new Date(today)
       yesterday.setDate(yesterday.getDate() - 1)
       const yesterdayISOString = yesterday.toISOString()
-      
+
       const courierId = user?.id
       const courierName = user?.name || user?.email?.split("@")[0] || ""
 
@@ -141,10 +140,13 @@ export function CourierDashboardWithUpdate() {
   }
 
   const handleBulkUpdateSuccess = (count: number) => {
+    // Show toast notification but don't close modal automatically
     toast({
       title: "Bulk Update Successful",
-      description: `${count} shipments have been updated to "Shipped" status.`,
+      description: `${count} shipments have been updated to "Out for Delivery" status.`,
     })
+
+    // Refresh data after successful update
     if (currentUser) {
       loadShipmentData(currentUser)
     }
@@ -260,12 +262,13 @@ export function CourierDashboardWithUpdate() {
         </Button>
         <Button
           className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-6 text-lg flex-1 shadow"
-          onClick={() => router.push('/courier/update')}
+          onClick={() => router.push("/courier/update")}
         >
           Update Shipment Status
         </Button>
       </div>
 
+      {/* Bulk Update Modal */}
       <BulkUpdateModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
@@ -342,7 +345,9 @@ export function CourierDashboardWithUpdate() {
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-yellow-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
-                        <Badge variant="outline" className="text-xs">OFD</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          OFD
+                        </Badge>
                       </div>
                       <p className="text-sm mt-1">
                         {shipment.receiver_name !== "Auto Generated"
@@ -403,4 +408,4 @@ export function CourierDashboardWithUpdate() {
       </Dialog>
     </div>
   )
-} 
+}
