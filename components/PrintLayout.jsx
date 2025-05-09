@@ -1,69 +1,195 @@
-import React from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
-import Barcode from 'react-barcode';
+"use client"
+
+import { useRef, useEffect } from "react"
+import JsBarcode from "jsbarcode"
+import QRCode from "qrcode"
 
 export default function PrintLayout({ data }) {
+  const barcodeRef = useRef(null)
+  const qrCodeRef = useRef(null)
+
+  useEffect(() => {
+    if (barcodeRef.current && data?.awb_no) {
+      JsBarcode(barcodeRef.current, data.awb_no, {
+        format: "CODE128",
+        width: 2,
+        height: 50,
+        displayValue: false,
+        margin: 0,
+      })
+    }
+
+    if (qrCodeRef.current && data?.awb_no) {
+      QRCode.toCanvas(qrCodeRef.current, data.awb_no, {
+        width: 100,
+        margin: 0,
+      })
+    }
+  }, [data])
+
+  if (!data) return null
+
   return (
-    <div className="print-container" style={{ width: '100mm', height: '50mm', boxSizing: 'border-box', border: '2px solid #000', padding: 0, position: 'relative' }}>
-      <style>
-        {`
-          @media print {
-            @page {
-              size: 100mm 50mm;
-              margin: 0;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-            }
-            .print-container {
-              width: 100mm;
-              height: 50mm;
-              box-sizing: border-box;
-              border: 2px solid #000;
-              padding: 0;
-              position: relative;
-            }
-            .no-print {
-              display: none !important;
-            }
-          }
-        `}
-      </style>
-      <div style={{ display: 'flex', height: '100%' }}>
-        {/* KIRI */}
-        <div style={{ flex: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* Kotak Barcode */}
-          <div style={{ border: '2px solid #000', padding: '2mm', minHeight: '18mm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-            <Barcode value={data.awb_no} width={2} height={40} displayValue={false} margin={0} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1mm' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '3.2mm' }}>{data.awb_no}</span>
-              <span style={{ fontSize: '2.8mm' }}>admin 0812-9056-8532</span>
+    <div className="print-only">
+      {/* This is the actual content that will be printed */}
+      <div className="shipping-label">
+        <div className="barcode-section">
+          <svg ref={barcodeRef}></svg>
+          <div className="awb-number">{data.awb_no}</div>
+        </div>
+
+        <div className="shipping-details">
+          <span>coli: {data.coli}</span>
+          <span>berat: {data.berat_kg} kg</span>
+          <span>total: {data.total}</span>
+        </div>
+
+        <div className="content-section">
+          <div className="address-box">
+            <div className="sender">
+              <strong>{data.nama_pengirim}</strong>
+              <div>{data.nomor_pengirim}</div>
+            </div>
+            <div className="recipient">
+              <strong>{data.nama_penerima}</strong>
+              <div>{data.nomor_penerima}</div>
+              <div>{data.alamat_penerima}</div>
             </div>
           </div>
-          {/* Kotak Info */}
-          <div style={{ border: '2px solid #000', borderTop: 'none', borderBottom: 'none', padding: '2mm', fontSize: '3mm', fontWeight: 500 }}>
-            C : {data.coli}   Kg : {data.berat_kg}   total : {data.total}
-          </div>
-          {/* Kotak Alamat */}
-          <div style={{ border: '2px solid #000', flex: 1, padding: '2mm', fontSize: '3mm', fontWeight: 'bold', wordBreak: 'break-word', overflow: 'hidden', background: '#fff', borderRadius: 0 }}>
-            {data.nama_pengirim},<br />
-            {data.nama_penerima} {data.nomor_penerima}<br />
-            {data.alamat_penerima}
+
+          <div className="logo-qr">
+            <img src="/images/bce-logo.png" alt="BCE Express" className="logo" />
+            <canvas ref={qrCodeRef}></canvas>
           </div>
         </div>
-        {/* KANAN */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', height: '100%' }}>
-          <img
-            src="/images/bce-logo.png"
-            alt="BCE Express"
-            style={{ width: '22mm', height: 'auto', margin: '0 auto', display: 'block' }}
-          />
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-            <QRCodeCanvas value={data.awb_no} size={80} />
-          </div>
+
+        <div className="footer">
+          <div className="terms">*Syarat dan ketentuan pengiriman sesuai dengan kebijakan BCE Express</div>
+          <div className="admin">admin 0812-9056-8532</div>
         </div>
       </div>
+
+      <style jsx>{`
+        .print-only {
+          display: block;
+          width: 100mm;
+          height: 100mm;
+          padding: 0;
+          margin: 0 auto;
+          box-sizing: border-box;
+          font-family: Arial, sans-serif;
+          font-size: 10px;
+        }
+        
+        .shipping-label {
+          width: 100%;
+          height: 100%;
+          border: 1px solid #000;
+          padding: 5mm;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .barcode-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 3mm;
+        }
+        
+        .barcode-section svg {
+          width: 100%;
+          height: 15mm;
+        }
+        
+        .awb-number {
+          font-weight: bold;
+          font-size: 14px;
+          margin-top: 1mm;
+        }
+        
+        .shipping-details {
+          display: flex;
+          justify-content: flex-start;
+          gap: 10mm;
+          margin-bottom: 3mm;
+          font-size: 12px;
+        }
+        
+        .content-section {
+          display: flex;
+          flex: 1;
+          margin-bottom: 3mm;
+        }
+        
+        .address-box {
+          flex: 1;
+          border: 1px solid #000;
+          padding: 2mm;
+          margin-right: 3mm;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        
+        .sender {
+          margin-bottom: 3mm;
+        }
+        
+        .logo-qr {
+          width: 30mm;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-between;
+        }
+        
+        .logo {
+          width: 25mm;
+          height: auto;
+          margin-bottom: 2mm;
+        }
+        
+        canvas {
+          width: 25mm !important;
+          height: 25mm !important;
+        }
+        
+        .footer {
+          display: flex;
+          justify-content: space-between;
+          font-size: 8px;
+          font-style: italic;
+        }
+        
+        @media print {
+          @page {
+            size: 100mm 100mm;
+            margin: 0;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-only, .print-only * {
+            visibility: visible;
+          }
+          
+          .print-only {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100mm;
+            height: 100mm;
+          }
+          
+          .shipping-label {
+            border: none;
+          }
+        }
+      `}</style>
     </div>
-  );
-} 
+  )
+}

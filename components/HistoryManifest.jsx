@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout"
+import AwbForm from "./AwbForm"
 
 export default function HistoryManifest({ mode }) {
   const [data, setData] = useState([])
@@ -14,6 +15,9 @@ export default function HistoryManifest({ mode }) {
   const [search, setSearch] = useState("")
   const [printData, setPrintData] = useState(null)
   const [showPrintLayout, setShowPrintLayout] = useState(false)
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [selectedItem, setSelectedItem] = useState(null)
+  const printFrameRef = useRef(null)
 
   useEffect(() => {
     setLoading(true)
@@ -32,11 +36,13 @@ export default function HistoryManifest({ mode }) {
     setEditPotongan(row.potongan || 0)
     setEditStatus(row.status_pelunasan || "lunas")
   }
+
   const closeEditModal = () => {
     setEditData(null)
     setEditPotongan(0)
     setEditStatus("lunas")
   }
+
   const handleEditSave = async () => {
     setSaving(true)
     await supabaseClient
@@ -49,11 +55,67 @@ export default function HistoryManifest({ mode }) {
 
   const handlePrint = (row) => {
     setPrintData(row)
-    setShowPrintLayout(true)
+
+    // Use setTimeout to ensure the print frame is rendered before printing
+    setTimeout(() => {
+      if (printFrameRef.current) {
+        const printContent = printFrameRef.current
+        const originalContents = document.body.innerHTML
+
+        document.body.innerHTML = printContent.innerHTML
+        window.print()
+        document.body.innerHTML = originalContents
+
+        // Re-initialize the component after printing
+        setPrintData(null)
+      }
+    }, 100)
+  }
+
+  const handleEditAwb = (item) => {
+    setSelectedItem(item)
+    setShowEditForm(true)
+  }
+
+  const handleEditSuccess = () => {
+    setShowEditForm(false)
+    setSelectedItem(null)
+    // Refresh data
+    supabaseClient
+      .from("manifest")
+      .select("*")
+      .order("awb_date", { ascending: false })
+      .then(({ data }) => {
+        setData(data || [])
+      })
+  }
+
+  if (showEditForm && selectedItem) {
+    return (
+      <div className="mt-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-blue-900">Edit AWB</h2>
+          <button onClick={() => setShowEditForm(false)} className="px-4 py-2 bg-gray-200 rounded">
+            Back to List
+          </button>
+        </div>
+        <AwbForm
+          initialData={selectedItem}
+          onSuccess={handleEditSuccess}
+          onCancel={() => setShowEditForm(false)}
+          isEditing={true}
+        />
+      </div>
+    )
   }
 
   return (
     <div className="mt-6">
+      {/* Hidden print frame */}
+      <div className="hidden">
+        <div ref={printFrameRef}>{printData && <PrintLayout data={printData} />}</div>
+      </div>
+
       <div className="flex items-center gap-2 mb-2">
         <span>Search:</span>
         <input
@@ -97,11 +159,11 @@ export default function HistoryManifest({ mode }) {
               data
                 .filter(
                   (item) =>
-                    item.awb_no.toLowerCase().includes(search.toLowerCase()) ||
-                    item.kota_tujuan.toLowerCase().includes(search.toLowerCase()) ||
-                    item.agent_customer.toLowerCase().includes(search.toLowerCase()) ||
-                    item.nama_pengirim.toLowerCase().includes(search.toLowerCase()) ||
-                    item.nama_penerima.toLowerCase().includes(search.toLowerCase()),
+                    item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
                 )
                 .map((m, idx) => (
                   <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50">
@@ -119,7 +181,7 @@ export default function HistoryManifest({ mode }) {
                       <td className="px-2 py-1 flex gap-2">
                         <button
                           className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded"
-                          onClick={() => openEditModal(m)}
+                          onClick={() => handleEditAwb(m)}
                         >
                           Edit
                         </button>
@@ -127,7 +189,7 @@ export default function HistoryManifest({ mode }) {
                           className="bg-green-400 hover:bg-green-500 text-xs px-2 py-1 rounded"
                           onClick={() => handlePrint(m)}
                         >
-                          Reprint
+                          Print
                         </button>
                         <button
                           className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
@@ -148,85 +210,6 @@ export default function HistoryManifest({ mode }) {
           </tbody>
         </table>
       </div>
-      {/* Modal Edit */}
-      {editData && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Edit Pelunasan Resi</h3>
-              <button onClick={closeEditModal} className="text-gray-500 hover:text-red-500 text-xl">
-                &times;
-              </button>
-            </div>
-            <div className="mb-4">
-              <div className="mb-2">
-                No STTB: <b>{editData.awb_no}</b>
-              </div>
-              <div className="mb-2">
-                Total: <b>{editData.total}</b>
-              </div>
-              <div className="mb-2">
-                <label className="block text-xs font-semibold mb-1">Status Pelunasan</label>
-                <select
-                  className="border rounded px-2 py-1 text-sm w-full"
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                >
-                  <option value="lunas">Lunas</option>
-                  <option value="belum lunas">Belum Lunas</option>
-                </select>
-              </div>
-              <div className="mb-2">
-                <label className="block text-xs font-semibold mb-1">Potongan</label>
-                <input
-                  type="number"
-                  className="border rounded px-2 py-1 text-sm w-full"
-                  value={editPotongan}
-                  onChange={(e) => setEditPotongan(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">
-                Batal
-              </button>
-              <button
-                onClick={handleEditSave}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700"
-              >
-                {saving ? "Menyimpan..." : "Simpan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Print Layout */}
-      {showPrintLayout && printData && (
-        <div className="fixed inset-0 bg-white z-50 p-4">
-          <div className="flex justify-between mb-4">
-            <h2 className="text-xl font-bold">Print Preview</h2>
-            <button
-              onClick={() => {
-                setShowPrintLayout(false)
-                setPrintData(null)
-              }}
-              className="bg-red-500 text-white px-4 py-2 rounded"
-            >
-              Close
-            </button>
-          </div>
-          <div className="print-container">
-            <PrintLayout data={printData} />
-          </div>
-          <div className="mt-4 flex justify-center">
-            <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">
-              Print
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -14,19 +14,25 @@ interface BranchNavbarProps {
 export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChange }: BranchNavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTransactionSubmenuOpen, setIsTransactionSubmenuOpen] = useState(false)
-  const [isDesktopSubmenuOpen, setIsDesktopSubmenuOpen] = useState(false)
+  const [isReportSubmenuOpen, setIsReportSubmenuOpen] = useState(false)
+  const [isDesktopTransactionOpen, setIsDesktopTransactionOpen] = useState(false)
+  const [isDesktopReportOpen, setIsDesktopReportOpen] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState("")
-  const [menuToAccess, setMenuToAccess] = useState<string>("")
+  const [menuToAccess, setMenuToAccess] = useState<{ menu: string; submenu: string }>({ menu: "", submenu: "" })
   const router = useRouter()
-  const submenuRef = useRef<HTMLDivElement>(null)
+  const transactionRef = useRef<HTMLDivElement>(null)
+  const reportRef = useRef<HTMLDivElement>(null)
 
   // Close desktop submenu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (submenuRef.current && !submenuRef.current.contains(event.target as Node)) {
-        setIsDesktopSubmenuOpen(false)
+      if (transactionRef.current && !transactionRef.current.contains(event.target as Node)) {
+        setIsDesktopTransactionOpen(false)
+      }
+      if (reportRef.current && !reportRef.current.contains(event.target as Node)) {
+        setIsDesktopReportOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -46,15 +52,27 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
       setShowPasswordModal(false)
       setPasswordInput("")
       setPasswordError("")
-      onMenuChange(menuToAccess)
+      onMenuChange(menuToAccess.menu, menuToAccess.submenu)
     } else {
       setPasswordError("Password salah!")
     }
   }
 
-  const handleProtectedMenuClick = (menu: string) => {
-    setMenuToAccess(menu)
-    setShowPasswordModal(true)
+  const handleMenuClick = (menu: string, submenu: string) => {
+    // Check if the submenu requires password
+    const protectedSubmenus = ["daily_report", "recap", "outstanding"]
+
+    if (menu === "report" && protectedSubmenus.includes(submenu)) {
+      setMenuToAccess({ menu, submenu })
+      setShowPasswordModal(true)
+      setIsDesktopReportOpen(false)
+      setIsReportSubmenuOpen(false)
+    } else {
+      onMenuChange(menu, submenu)
+      setIsDesktopTransactionOpen(false)
+      setIsDesktopReportOpen(false)
+      setIsMenuOpen(false)
+    }
   }
 
   return (
@@ -84,19 +102,21 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
           </div>
 
           <div className="hidden md:ml-6 md:flex md:items-center md:space-x-4">
-            <div className="relative" ref={submenuRef}>
+            {/* Transaction Menu */}
+            <div className="relative" ref={transactionRef}>
               <button
                 className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
-                  selectedMenu === "awb" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                  selectedMenu === "transaction" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
                 onClick={() => {
-                  setIsDesktopSubmenuOpen(!isDesktopSubmenuOpen)
-                  onMenuChange("awb")
+                  setIsDesktopTransactionOpen(!isDesktopTransactionOpen)
+                  setIsDesktopReportOpen(false)
+                  onMenuChange("transaction")
                 }}
               >
                 Transaction
                 <svg
-                  className={`w-4 h-4 ml-1 transform ${isDesktopSubmenuOpen ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 ml-1 transform ${isDesktopTransactionOpen ? "rotate-180" : ""}`}
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -108,16 +128,13 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   />
                 </svg>
               </button>
-              {isDesktopSubmenuOpen && (
+              {isDesktopTransactionOpen && (
                 <div className="absolute left-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <button
                     className={`block px-4 py-2 text-sm w-full text-left ${
                       selectedSubMenu === "input_resi" ? "bg-gray-100 text-gray-900" : "text-gray-700"
                     } hover:bg-gray-100`}
-                    onClick={() => {
-                      onMenuChange("awb", "input_resi")
-                      setIsDesktopSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "input_resi")}
                   >
                     Input Resi
                   </button>
@@ -125,10 +142,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                     className={`block px-4 py-2 text-sm w-full text-left ${
                       selectedSubMenu === "search_manifest" ? "bg-gray-100 text-gray-900" : "text-gray-700"
                     } hover:bg-gray-100`}
-                    onClick={() => {
-                      onMenuChange("awb", "search_manifest")
-                      setIsDesktopSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "search_manifest")}
                   >
                     Search Manifest
                   </button>
@@ -136,10 +150,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                     className={`block px-4 py-2 text-sm w-full text-left ${
                       selectedSubMenu === "pelunasan" ? "bg-gray-100 text-gray-900" : "text-gray-700"
                     } hover:bg-gray-100`}
-                    onClick={() => {
-                      onMenuChange("awb", "pelunasan")
-                      setIsDesktopSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "pelunasan")}
                   >
                     Pelunasan Resi
                   </button>
@@ -147,41 +158,69 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
               )}
             </div>
 
-            <button
-              className={`px-3 py-2 rounded-md text-sm font-medium ${
-                selectedMenu === "payment" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-              }`}
-              onClick={() => onMenuChange("payment")}
-            >
-              Data Payment
-            </button>
-
-            <button
-              className={`px-3 py-2 rounded-md text-sm font-medium ${
-                selectedMenu === "daily_report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-              }`}
-              onClick={() => handleProtectedMenuClick("daily_report")}
-            >
-              Daily Report
-            </button>
-
-            <button
-              className={`px-3 py-2 rounded-md text-sm font-medium ${
-                selectedMenu === "recap" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-              }`}
-              onClick={() => handleProtectedMenuClick("recap")}
-            >
-              Recap
-            </button>
-
-            <button
-              className={`px-3 py-2 rounded-md text-sm font-medium ${
-                selectedMenu === "outstanding" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-              }`}
-              onClick={() => handleProtectedMenuClick("outstanding")}
-            >
-              Outstanding Report
-            </button>
+            {/* Report Menu */}
+            <div className="relative" ref={reportRef}>
+              <button
+                className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
+                  selectedMenu === "report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => {
+                  setIsDesktopReportOpen(!isDesktopReportOpen)
+                  setIsDesktopTransactionOpen(false)
+                  onMenuChange("report")
+                }}
+              >
+                Report
+                <svg
+                  className={`w-4 h-4 ml-1 transform ${isDesktopReportOpen ? "rotate-180" : ""}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {isDesktopReportOpen && (
+                <div className="absolute left-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "daily_report" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => handleMenuClick("report", "daily_report")}
+                  >
+                    Daily Report
+                  </button>
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "recap" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => handleMenuClick("report", "recap")}
+                  >
+                    Recap Manifest
+                  </button>
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "outstanding" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => handleMenuClick("report", "outstanding")}
+                  >
+                    Outstanding
+                  </button>
+                  <button
+                    className={`block px-4 py-2 text-sm w-full text-left ${
+                      selectedSubMenu === "sale" ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                    } hover:bg-gray-100`}
+                    onClick={() => handleMenuClick("report", "sale")}
+                  >
+                    Sale
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button
               onClick={handleLogout}
@@ -230,13 +269,15 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             <div className="space-y-1">
+              {/* Transaction Mobile Menu */}
               <button
                 className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  selectedMenu === "awb" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                  selectedMenu === "transaction" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
                 onClick={() => {
-                  onMenuChange("awb")
+                  onMenuChange("transaction")
                   setIsTransactionSubmenuOpen(!isTransactionSubmenuOpen)
+                  setIsReportSubmenuOpen(false)
                 }}
               >
                 Transaction
@@ -254,17 +295,13 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                 </svg>
               </button>
 
-              {(selectedMenu === "awb" || isTransactionSubmenuOpen) && (
+              {isTransactionSubmenuOpen && (
                 <div className="pl-4 space-y-1">
                   <button
                     className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
                       selectedSubMenu === "input_resi" ? "bg-gray-100 font-medium" : "text-gray-600"
                     }`}
-                    onClick={() => {
-                      onMenuChange("awb", "input_resi")
-                      setIsMenuOpen(false)
-                      setIsTransactionSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "input_resi")}
                   >
                     Input Resi
                   </button>
@@ -272,11 +309,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                     className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
                       selectedSubMenu === "search_manifest" ? "bg-gray-100 font-medium" : "text-gray-600"
                     }`}
-                    onClick={() => {
-                      onMenuChange("awb", "search_manifest")
-                      setIsMenuOpen(false)
-                      setIsTransactionSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "search_manifest")}
                   >
                     Search Manifest
                   </button>
@@ -284,71 +317,80 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                     className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
                       selectedSubMenu === "pelunasan" ? "bg-gray-100 font-medium" : "text-gray-600"
                     }`}
-                    onClick={() => {
-                      onMenuChange("awb", "pelunasan")
-                      setIsMenuOpen(false)
-                      setIsTransactionSubmenuOpen(false)
-                    }}
+                    onClick={() => handleMenuClick("transaction", "pelunasan")}
                   >
                     Pelunasan Resi
                   </button>
                 </div>
               )}
 
+              {/* Report Mobile Menu */}
               <button
                 className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  selectedMenu === "payment" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                  selectedMenu === "report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
                 onClick={() => {
-                  onMenuChange("payment")
-                  setIsMenuOpen(false)
+                  onMenuChange("report")
+                  setIsReportSubmenuOpen(!isReportSubmenuOpen)
                   setIsTransactionSubmenuOpen(false)
                 }}
               >
-                Data Payment
+                Report
+                <svg
+                  className={`inline-block w-4 h-4 ml-1 transform ${isReportSubmenuOpen ? "rotate-180" : ""}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
               </button>
 
-              <button
-                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  selectedMenu === "daily_report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-                }`}
-                onClick={() => {
-                  handleProtectedMenuClick("daily_report")
-                  setIsMenuOpen(false)
-                }}
-              >
-                Daily Report
-              </button>
-
-              <button
-                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  selectedMenu === "recap" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-                }`}
-                onClick={() => {
-                  handleProtectedMenuClick("recap")
-                  setIsMenuOpen(false)
-                }}
-              >
-                Recap
-              </button>
-
-              <button
-                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  selectedMenu === "outstanding" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-                }`}
-                onClick={() => {
-                  handleProtectedMenuClick("outstanding")
-                  setIsMenuOpen(false)
-                }}
-              >
-                Outstanding Report
-              </button>
+              {isReportSubmenuOpen && (
+                <div className="pl-4 space-y-1">
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "daily_report" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => handleMenuClick("report", "daily_report")}
+                  >
+                    Daily Report
+                  </button>
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "recap" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => handleMenuClick("report", "recap")}
+                  >
+                    Recap Manifest
+                  </button>
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "outstanding" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => handleMenuClick("report", "outstanding")}
+                  >
+                    Outstanding
+                  </button>
+                  <button
+                    className={`w-full text-left block px-3 py-2 rounded-md text-sm ${
+                      selectedSubMenu === "sale" ? "bg-gray-100 font-medium" : "text-gray-600"
+                    }`}
+                    onClick={() => handleMenuClick("report", "sale")}
+                  >
+                    Sale
+                  </button>
+                </div>
+              )}
 
               <button
                 onClick={() => {
                   handleLogout()
                   setIsMenuOpen(false)
-                  setIsTransactionSubmenuOpen(false)
                 }}
                 className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
               >
@@ -374,6 +416,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handlePasswordSubmit()
                 }}
+                autoFocus
               />
               {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
             </div>

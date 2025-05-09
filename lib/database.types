@@ -1,4 +1,10 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export interface Database {
   public: {
@@ -18,8 +24,6 @@ export interface Database {
           current_status: string
           created_at: string
           updated_at: string
-          courier_id: string | null
-          updated_by: string | null
         }
         Insert: {
           awb_number: string
@@ -35,8 +39,6 @@ export interface Database {
           current_status: string
           created_at?: string
           updated_at?: string
-          courier_id?: string | null
-          updated_by?: string | null
         }
         Update: {
           awb_number?: string
@@ -52,8 +54,6 @@ export interface Database {
           current_status?: string
           created_at?: string
           updated_at?: string
-          courier_id?: string | null
-          updated_by?: string | null
         }
       }
       shipment_history: {
@@ -67,7 +67,6 @@ export interface Database {
           created_at: string
           latitude: number | null
           longitude: number | null
-          updated_by: string | null
         }
         Insert: {
           id?: string
@@ -79,7 +78,6 @@ export interface Database {
           created_at?: string
           latitude?: number | null
           longitude?: number | null
-          updated_by?: string | null
         }
         Update: {
           id?: string
@@ -91,7 +89,6 @@ export interface Database {
           created_at?: string
           latitude?: number | null
           longitude?: number | null
-          updated_by?: string | null
         }
       }
       users: {
@@ -206,11 +203,14 @@ export interface Database {
         Args: {
           awb_number: string
         }
-        Returns: undefined
+        Returns: boolean
       }
       [_ in never]: never
     }
     Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
       [_ in never]: never
     }
   }
