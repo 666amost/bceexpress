@@ -55,19 +55,182 @@ export default function HistoryManifest({ mode }) {
 
   const handlePrint = (row) => {
     setPrintData(row)
-
-    // Use setTimeout to ensure the print frame is rendered before printing
+    setShowPrintLayout(true)
     setTimeout(() => {
       if (printFrameRef.current) {
-        const printContent = printFrameRef.current
-        const originalContents = document.body.innerHTML
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write('<html><head><title>Print</title>')
+          printWindow.document.write('<style>')
+          printWindow.document.write(`
+            /* Full styles copied from PrintLayout.jsx to ensure consistency */
+            .print-only {
+              display: block;
+              width: 100mm;
+              height: 100mm;
+              padding: 0;
+              margin: 0 auto;
+              box-sizing: border-box;
+              font-family: Arial, sans-serif;
+              font-size: 10px;
+              background-color: #fff;
+            }
 
-        document.body.innerHTML = printContent.innerHTML
-        window.print()
-        document.body.innerHTML = originalContents
+            .shipping-label {
+              width: 100%;
+              height: 100%;
+              border: 1px solid #000;
+              padding: 3mm;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+            }
 
-        // Re-initialize the component after printing
-        setPrintData(null)
+            .barcode-section {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              margin-bottom: 2mm;
+            }
+
+            .barcode-section svg {
+              width: 90%;
+              height: 15mm;
+            }
+
+            .awb-number {
+              font-weight: bold;
+              font-size: 16px;
+              margin-top: 1mm;
+            }
+
+            .shipping-details {
+              display: flex;
+              justify-content: flex-start;
+              gap: 8mm;
+              margin-bottom: 2mm;
+              font-size: 12px;
+              padding-left: 1mm;
+            }
+
+            .content-section {
+              display: flex;
+              flex: 1;
+              margin-bottom: 2mm;
+              gap: 3mm;
+            }
+
+            .address-box {
+              flex: 1;
+              border: 1px solid #000;
+              padding: 2mm 3mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+              font-size: 11px;
+              line-height: 1.3;
+            }
+
+            .address-box .sender-info {
+              margin-bottom: 5mm;
+            }
+
+            .logo-qr {
+              width: 30mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: flex-start;
+            }
+
+            .logo {
+              width: 25mm;
+              height: auto;
+              margin-bottom: 3mm;
+            }
+
+            .qr-code {
+              width: 25mm;
+              height: 25mm;
+            }
+
+            .footer-container {
+              width: 100%;
+              margin-top: auto;
+            }
+
+            .dotted-line {
+              border-top: 1px dotted #000;
+              margin-bottom: 1.5mm;
+            }
+
+            .footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              font-size: 8px;
+              font-style: italic;
+            }
+
+            .terms-text {
+              flex-basis: 65%;
+              text-align: left;
+              line-height: 1.2;
+            }
+
+            .admin-contact {
+              flex-basis: 35%;
+              text-align: right;
+              white-space: nowrap;
+            }
+
+            @media print {
+              @page {
+                size: 100mm 100mm;
+                margin: 0;
+              }
+
+              body {
+                margin: 0;
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+
+              .print-only {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100mm;
+                height: 100mm;
+                margin: 0;
+                padding: 0;
+                background-color: #fff !important;
+              }
+
+              body > *:not(.print-only) {
+                display: none !important;
+                visibility: hidden !important;
+              }
+
+              .print-only,
+              .print-only * {
+                visibility: visible !important;
+              }
+
+              .logo {
+                display: block;
+                width: 25mm;
+                height: auto;
+              }
+            }
+          `)
+          printWindow.document.write('</style></head><body>')
+          printWindow.document.write(printFrameRef.current.innerHTML)
+          printWindow.document.write('</body></html>')
+          printWindow.document.close()
+          setTimeout(() => printWindow.print(), 500)
+          setTimeout(() => { printWindow.close(); setPrintData(null); setShowPrintLayout(false); }, 1000)
+        }
       }
     }, 100)
   }

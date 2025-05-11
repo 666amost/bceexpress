@@ -8,7 +8,7 @@ const kotaWilayah = {
   bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
   "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
   belitung: ["Tj Pandan"],
-  bali: [],
+  bali: ["Denpasar"],
 }
 
 const hargaPerKg = {
@@ -23,6 +23,7 @@ const hargaPerKg = {
   Singkawang: 35000,
   "Sungai Pinyuh": 35000,
   "Tj Pandan": 28000,
+  "Denpasar": 30000,
 }
 
 const agentList = [

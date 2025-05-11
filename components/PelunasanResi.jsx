@@ -12,6 +12,7 @@ export default function PelunasanResi() {
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [expandedGroups, setExpandedGroups] = useState({})
 
   // Fetch payment history on component mount
   useEffect(() => {
@@ -232,10 +233,41 @@ export default function PelunasanResi() {
     document.body.removeChild(link)
   }
 
+  // Function to toggle expansion
+  const toggleGroup = (date) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [date]: !prev[date],  // Toggle the state for the specific date
+    }));
+  };
+
+  // Add this new function to format the date
+  const formatDateToInvoice = (dateString) => {
+    const [year, month, day] = dateString.split('-');  // Assuming date is in YYYY-MM-DD format
+    return `INV/${year}/${month}/${day}`;
+  };
+
+  // Add this new function to group payment history by payment_date
+  const groupPaymentHistoryByDate = (history) => {
+    const grouped = history.reduce((acc, item) => {
+      const date = item.payment_date;
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(item);
+      return acc;
+    }, {});
+
+    return Object.entries(grouped).map(([date, items]) => ({
+      date,
+      items,
+    }));
+  };
+
   // Filter unpaid data based on search and selected agent
   const filteredUnpaidData = unpaidData.filter(
     (row) =>
-      (selectedAgent ? row.agent_customer === selectedAgent : true) &&
+      (selectedAgent ? row.agent_customer?.toLowerCase() === selectedAgent.toLowerCase() : true) &&
       (search
         ? row.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
           row.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
@@ -250,6 +282,9 @@ export default function PelunasanResi() {
       row.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
       row.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
   )
+
+  // Now compute groupedHistory after the function is defined
+  const groupedHistory = groupPaymentHistoryByDate(filteredPaymentHistory);
 
   return (
     <div className="p-4">
@@ -294,7 +329,7 @@ export default function PelunasanResi() {
           <div className="flex justify-end mb-2">
             <button
               onClick={downloadCSV}
-              className="px-4 py-2 bg-green-100 text-white rounded-md hover:bg-green-100 opacity-100 block"
+              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
               disabled={paymentHistory.length === 0}
             >
               Download CSV
@@ -303,48 +338,61 @@ export default function PelunasanResi() {
 
           {loading ? (
             <div className="text-center py-4">Loading payment history...</div>
-          ) : filteredPaymentHistory.length === 0 ? (
+          ) : paymentHistory.length === 0 ? (
             <div className="text-center py-4 bg-gray-50 rounded-md">No payment history found</div>
           ) : (
-            <div className="overflow-x-auto bg-white rounded shadow border max-w-full w-full">
-              <table className="min-w-full text-sm table-auto">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    <th className="px-2 py-2">No Bukti</th>
-                    <th className="px-2 py-2">Tgl Bayar</th>
-                    <th className="px-2 py-2">Pengirim</th>
-                    <th className="px-2 py-2">Penerima</th>
-                    <th className="px-2 py-2">Agent/Customer</th>
-                    <th className="px-2 py-2">Original Amount</th>
-                    <th className="px-2 py-2">Discount</th>
-                    <th className="px-2 py-2">Final Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPaymentHistory.map((row) => (
-                    <tr key={row.id} className="even:bg-blue-50">
-                      <td className="px-2 py-1">{row.awb_no}</td>
-                      <td className="px-2 py-1">{row.payment_date}</td>
-                      <td className="px-2 py-1">{row.nama_pengirim}</td>
-                      <td className="px-2 py-1">{row.nama_penerima}</td>
-                      <td className="px-2 py-1">{row.agent_customer}</td>
-                      <td className="px-2 py-1 text-right">{row.original_amount}</td>
-                      <td className="px-2 py-1 text-right">{row.discount}</td>
-                      <td className="px-2 py-1 text-right font-bold">{row.final_amount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gray-100">
-                    <td colSpan={5} className="px-2 py-2 text-right font-bold">
-                      Total:
-                    </td>
-                    <td colSpan={3} className="px-2 py-2 text-right font-bold">
-                      {filteredPaymentHistory.reduce((sum, row) => sum + Number(row.final_amount || 0), 0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="space-y-4">
+              {groupedHistory.map((group) => {
+                const formattedDate = formatDateToInvoice(group.date);
+                const totalSTTB = group.items.length;
+                const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
+                const isExpanded = expandedGroups[group.date];
+
+                return (
+                  <div key={group.date} className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
+                    <button
+                      onClick={() => toggleGroup(group.date)}
+                      className="w-full text-left text-lg font-bold text-blue-600 hover:underline flex justify-between items-center"
+                    >
+                      <span>{formattedDate}</span>
+                      <span className="flex items-center">
+                        Total STTB: {totalSTTB} | Total Payment: Rp. {totalPayment}
+                        {isExpanded ? ' ▲' : ' ▼'}
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-4 overflow-x-auto transition-all duration-300 ease-in-out">
+                        <table className="min-w-full text-sm table-auto divide-y divide-gray-200">
+                          <thead className="bg-blue-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600">No Bukti</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600">Pengirim</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600">Penerima</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600">Agent/Customer</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600">Original Amount</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600">Discount</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600">Final Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {group.items.map((row) => (
+                              <tr key={row.id} className="hover:bg-gray-50 transition">
+                                <td className="px-4 py-2">{row.awb_no}</td>
+                                <td className="px-4 py-2">{row.nama_pengirim}</td>
+                                <td className="px-4 py-2">{row.nama_penerima}</td>
+                                <td className="px-4 py-2">{row.agent_customer}</td>
+                                <td className="px-4 py-2 text-right">Rp. {row.original_amount}</td>
+                                <td className="px-4 py-2 text-right">Rp. {row.discount}</td>
+                                <td className="px-4 py-2 text-right font-bold">Rp. {row.final_amount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -376,68 +424,63 @@ export default function PelunasanResi() {
           ) : filteredUnpaidData.length === 0 ? (
             <div className="text-center py-4 bg-gray-50 rounded-md">No unpaid shipments found</div>
           ) : (
-            <>
-              <div className="overflow-x-auto bg-white rounded shadow border max-w-full w-full">
-                <table className="min-w-full text-sm table-auto">
-                  <thead>
-                    <tr className="bg-blue-600 text-white">
-                      <th className="px-2 py-2">
+            <div className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
+              <table className="min-w-full text-sm table-auto divide-y divide-gray-200">
+                <thead className="bg-blue-50">
+                  <tr>
+                    <th className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                    </th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-600">No STTB</th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-600">Tgl STTB</th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-600">Pengirim</th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-600">Penerima</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-600">Balance</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-600">Discount</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-600">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredUnpaidData.map((row) => (
+                    <tr key={row.awb_no} className="hover:bg-gray-50 transition">
+                      <td className="px-4 py-2 text-center">
                         <input
                           type="checkbox"
-                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          checked={row.selected || false}
+                          onChange={(e) => handleRowChange(row.index, "selected", e.target.checked)}
                           className="w-4 h-4"
                         />
-                      </th>
-                      <th className="px-2 py-2">No STTB</th>
-                      <th className="px-2 py-2">Tgl STTB</th>
-                      <th className="px-2 py-2">Pengirim</th>
-                      <th className="px-2 py-2">Penerima</th>
-                      <th className="px-2 py-2">Balance</th>
-                      <th className="px-2 py-2">Discount</th>
-                      <th className="px-2 py-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUnpaidData.map((row) => (
-                      <tr key={row.awb_no} className="even:bg-blue-50">
-                        <td className="px-2 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={row.selected || false}
-                            onChange={(e) => handleRowChange(row.index, "selected", e.target.checked)}
-                            className="w-4 h-4"
-                          />
-                        </td>
-                        <td className="px-2 py-1">{row.awb_no}</td>
-                        <td className="px-2 py-1">{row.awb_date}</td>
-                        <td className="px-2 py-1">{row.nama_pengirim}</td>
-                        <td className="px-2 py-1">{row.nama_penerima}</td>
-                        <td className="px-2 py-1 text-right">{row.balance}</td>
-                        <td className="px-2 py-1">
-                          <input
-                            type="number"
-                            value={row.potongan || 0}
-                            onChange={(e) => handleRowChange(row.index, "potongan", e.target.value)}
-                            className="border rounded px-1 py-1 w-full"
-                          />
-                        </td>
-                        <td className="px-2 py-1 text-right font-bold">{row.discountedTotal}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-100">
-                      <td colSpan={5} className="px-2 py-2 text-right font-bold">
-                        Total Selected:
                       </td>
-                      <td colSpan={3} className="px-2 py-2 text-right font-bold">
-                        {calculateTotalSelected()}
+                      <td className="px-4 py-2">{row.awb_no}</td>
+                      <td className="px-4 py-2">{row.awb_date}</td>
+                      <td className="px-4 py-2">{row.nama_pengirim}</td>
+                      <td className="px-4 py-2">{row.nama_penerima}</td>
+                      <td className="px-4 py-2 text-right">Rp. {row.balance}</td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          value={row.potongan || 0}
+                          onChange={(e) => handleRowChange(row.index, "potongan", e.target.value)}
+                          className="border rounded px-1 py-1 w-full"
+                        />
                       </td>
+                      <td className="px-4 py-2 text-right font-bold">Rp. {row.discountedTotal}</td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
-
+                  ))}
+                </tbody>
+                <tfoot className="bg-blue-50">
+                  <tr>
+                    <td colSpan={7} className="px-4 py-2 text-right font-semibold text-gray-600">
+                      Total Selected:
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold">Rp. {calculateTotalSelected()}</td>
+                  </tr>
+                </tfoot>
+              </table>
               <div className="flex justify-center mt-4">
                 <button
                   onClick={handleSaveChanges}
@@ -447,7 +490,7 @@ export default function PelunasanResi() {
                   {loading ? "Processing..." : "Process Payment"}
                 </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
