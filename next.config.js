@@ -1,5 +1,4 @@
 /** @type {import('next').NextConfig} */
-// Trigger new deployment - Force rebuild
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true
@@ -65,4 +64,4 @@ const nextConfig = {
   }
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig
