@@ -36,7 +36,6 @@ export function CourierDashboard() {
       try {
         const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
         if (sessionError) {
-          console.error("Error getting session:", sessionError)
           setIsLoading(false)
           return
         }
@@ -53,7 +52,6 @@ export function CourierDashboard() {
           .single()
 
         if (userError) {
-          console.error("Error fetching user profile:", userError)
           setIsLoading(false)
           return
         }
@@ -61,7 +59,6 @@ export function CourierDashboard() {
         setCurrentUser(userData)
         loadShipmentData(userData)
       } catch (err) {
-        console.error("Error loading dashboard:", err)
         setIsLoading(false)
       }
     }
@@ -92,7 +89,6 @@ export function CourierDashboard() {
         .order("updated_at", { ascending: false })
 
       if (bulkShipmentsError) {
-        console.error("Error fetching bulk shipments:", bulkShipmentsError)
         throw new Error("Failed to load bulk shipments. Please try again.")
       } else {
         setTotalBulkShipments(bulkShipmentsData?.length || 0)
@@ -109,7 +105,6 @@ export function CourierDashboard() {
         .order("created_at", { ascending: false })
 
       if (pendingError) {
-        console.error("Error fetching pending deliveries:", pendingError)
         throw new Error("Failed to load pending deliveries. Please try again.")
       } else {
         setPendingDeliveries(pendingData?.length || 0)
@@ -126,7 +121,6 @@ export function CourierDashboard() {
         .order("created_at", { ascending: false })
 
       if (completedTodayError) {
-        console.error("Error fetching completed today:", completedTodayError)
         throw new Error("Failed to load completed shipments. Please try again.")
       } else {
         setCompletedCount(completedTodayData?.length || 0)
@@ -141,7 +135,6 @@ export function CourierDashboard() {
         }
       }
     } catch (error) {
-      console.error("Error loading shipment data:", error)
       toast({
         title: "Error",
         description: "Failed to load shipment data. Please try again.",
@@ -167,7 +160,6 @@ export function CourierDashboard() {
       await supabaseClient.auth.signOut()
       router.push("/courier")
     } catch (err) {
-      console.error("Error signing out:", err)
     }
   }
 

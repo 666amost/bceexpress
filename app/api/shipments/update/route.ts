@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         );
 
         // Log successful sync
-        console.log(`Successfully synced delivery status for AWB ${awb_number} to branch API`);
+        // console.log(`Successfully synced delivery status for AWB ${awb_number} to branch API`);
         
       } catch (err) {
         const errorAny = err as any;
@@ -92,14 +92,13 @@ export async function POST(request: NextRequest) {
           };
         }
         
-        console.error(JSON.stringify(errorLog));
+        // console.error(JSON.stringify(errorLog));
         // Continue with the main response even if branch sync fails
       }
     }
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error("API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -42,7 +42,6 @@ export function AdminAuth() {
       })
 
       if (error) {
-        console.error("Login error:", error.message)
         // Tampilkan pesan error yang lebih user-friendly untuk kredensial tidak valid
          if (error.message.includes("Invalid login credentials") || error.message.includes("Email not confirmed")) {
              setError("Invalid email or password.");
@@ -70,7 +69,6 @@ export function AdminAuth() {
         .single()
 
       if (userError) {
-        console.error("User role check error:", userError.message)
         setError("Error verifying user role")
         await supabaseClient.auth.signOut(); // Logout jika gagal cek role
         setIsLoading(false)
@@ -88,7 +86,6 @@ export function AdminAuth() {
       // Redirect ke leader dashboard jika role sesuai
       router.push("/leader/dashboard")
     } catch (err) {
-      console.error("Unexpected login error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }

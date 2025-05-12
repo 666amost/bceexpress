@@ -28,7 +28,6 @@ export default function BranchPage() {
         router.push("/branch/login")
       }
     } catch (error) {
-      console.error("Error checking auth:", error)
       router.push("/branch/login")
     }
   }

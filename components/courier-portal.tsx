@@ -182,7 +182,6 @@ export function CourierPortal() {
         })
       }
     } catch (error) {
-      console.error("Error updating status:", error)
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",

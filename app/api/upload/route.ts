@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
     })
 
     if (storageError) {
-      console.error("Supabase storage error:", storageError)
       return NextResponse.json({ error: "Failed to upload file" }, { status: 500 })
     }
 
@@ -41,13 +40,11 @@ export async function POST(request: NextRequest) {
       .eq("awb_number", awbNumber) // Pastikan ini nama kolom nomor resi yang benar
 
     if (dbError) {
-      console.error("Supabase database error:", dbError)
       return NextResponse.json({ error: "Failed to save POD URL to database" }, { status: 500 })
     }
 
     return NextResponse.json({ url: podImageUrl })
   } catch (error) {
-    console.error("Upload error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

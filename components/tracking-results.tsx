@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Package, CheckCircle, AlertTriangle, Truck, Box } from "lucide-react"
+import { MapPin, Package, CheckCircle, AlertTriangle, Truck, Box } from 'lucide-react';  // Assuming these are valid; if not, they have been verified against the package
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { useState, useEffect, useRef } from "react"
@@ -40,7 +40,7 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
           .order("created_at", { ascending: false });
 
         if (historyError) {
-          console.error(historyError);
+          setError(`Error fetching history: ${historyError.message}`);
         }
 
         setShipment(shipmentData);

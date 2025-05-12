@@ -84,12 +84,10 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     try {
       const { data, error } = await supabaseClient.from("manifest").select("*").eq("awb_no", awb).single()
       if (error) {
-        console.log(`AWB ${awb} not found in manifest:`, error.message)
         return null
       }
       return data
     } catch (err) {
-      console.error(`Error checking manifest for AWB ${awb}:`, err)
       return null
     }
   }
@@ -118,7 +116,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       ])
       return { success: true, message: "Created from manifest data" }
     } catch (err) {
-      console.error(`Error creating shipment with manifest data for AWB ${awb}:`, err)
       return { success: false, message: `Error: ${err}` }
     }
   }
@@ -146,7 +143,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       ])
       return { success: true, message: "Created with auto-generated data" }
     } catch (err) {
-      console.error(`Error creating basic shipment for AWB ${awb}:`, err)
       return { success: false, message: `Error: ${err}` }
     }
   }
@@ -164,7 +160,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         .eq("awb_number", awb)
       return { success: true, message: "Updated existing shipment" }
     } catch (err) {
-      console.error(`Error updating existing shipment for AWB ${awb}:`, err)
       return { success: false, message: `Error: ${err}` }
     }
   }
@@ -183,7 +178,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       ])
       return { success: true, message: "Added to shipment history" }
     } catch (err) {
-      console.error(`Error adding history for AWB ${awb}:`, err)
       return { success: false, message: `Error: ${err}` }
     }
   }
@@ -259,7 +253,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
           successCount++
         } catch (err) {
-          console.error(`Error processing AWB ${awb}:`, err)
           // Continue with next AWB even if this one fails
         }
       }
@@ -271,7 +264,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setAwbNumbers("")
       onClose()
     } catch (error) {
-      console.error("Bulk update error:", error)
       setError("An error occurred during bulk update. Please try again.")
       setIsLoading(false)
     }

@@ -51,7 +51,6 @@ export function CourierAuth() {
       })
 
       if (error) {
-        console.error("Login error:", error.message)
         setError(error.message)
         // Periksa jika error spesifik terkait kredensial
         if (error.message.includes("Invalid login credentials") || error.message.includes("Email not confirmed")) {
@@ -84,7 +83,6 @@ export function CourierAuth() {
        window.location.href = "/courier/dashboard"
 
     } catch (err) {
-      console.error("Unexpected login error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }

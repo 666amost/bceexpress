@@ -27,11 +27,7 @@ export async function GET(
       .single()
 
     if (shipmentError) {
-      console.error('Error fetching shipment:', shipmentError)
-      return NextResponse.json(
-        { error: 'Failed to fetch shipment details' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to fetch shipment details' }, { status: 500 })
     }
 
     if (!shipment) {
@@ -49,11 +45,7 @@ export async function GET(
       .order('created_at', { ascending: false })
 
     if (historyError) {
-      console.error('Error fetching history:', historyError)
-      return NextResponse.json(
-        { error: 'Failed to fetch shipment history' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to fetch shipment history' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -61,10 +53,6 @@ export async function GET(
       history: history || []
     })
   } catch (error) {
-    console.error('Error in GET /api/shipments/[awb]:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

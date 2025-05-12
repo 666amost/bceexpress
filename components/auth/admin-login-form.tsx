@@ -77,7 +77,6 @@ export function AdminLoginForm() {
 
       router.push("/admin/dashboard")
     } catch (err) {
-      console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)

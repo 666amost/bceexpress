@@ -32,7 +32,6 @@ export function CourierDashboardWithUpdate() {
       try {
         const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
         if (sessionError) {
-          console.error("Error getting session:", sessionError)
           setIsLoading(false)
           return
         }
@@ -49,7 +48,6 @@ export function CourierDashboardWithUpdate() {
           .single()
 
         if (userError) {
-          console.error("Error fetching user profile:", userError)
           setIsLoading(false)
           return
         }
@@ -57,7 +55,6 @@ export function CourierDashboardWithUpdate() {
         setCurrentUser(userData)
         loadShipmentData(userData)
       } catch (err) {
-        console.error("Error loading dashboard:", err)
         setIsLoading(false)
       }
     }
@@ -88,7 +85,6 @@ export function CourierDashboardWithUpdate() {
         .order("created_at", { ascending: false })
 
       if (bulkShipmentsError) {
-        console.error("Error fetching bulk shipments:", bulkShipmentsError)
       } else {
         setTotalBulkShipments(bulkShipmentsData?.length || 0)
         setBulkShipmentAwbs(bulkShipmentsData || [])
@@ -104,7 +100,6 @@ export function CourierDashboardWithUpdate() {
         .order("created_at", { ascending: false })
 
       if (pendingError) {
-        console.error("Error fetching pending deliveries:", pendingError)
       } else {
         setPendingDeliveries(pendingData?.length || 0)
         setPendingShipments(pendingData || [])
@@ -119,7 +114,6 @@ export function CourierDashboardWithUpdate() {
         .gte("created_at", todayISOString)
 
       if (completedTodayError) {
-        console.error("Error fetching completed today:", completedTodayError)
       } else {
         setCompletedCount(completedTodayData?.length || 0)
         setCompletedTodayShipments(completedTodayData || [])
@@ -133,7 +127,6 @@ export function CourierDashboardWithUpdate() {
         }
       }
     } catch (error) {
-      console.error("Error loading shipment data:", error)
     } finally {
       setIsLoading(false)
     }

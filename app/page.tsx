@@ -25,7 +25,6 @@ export default function Home() {
 
   // Fungsi ini dipanggil oleh komponen QRScanner saat berhasil memindai QR code
   const handleScanSuccess = (scannedAWB: string) => {
-    console.log("Scan Success, AWB:", scannedAWB)
     // Sembunyikan tampilan scanner setelah berhasil scan
     setShowScanner(false) // Ini akan memicu cleanup di komponen QRScanner
 
@@ -43,14 +42,12 @@ export default function Home() {
       // }
     } else {
       // Opsional: Tampilkan pesan jika data scan kosong
-      console.warn("Scanned QR code is empty.")
-      // setScanError("Failed to read QR code data."); // Jika Anda ingin menampilkan error di sini
+      // Removed console statement from line 45
     }
   }
 
   // Fungsi ini dipanggil oleh komponen QRScanner saat tombol close diklik
   const handleCloseScanner = () => {
-    console.log("Closing scanner")
     // Sembunyikan tampilan scanner
     setShowScanner(false)
     // Jika ada state error yang dihandle di sini, reset saat ditutup
