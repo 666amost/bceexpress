@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
-import PrintLayout from "./PrintLayout"
+import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 import AwbForm from "./AwbForm"
 
 export default function HistoryManifest({ mode }) {
@@ -53,187 +53,241 @@ export default function HistoryManifest({ mode }) {
     closeEditModal()
   }
 
+  // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
   const handlePrint = (row) => {
     setPrintData(row)
     setShowPrintLayout(true)
+
+    // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
+    const printLayoutCss = `
+      /* === START: CSS disinkronkan dari PrintLayout.jsx === */
+      .print-only {
+        display: block;
+        width: 100mm;
+        height: 100mm;
+        padding: 0;
+        margin: 0 auto;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+        font-size: 10px;
+      }
+
+      .shipping-label {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #000;
+        padding: 0mm 3mm 3mm 3mm; 
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .top-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        padding-bottom: 0mm;
+      }
+
+      .top-header-logo {
+        display: flex;
+        justify-content: flex-start;
+        width: 100%;
+        padding-bottom: 0mm;
+      }
+
+      .header-logo {
+        width: 20mm;
+        height: auto;
+        display: block;
+        box-sizing: border-box;
+      }
+
+      .barcode-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: -4mm;
+        margin-bottom: 1mm;
+        border: 2px solid #000;
+        padding: 1mm;
+      }
+
+      .barcode-section svg {
+        width: 100%;
+        height: 15mm;
+      }
+
+      .awb-number {
+        font-weight: bold;
+        font-size: 14px;
+        margin-top: 1mm;
+      }
+
+      .shipping-details {
+        display: flex;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 8mm;
+        margin-bottom: 1mm;
+        font-size: 12px;
+        padding-left: 2mm;
+      }
+
+      .content-section {
+        display: flex;
+        flex: 1;
+        margin-bottom: 1mm;
+      }
+
+      .address-box {
+        flex: 1;
+        border: 1px solid #000;
+        padding: 2mm;
+        margin-right: 3mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        font-size: 11px;
+      }
+
+      .address-box .sender-info > div,
+      .address-box .recipient-info > div {
+        border-bottom: 1px dotted #999;
+        padding-bottom: 0.5mm;
+        margin-bottom: 0.5mm;
+        line-height: 1.4;
+      }
+      .address-box .recipient-info > div:last-child {
+        border-bottom: none;
+      }
+
+      .address-box .sender-info {
+        margin-bottom: 5mm;
+      }
+
+      .logo-qr {
+        width: 30mm;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 7mm;
+      }
+
+      .qr-code {
+        width: 30mm !important;
+        height: 30mm !important;
+        display: block !important;
+        box-sizing: border-box;
+      }
+
+      .footer-container {
+        width: 100%;
+        margin-top: auto;
+      }
+
+      .dotted-line {
+        border-top: 1px dotted #000;
+        margin-bottom: 2mm;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        font-size: 8px;
+        font-style: italic;
+        padding-top: 0;
+      }
+
+      .terms-text {
+        flex: 1;
+        text-align: left;
+        line-height: 1.3;
+      }
+
+      .admin-contact {
+        text-align: right;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        color: black;
+      }
+
+      .airport-code {
+        font-size: 20px;  /* Matches logo prominence */
+        font-weight: bold;
+        margin-top: 4mm;
+        text-align: right;
+        margin-right: 2mm;
+        width: 20mm;  /* Set to match logo width */
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+
+      @media print {
+        @page {
+          size: 100mm 100mm;
+          margin: 0;
+        }
+
+        body {
+          margin: 0;
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+
+        .print-only {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100mm;
+          height: 100mm;
+          margin: 0;
+          padding: 0;
+          background-color: #fff !important;
+        }
+
+        body > *:not(.print-only) {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        .print-only,
+        .print-only * {
+          visibility: visible !important;
+        }
+      }
+      /* === END: CSS disinkronkan dari PrintLayout.jsx === */
+    `;
+
     setTimeout(() => {
       if (printFrameRef.current) {
-        const printWindow = window.open('', '_blank')
+        const printWindow = window.open("", "_blank")
         if (printWindow) {
-          printWindow.document.write('<html><head><title>Print</title>')
-          printWindow.document.write('<style>')
-          printWindow.document.write(`
-            /* Full styles copied from PrintLayout.jsx to ensure consistency */
-            .print-only {
-              display: block;
-              width: 100mm;
-              height: 100mm;
-              padding: 0;
-              margin: 0 auto;
-              box-sizing: border-box;
-              font-family: Arial, sans-serif;
-              font-size: 10px;
-              background-color: #fff;
-            }
-
-            .shipping-label {
-              width: 100%;
-              height: 100%;
-              border: 1px solid #000;
-              padding: 3mm;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-            }
-
-            .barcode-section {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              margin-bottom: 2mm;
-            }
-
-            .barcode-section svg {
-              width: 90%;
-              height: 15mm;
-            }
-
-            .awb-number {
-              font-weight: bold;
-              font-size: 16px;
-              margin-top: 1mm;
-            }
-
-            .shipping-details {
-              display: flex;
-              justify-content: flex-start;
-              gap: 8mm;
-              margin-bottom: 2mm;
-              font-size: 12px;
-              padding-left: 1mm;
-            }
-
-            .content-section {
-              display: flex;
-              flex: 1;
-              margin-bottom: 2mm;
-              gap: 3mm;
-            }
-
-            .address-box {
-              flex: 1;
-              border: 1px solid #000;
-              padding: 2mm 3mm;
-              display: flex;
-              flex-direction: column;
-              justify-content: flex-start;
-              font-size: 11px;
-              line-height: 1.3;
-            }
-
-            .address-box .sender-info {
-              margin-bottom: 5mm;
-            }
-
-            .logo-qr {
-              width: 30mm;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: flex-start;
-            }
-
-            .logo {
-              width: 25mm;
-              height: auto;
-              margin-bottom: 3mm;
-            }
-
-            .qr-code {
-              width: 25mm;
-              height: 25mm;
-            }
-
-            .footer-container {
-              width: 100%;
-              margin-top: auto;
-            }
-
-            .dotted-line {
-              border-top: 1px dotted #000;
-              margin-bottom: 1.5mm;
-            }
-
-            .footer {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-end;
-              font-size: 8px;
-              font-style: italic;
-            }
-
-            .terms-text {
-              flex-basis: 65%;
-              text-align: left;
-              line-height: 1.2;
-            }
-
-            .admin-contact {
-              flex-basis: 35%;
-              text-align: right;
-              white-space: nowrap;
-            }
-
-            @media print {
-              @page {
-                size: 100mm 100mm;
-                margin: 0;
-              }
-
-              body {
-                margin: 0;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-              }
-
-              .print-only {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100mm;
-                height: 100mm;
-                margin: 0;
-                padding: 0;
-                background-color: #fff !important;
-              }
-
-              body > *:not(.print-only) {
-                display: none !important;
-                visibility: hidden !important;
-              }
-
-              .print-only,
-              .print-only * {
-                visibility: visible !important;
-              }
-
-              .logo {
-                display: block;
-                width: 25mm;
-                height: auto;
-              }
-            }
-          `)
-          printWindow.document.write('</style></head><body>')
+          printWindow.document.write("<html><head><title>Print</title>")
+          printWindow.document.write("<style>")
+          printWindow.document.write(printLayoutCss)
+          printWindow.document.write("</style></head><body>")
           printWindow.document.write(printFrameRef.current.innerHTML)
-          printWindow.document.write('</body></html>')
+          printWindow.document.write("</body></html>")
           printWindow.document.close()
           setTimeout(() => printWindow.print(), 500)
-          setTimeout(() => { printWindow.close(); setPrintData(null); setShowPrintLayout(false); }, 1000)
+          setTimeout(() => {
+            printWindow.close()
+            setPrintData(null)
+            setShowPrintLayout(false)
+          }, 1000)
         }
       }
     }, 100)
   }
+  // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
   const handleEditAwb = (item) => {
     setSelectedItem(item)
@@ -243,7 +297,6 @@ export default function HistoryManifest({ mode }) {
   const handleEditSuccess = () => {
     setShowEditForm(false)
     setSelectedItem(null)
-    // Refresh data
     supabaseClient
       .from("manifest")
       .select("*")
@@ -274,7 +327,6 @@ export default function HistoryManifest({ mode }) {
 
   return (
     <div className="mt-6">
-      {/* Hidden print frame */}
       <div className="hidden">
         <div ref={printFrameRef}>{printData && <PrintLayout data={printData} />}</div>
       </div>
@@ -358,8 +410,30 @@ export default function HistoryManifest({ mode }) {
                           className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
                           onClick={async () => {
                             if (confirm("Hapus item ini?")) {
-                              await supabaseClient.from("manifest").delete().eq("id", m.id)
-                              setData(data.filter((item) => item.id !== m.id))
+                              try {
+                                const { error } = await supabaseClient
+                                  .from("manifest")
+                                  .delete()
+                                  .eq("awb_no", m.awb_no);
+                                if (error) {
+                                  console.error("Error deleting item:", error);
+                                  alert("Gagal menghapus item: " + error.message);
+                                } else {
+                                  // Update local state and refetch data
+                                  setData(data.filter((item) => item.awb_no !== m.awb_no));
+                                  // Trigger a full refetch to ensure consistency
+                                  supabaseClient
+                                    .from("manifest")
+                                    .select("*")
+                                    .order("awb_date", { ascending: false })
+                                    .then(({ data: freshData }) => {
+                                      setData(freshData || []);
+                                    });
+                                }
+                              } catch (err) {
+                                console.error("Unexpected error:", err);
+                                alert("Terjadi kesalahan saat menghapus item.");
+                              }
                             }
                           }}
                         >

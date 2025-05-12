@@ -2,11 +2,42 @@
 
 import { useEffect, useState, useRef } from "react"
 import JsBarcode from "jsbarcode"
-import QRCode from "qrcode"
+import QRCode from "qrcode" // Menggunakan library qrcode
+import { Phone } from 'lucide-react' // Import ikon Phone
 
 export default function PrintLayout({ data }) {
   const barcodeRef = useRef(null)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null); 
+
+  // Add a mapping for wilayah to airport codes
+  const airportCodes = {
+    "Pangkal Pinang": "PGK",  // Example as per your query
+    "Sungailiat": "SGG",      // Example; you can add more based on your needs
+    "Belinyu": "BLY",         // Example
+    "Jebus": "JBS",           // Example
+    "Koba": "KBA",            // Example
+    "Toboali": "TBL",         // Example
+    "Mentok": "MNT",          // Example
+    "Pontianak": "PNK",       // Added new entry
+    "Singkawang": "SKW",       // Added new entry
+    "Sungai Pinyuh": "SPY",   // Added new entry
+    // Add more as needed, e.g., "Pontianak": "PNK"
+  };
+
+  // Get the airport code based on the wilayah
+  const getAirportCode = (wilayah) => {
+    return airportCodes[wilayah] || "N/A";  // Default to "N/A" if not found
+  };
+
+  // Fungsi untuk memformat mata uang
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
   useEffect(() => {
     console.log("PrintLayout - Data received:", data);
@@ -68,6 +99,22 @@ export default function PrintLayout({ data }) {
   return (
     <div className="print-only">
       <div className="shipping-label">
+        <div className="top-header-container">
+          <div className="top-header-left">
+            <img src="/images/bce-logo.png" alt="BCE Express" className="header-logo" />
+          </div>
+          <div className="top-header-center">
+            {data.metode_pembayaran?.toUpperCase() === "COD" && (
+              <div className="cod-text">COD</div>
+            )}
+          </div>
+          <div className="top-header-right">
+            <div className="airport-code">
+              {data.wilayah && getAirportCode(data.wilayah)}
+            </div>
+          </div>
+        </div>
+
         <div className="barcode-section">
           <svg ref={barcodeRef}></svg>
           <div className="awb-number">{data.awb_no}</div>
@@ -76,32 +123,27 @@ export default function PrintLayout({ data }) {
         <div className="shipping-details">
           <div>coli : {data.coli || 1}</div>
           <div>berat : {data.berat_kg || 1} kg</div>
-          <div>total : {data.total || 0}</div>
+          <div>total : {formatCurrency(data.total || 0)}</div>
         </div>
 
         <div className="content-section">
           <div className="address-box">
             <div className="sender-info">
-              {data.nama_pengirim ? `${data.nama_pengirim},` : 'Nama pengirim,'}
-              <br />
-              {data.nomor_pengirim || 'no pengirim'}
+              <div>Pengirim: {data.nama_pengirim || 'Nama pengirim'}</div>
+              <div>No. Pengirim: {data.nomor_pengirim || 'no pengirim'}</div>
             </div>
             <div style={{ height: '5mm' }}></div>
             <div className="recipient-info">
-              {data.nama_penerima || 'nama penerima'}
-              <br />
-              {data.nomor_penerima || 'no penerima'}
-              <br />
-              {data.alamat_penerima || 'alamat'}
+              <div>Penerima: {data.nama_penerima || 'nama penerima'}</div>
+              <div>No. Penerima: {data.nomor_penerima || 'no penerima'}</div>
+              <div>Alamat: {data.alamat_penerima || 'alamat'}</div>
             </div>
           </div>
 
           <div className="logo-qr">
-            {/* QR code first, then text for vertical stacking order */}
             {qrCodeDataUrl && (
               <img src={qrCodeDataUrl} alt="QR Code" className="qr-code" />
             )}
-            <img src="/images/bce-logo.png" alt="BCE Express" className="logo" />
           </div>
         </div>
 
@@ -113,7 +155,10 @@ export default function PrintLayout({ data }) {
               <br />
               sesuai dengan kebijakan BCE Express
             </div>
-            <div className="admin-contact">admin 0812-9056-8532</div>
+            <div className="admin-contact">
+              <Phone className="h-[10px] w-[10px] mr-1" style={{ color: 'black' }} />
+              0812-9056-8532
+            </div>
           </div>
         </div>
       </div>
@@ -134,16 +179,51 @@ export default function PrintLayout({ data }) {
           width: 100%;
           height: 100%;
           border: 1px solid #000;
-          padding: 3mm; 
+          padding: 0mm 3mm 3mm 3mm; 
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
+        }
+
+        .top-header-container {
+          display: flex;
+          justify-content: space-between;  /* Distributes items across the container */
+          align-items: center;
+          width: 100%;
+          padding-bottom: 0mm;
+        }
+
+        .top-header-left {
+          flex: 0 0 auto;  /* Prevents growth, keeps it on the left */
+        }
+
+        .top-header-center {
+          flex: 1;  /* Allows it to take up available space and center content */
+          text-align: center;  /* Centers the text within this div */
+        }
+
+        .top-header-right {
+          flex: 0 0 auto;  /* Prevents growth, keeps it on the right */
+        }
+
+        .cod-text {
+          font-size: 14px;
+          font-weight: bold;
+          /* Removed margin for now to let flex handle spacing */
+        }
+
+        .header-logo {
+          width: 20mm;
+          height: auto;
+          display: block;
+          box-sizing: border-box;
         }
 
         .barcode-section {
           display: flex;
           flex-direction: column;
           align-items: center;
+          margin-top: -4mm;
           margin-bottom: 1mm;
           border: 2px solid #000;
           padding: 1mm;
@@ -162,11 +242,12 @@ export default function PrintLayout({ data }) {
 
         .shipping-details {
           display: flex;
-          flex-direction: column;
+          flex-direction: column;  // Changed to column for better stacking of conditional elements
           align-items: flex-start;
-          gap: 0.5mm;
+          gap: 2mm;  // Add gap for spacing between lines
           margin-bottom: 1mm;
           font-size: 12px;
+          padding-left: 2mm;
         }
 
         .content-section {
@@ -186,34 +267,35 @@ export default function PrintLayout({ data }) {
           font-size: 11px;
         }
 
+        /* Styles for underlines - Ensuring this is clean and targeted */
+        .address-box .sender-info > div,
+        .address-box .recipient-info > div {
+          border-bottom: 1px dotted #999;  /* Added underline for each div */
+          padding-bottom: 0.5mm;
+          margin-bottom: 0.5mm;
+          line-height: 1.4;
+        }
+        .address-box .recipient-info > div:last-child {
+          border-bottom: none;  /* Remove underline from the last item */
+        }
+
         .address-box .sender-info {
-          margin-bottom: 5mm;
+          margin-bottom: 5mm; /* Jarak antara informasi pengirim dan penerima */
         }
 
         .logo-qr {
           width: 30mm;
-          height: 40mm;
+          height: auto;
           display: flex;
           flex-direction: column;
-          align-items: center; /* Center items horizontally */
-          justify-content: space-between; /* Pushes QR to top, text to bottom */
-        }
-
-        .logo { /* Now styling for text */
-          width: 25mm !important;
-          height: auto !important; /* Will adapt to text height */
-          max-width: 100% !important;
-          display: block !important;
-          box-sizing: border-box !important;
-          text-align: center; /* Center the text inside the div */
-          font-weight: bold; /* Make it bold */
-          font-size: 14px; /* Adjust font size as needed */
-          white-space: nowrap; /* Prevent text from wrapping if it fits */
+          align-items: center;
+          justify-content: flex-start;
+          padding-top: 7mm;
         }
 
         .qr-code {
-          width: 25mm !important;
-          height: 25mm !important;
+          width: 30mm !important;
+          height: 30mm !important;
           display: block !important;
           box-sizing: border-box;
         }
@@ -246,6 +328,17 @@ export default function PrintLayout({ data }) {
         .admin-contact {
           text-align: right;
           white-space: nowrap;
+          display: flex; /* Menjadikan flex container untuk menyelaraskan ikon */
+          align-items: center; /* Menyelaraskan ikon dan teks secara vertikal */
+          justify-content: flex-end; /* Menempatkan konten ke kanan */
+          color: black; /* Memastikan warna teks dan ikon (jika menggunakan currentColor) terlihat */
+        }
+
+        .airport-code {
+          font-size: 14px;
+          font-weight: bold;
+          text-align: right;
+          margin-right: 2mm;
         }
 
         @media print {

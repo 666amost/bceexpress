@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
-import PrintLayout from "./PrintLayout"
+import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 
 const kotaWilayah = {
   bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
@@ -74,8 +74,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
   )
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [showPrintPreview, setShowPrintPreview] = useState(false)
-  const printFrameRef = useRef(null)
+  const [showPrintPreview, setShowPrintPreview] = useState(false) // State ini mungkin tidak digunakan secara langsung untuk pencetakan iframe
+  const printFrameRef = useRef(null) // Ref untuk div tersembunyi yang merender PrintLayout
   const wilayahOptions = useMemo(() => kotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan])
 
   React.useEffect(() => {
@@ -128,7 +128,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           setError("Gagal memperbarui data: " + sbError.message)
         } else {
           setSuccess("Data berhasil diperbarui!")
-          handlePrint()
+          handlePrint() // Panggil fungsi cetak setelah berhasil memperbarui
         }
       } else {
         const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }])
@@ -136,7 +136,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           setError("Gagal menyimpan data: " + sbError.message)
         } else {
           setSuccess("Data berhasil disimpan!")
-          handlePrint()
+          handlePrint() // Panggil fungsi cetak setelah berhasil menyimpan
         }
       }
     } catch (err) {
@@ -144,26 +144,242 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
     }
   }
 
+  // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
   const handlePrint = () => {
-    // Use setTimeout to ensure the print frame is rendered before printing
+    // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
+    const printLayoutCss = `
+      /* === START: CSS disinkronkan dari PrintLayout.jsx === */
+      .print-only {
+        display: block;
+        width: 100mm;
+        height: 100mm;
+        padding: 0;
+        margin: 0 auto;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+        font-size: 10px;
+      }
+
+      .shipping-label {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #000;
+        padding: 0mm 3mm 3mm 3mm; 
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .top-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        padding-bottom: 0mm;
+      }
+
+      .top-header-logo {
+        display: flex;
+        justify-content: flex-start;
+        width: 100%;
+        padding-bottom: 0mm;
+      }
+
+      .header-logo {
+        width: 20mm;
+        height: auto;
+        display: block;
+        box-sizing: border-box;
+      }
+
+      .barcode-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: -4mm;
+        margin-bottom: 1mm;
+        border: 2px solid #000;
+        padding: 1mm;
+      }
+
+      .barcode-section svg {
+        width: 100%;
+        height: 15mm;
+      }
+
+      .awb-number {
+        font-weight: bold;
+        font-size: 14px;
+        margin-top: 1mm;
+      }
+
+      .shipping-details {
+        display: flex;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 8mm;
+        margin-bottom: 1mm;
+        font-size: 12px;
+        padding-left: 2mm;
+      }
+
+      .content-section {
+        display: flex;
+        flex: 1;
+        margin-bottom: 1mm;
+      }
+
+      .address-box {
+        flex: 1;
+        border: 1px solid #000;
+        padding: 2mm;
+        margin-right: 3mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        font-size: 11px;
+      }
+
+      .address-box .sender-info > div,
+      .address-box .recipient-info > div {
+        border-bottom: 1px dotted #999;
+        padding-bottom: 0.5mm;
+        margin-bottom: 0.5mm;
+        line-height: 1.4;
+      }
+      .address-box .recipient-info > div:last-child {
+        border-bottom: none;
+      }
+
+      .address-box .sender-info {
+        margin-bottom: 5mm;
+      }
+
+      .logo-qr {
+        width: 30mm;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 7mm;
+      }
+
+      .qr-code {
+        width: 30mm !important;
+        height: 30mm !important;
+        display: block !important;
+        box-sizing: border-box;
+      }
+
+      .footer-container {
+        width: 100%;
+        margin-top: auto;
+      }
+
+      .dotted-line {
+        border-top: 1px dotted #000;
+        margin-bottom: 2mm;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        font-size: 8px;
+        font-style: italic;
+        padding-top: 0;
+      }
+
+      .terms-text {
+        flex: 1;
+        text-align: left;
+        line-height: 1.3;
+      }
+
+      .admin-contact {
+        text-align: right;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        color: black;
+      }
+
+      .airport-code {
+        font-size: 14px;  /* Matches logo prominence */
+        font-weight: bold;
+        margin-top: 2mm;
+        text-align: right;
+        margin-right: 2mm;
+        width: 20mm;  /* Set to match logo width */
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+
+      @media print {
+        @page {
+          size: 100mm 100mm;
+          margin: 0;
+        }
+
+        body {
+          margin: 0;
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+
+        .print-only {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100mm;
+          height: 100mm;
+          margin: 0;
+          padding: 0;
+          background-color: #fff !important;
+        }
+
+        body > *:not(.print-only) {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        .print-only,
+        .print-only * {
+          visibility: visible !important;
+        }
+      }
+      /* === END: CSS disinkronkan dari PrintLayout.jsx === */
+    `;
+
     setTimeout(() => {
       if (printFrameRef.current) {
-        const printContent = printFrameRef.current
-        const originalContents = document.body.innerHTML
-
-        document.body.innerHTML = printContent.innerHTML
-        window.print()
-        document.body.innerHTML = originalContents
-
-        // Re-initialize the component
-        if (onSuccess) onSuccess()
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write('<html><head><title>Cetak AWB</title>');
+          printWindow.document.write('<style>');
+          printWindow.document.write(printLayoutCss);
+          printWindow.document.write('</style></head><body>');
+          printWindow.document.write(printFrameRef.current.innerHTML);
+          printWindow.document.write('</body></html>');
+          printWindow.document.close();
+          setTimeout(() => printWindow.print(), 500);
+          setTimeout(() => {
+            printWindow.close();
+            if (onSuccess) onSuccess();
+          }, 1000);
+        }
       }
-    }, 100)
-  }
+    }, 100);
+  };
+  // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
   return (
     <>
       {/* Hidden print frame */}
+      {/* Ini adalah tempat di mana PrintLayout dirender agar kontennya bisa diambil oleh fungsi cetak */}
       <div className="hidden">
         <div ref={printFrameRef}>
           <PrintLayout data={form} />
