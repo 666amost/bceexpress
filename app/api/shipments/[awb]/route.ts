@@ -5,10 +5,8 @@ interface Params {
   awb: string
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Params }
-): Promise<NextResponse> {
+export async function GET(request: NextRequest, props: { params: Promise<Params> }): Promise<NextResponse> {
+  const params = await props.params;
   try {
     const awb = params.awb
 

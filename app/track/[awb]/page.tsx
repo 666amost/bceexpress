@@ -4,7 +4,8 @@ import { Footer } from "@/components/footer"
 import { TrackingResults } from "@/components/tracking-results"
 import { TrackingResultsSkeleton } from "@/components/tracking-results-skeleton"
 
-export default function TrackPage({ params }: { params: { awb: string } }) {
+export default async function TrackPage(props: { params: Promise<{ awb: string }> }) {
+  const params = await props.params;
   const { awb } = params
 
   return (
