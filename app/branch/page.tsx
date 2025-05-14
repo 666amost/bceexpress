@@ -14,6 +14,9 @@ export default function BranchPage() {
   const [selectedSubMenu, setSelectedSubMenu] = useState("input_resi")
   const [isClient, setIsClient] = useState(false)
   const [showAwbForm, setShowAwbForm] = useState(false)
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -44,6 +47,16 @@ export default function BranchPage() {
       } else if (menu === "report") {
         setSelectedSubMenu("daily_report")
       }
+    }
+  }
+
+  const verifyPassword = () => {
+    if (passwordInput === 'bceadmin666') {
+      setIsPasswordVerified(true)
+      setPasswordError('')
+    } else {
+      setPasswordError('Password salah. Akses ditolak.')
+      setIsPasswordVerified(false)
     }
   }
 
@@ -87,7 +100,35 @@ export default function BranchPage() {
         )}
         {selectedMenu === "report" && (
           <div className="py-6">
-            {selectedSubMenu === "daily_report" && <DailyReport />}
+            {selectedSubMenu === "daily_report" && (
+              !isPasswordVerified ? (
+                <div className="p-4 bg-gray-200 rounded">
+                  <h3 className="text-lg font-bold mb-2">Masukkan Password</h3>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="border rounded p-2 mb-2 w-full"
+                    placeholder="Masukkan password"
+                  />
+                  <button
+                    onClick={verifyPassword}
+                    className="bg-blue-600 text-white px-4 py-2 rounded mr-2"
+                  >
+                    Konfirmasi
+                  </button>
+                  <button
+                    onClick={() => setPasswordError('Akses dibatalkan.')}
+                    className="bg-gray-400 text-white px-4 py-2 rounded"
+                  >
+                    Batal
+                  </button>
+                  {passwordError && <p className="text-red-500 mt-2">{passwordError}</p>}
+                </div>
+              ) : (
+                <DailyReport />
+              )
+            )}
             {selectedSubMenu === "recap" && <h1 className="text-2xl font-bold">Recap Manifest</h1>}
             {selectedSubMenu === "outstanding" && <h1 className="text-2xl font-bold">Outstanding Report</h1>}
             {selectedSubMenu === "sale" && <h1 className="text-2xl font-bold">Sale Report</h1>}
