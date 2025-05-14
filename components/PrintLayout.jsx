@@ -242,9 +242,9 @@ export default function PrintLayout({ data }) {
 
         .shipping-details {
           display: flex;
-          flex-direction: column;  // Changed to column for better stacking of conditional elements
+          flex-direction: row;  // Updated to make elements horizontal
           align-items: flex-start;
-          gap: 2mm;  // Add gap for spacing between lines
+          gap: 2mm;
           margin-bottom: 1mm;
           font-size: 12px;
           padding-left: 2mm;
@@ -335,10 +335,11 @@ export default function PrintLayout({ data }) {
         }
 
         .airport-code {
-          font-size: 14px;
+          font-size: 20px;
           font-weight: bold;
           text-align: right;
           margin-right: 2mm;
+          margin-top: -2mm;
         }
 
         @media print {

@@ -306,6 +306,25 @@ export default function HistoryManifest({ mode }) {
       })
   }
 
+  const handleDownloadPDF = async (row) => {
+    setPrintData(row);
+    setTimeout(async () => {
+      const element = printFrameRef.current;
+      if (element) {
+        const html2pdf = await import('html2pdf.js');
+        html2pdf.default()
+          .set({
+            filename: 'label.pdf',
+            margin: 0,
+            jsPDF: { unit: 'mm', format: [100, 100], orientation: 'portrait' }
+          })
+          .from(element)
+          .save();
+        setPrintData(null);
+      }
+    }, 100);
+  };
+
   if (showEditForm && selectedItem) {
     return (
       <div className="mt-6">
@@ -407,6 +426,12 @@ export default function HistoryManifest({ mode }) {
                           Print
                         </button>
                         <button
+                          className="bg-blue-400 hover:bg-blue-500 text-xs px-2 py-1 rounded"
+                          onClick={() => handleDownloadPDF(m)}
+                        >
+                          Download PDF
+                        </button>
+                        <button
                           className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
                           onClick={async () => {
                             if (confirm("Hapus item ini?")) {
@@ -419,9 +444,7 @@ export default function HistoryManifest({ mode }) {
                                   console.error("Error deleting item:", error);
                                   alert("Gagal menghapus item: " + error.message);
                                 } else {
-                                  // Update local state and refetch data
                                   setData(data.filter((item) => item.awb_no !== m.awb_no));
-                                  // Trigger a full refetch to ensure consistency
                                   supabaseClient
                                     .from("manifest")
                                     .select("*")
