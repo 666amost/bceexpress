@@ -602,8 +602,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               type="number"
               name="harga_per_kg"
               value={form.harga_per_kg}
-              readOnly
-              className="bg-gray-100 rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition"
+              onChange={handleChange}
+              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
@@ -652,8 +652,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               type="number"
               name="total"
               value={form.total}
-              onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-base shadow-sm transition font-bold bg-white"
+              readOnly
+              className="bg-gray-100 rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-base shadow-sm transition font-bold"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-auto">

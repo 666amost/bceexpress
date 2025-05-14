@@ -283,7 +283,7 @@ export function LeaderDashboard() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Leader Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Robert Dashboard</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh}>
             Refresh Data
