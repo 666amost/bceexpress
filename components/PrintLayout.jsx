@@ -12,7 +12,7 @@ export default function PrintLayout({ data }) {
   // Add a mapping for wilayah to airport codes
   const airportCodes = {
     "Pangkal Pinang": "PGK",  // Example as per your query
-    "Sungailiat": "SGG",      // Example; you can add more based on your needs
+    "Sungailiat": "SLT",      // Example; you can add more based on your needs
     "Belinyu": "BLY",         // Example
     "Jebus": "JBS",           // Example
     "Koba": "KBA",            // Example
@@ -46,7 +46,7 @@ export default function PrintLayout({ data }) {
     if (barcodeRef.current && data?.awb_no) {
       JsBarcode(barcodeRef.current, data.awb_no, {
         format: "CODE128",
-        width: 2,
+        width: 2.5,
         height: 50,
         displayValue: false,
         margin: 0,
@@ -261,15 +261,18 @@ export default function PrintLayout({ data }) {
           flex-direction: column;
           justify-content: flex-start;
           font-size: 11px;
+          font-weight: bold;
         }
 
         /* Styles for underlines - Ensuring this is clean and targeted */
         .address-box .sender-info > div,
         .address-box .recipient-info > div {
           border-bottom: 1px dotted #999;  /* Added underline for each div */
-          padding-bottom: 0.5mm;
+          padding-bottom: 0.6mm;
           margin-bottom: 0.5mm;
           line-height: 1.4;
+          font-size: 11px;  /* Enlarge font size */
+          font-weight: bold;  /* Make text bold */
         }
         .address-box .recipient-info > div:last-child {
           border-bottom: none;  /* Remove underline from the last item */
@@ -335,7 +338,7 @@ export default function PrintLayout({ data }) {
           font-weight: bold;
           text-align: right;
           margin-right: 2mm;
-          margin-top: -2mm;
+          margin-top: -3mm;
         }
 
         @media print {

@@ -27,14 +27,44 @@ const hargaPerKg = {
 }
 
 const agentList = [
-  "GLC UDR",
   "GLC COD UDR",
   "GLC COD DRT",
   "GLC DRT",
   "Duta Garden",
   "Poris Residence",
   "Kartini",
-  "Otty Official",
+  "UDR CASH",
+  "SEA CASH",
+  "GLC UDR TRF",
+  "GLC SEA TRF",
+  "COD UDR",
+  "COD SEA",
+  "KMY UDR TRF",
+  "KMY SEA TRF",
+  "KARTINI KIKI",
+  "DUTA GARDEN FRENITA",
+  "FELLISIA PORIS EX 3",
+  "OTTY OFFICIAL",
+  "CITRA 3 RENY",
+  "HENDI",
+  "PRALITA",
+  "SALIM",
+  "ISKANDAR",
+  "IMAM",
+  "DONI",
+  "HERFAN",
+  "EZZA",
+  "YANDRI",
+  "DIKY",
+  "YOS",
+  "INDAH SUSHI TIME",
+  "CENTRAL NURSERY BANGKA",
+  "MAMAPIA",
+  "AMELIA PEDINDANG",
+  "HENDRY LIMIA",
+  "JESS DOT",
+  "SEPIRING RASA BASO",
+  "CHRISTINE PADEMANGAN"
 ]
 
 const metodePembayaran = ["cash", "transfer", "cod"]
@@ -238,12 +268,13 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
         flex-direction: column;
         justify-content: flex-start;
         font-size: 11px;
+        font-weight: bold;
       }
 
       .address-box .sender-info > div,
       .address-box .recipient-info > div {
         border-bottom: 1px dotted #999;
-        padding-bottom: 0.5mm;
+        padding-bottom: 0.6mm;
         margin-bottom: 0.5mm;
         line-height: 1.4;
       }

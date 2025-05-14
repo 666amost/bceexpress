@@ -5,6 +5,48 @@ import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 import AwbForm from "./AwbForm"
 
+const agentList = [
+  'GLC COD UDR',
+  'GLC COD DRT',
+  'GLC DRT',
+  'Duta Garden',
+  'Poris Residence',
+  'Kartini',
+  'OTTY OFFICIAL',  // Replaced from 'Otty Official'
+  'UDR CASH',
+  'SEA CASH',
+  'GLC UDR TRF',
+  'GLC SEA TRF',
+  'COD UDR',
+  'COD SEA',
+  'KMY UDR TRF',
+  'KMY SEA TRF',
+  'KARTINI KIKI',
+  'DUTA GARDEN FRENITA',
+  'FELLISIA PORIS EX 3',
+  'OTTY OFFICIAL',
+  'CITRA 3 RENY',
+  'HENDI',
+  'PRALITA',
+  'SALIM',
+  'ISKANDAR',
+  'IMAM',
+  'DONI',
+  'HERFAN',
+  'EZZA',
+  'YANDRI',
+  'DIKY',
+  'YOS',
+  'INDAH SUSHI TIME',
+  'CENTRAL NURSERY BANGKA',
+  'MAMAPIA',
+  'AMELIA PEDINDANG',
+  'HENDRY LIMIA',
+  'JESS DOT',
+  'SEPIRING RASA BASO',
+  'CHRISTINE PADEMANGAN'
+];
+
 export default function HistoryManifest({ mode }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -149,13 +191,14 @@ export default function HistoryManifest({ mode }) {
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
-        font-size: 11px;
+        font-size: 11px;  /* Enlarge font size */
+        font-weight: bold;  /* Make text bold */
       }
 
       .address-box .sender-info > div,
       .address-box .recipient-info > div {
         border-bottom: 1px dotted #999;
-        padding-bottom: 0.5mm;
+        padding-bottom: 0.6mm;
         margin-bottom: 0.5mm;
         line-height: 1.4;
       }
@@ -200,7 +243,7 @@ export default function HistoryManifest({ mode }) {
         align-items: flex-end;
         font-size: 8px;
         font-style: italic;
-        padding-top: 0;
+        padding-top: 0mm;
       }
 
       .terms-text {
@@ -314,7 +357,7 @@ export default function HistoryManifest({ mode }) {
         const html2pdf = await import('html2pdf.js');
         html2pdf.default()
           .set({
-            filename: 'label.pdf',
+            filename: row.awb_no + '.pdf',
             margin: 0,
             jsPDF: { unit: 'mm', format: [100, 100], orientation: 'portrait' }
           })

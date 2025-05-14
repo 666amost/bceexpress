@@ -518,6 +518,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           <div className="mb-4 p-3 bg-muted/50 rounded-md">
             <h3 className="font-medium mb-1">Shipment Details</h3>
             <p className="text-sm">Receiver: {shipmentDetails.receiver_name}</p>
+            <p className="text-sm">Phone: {shipmentDetails.receiver_phone || "N/A"}</p>
             <p className="text-sm">Address: {shipmentDetails.receiver_address}</p>
             <p className="text-sm">
               Current Status: {shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}

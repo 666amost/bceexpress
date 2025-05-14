@@ -82,7 +82,7 @@ export function CourierDashboard() {
       // Get today's bulk shipments with only necessary fields
       const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, receiver_name, receiver_address, updated_at")
+        .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, updated_at")
         .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
@@ -98,7 +98,7 @@ export function CourierDashboard() {
       // Get pending deliveries with only necessary fields
       const { data: pendingData, error: pendingError } = await supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, receiver_name, receiver_address, created_at")
+        .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, created_at")
         .eq("courier_id", courierId)
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
@@ -306,11 +306,10 @@ export function CourierDashboard() {
                           Out For Delivery
                         </Badge>
                       </div>
-                      <p className="text-sm mt-1">
-                        {shipment.receiver_name !== "Auto Generated"
-                          ? `${shipment.receiver_name} - ${shipment.receiver_address}`
-                          : "Auto Generated Shipment"}
-                      </p>
+                      <p className="text-sm mt-1">Receiver: {shipment.receiver_name !== "Auto Generated" ? shipment.receiver_name : "Auto Generated Shipment"}</p>
+                      <p className="text-sm mt-1">Phone: {shipment.receiver_phone || "N/A"}</p>
+                      <p className="text-sm mt-1">Address: {shipment.receiver_address}</p>
+                      <p className="text-sm mt-1">Current Status: {shipment.current_status}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Updated: {new Date(shipment.updated_at).toLocaleString()}
                       </p>
@@ -352,11 +351,9 @@ export function CourierDashboard() {
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="text-xs">OFD</Badge>
                       </div>
-                      <p className="text-sm mt-1">
-                        {shipment.receiver_name !== "Auto Generated"
-                          ? `${shipment.receiver_name} - ${shipment.receiver_address}`
-                          : "Auto Generated Shipment"}
-                      </p>
+                      <p className="text-sm mt-1">Receiver: {shipment.receiver_name !== "Auto Generated" ? shipment.receiver_name : "Auto Generated Shipment"}</p>
+                      <p className="text-sm mt-1">Phone: {shipment.receiver_phone || "N/A"}</p>
+                      <p className="text-sm mt-1">Address: {shipment.receiver_address}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Created: {new Date(shipment.created_at).toLocaleString()}
                       </p>
