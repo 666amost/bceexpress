@@ -103,11 +103,6 @@ export default function PrintLayout({ data }) {
           <div className="top-header-left">
             <img src="/images/bce-logo.png" alt="BCE Express" className="header-logo" />
           </div>
-          <div className="top-header-center">
-            {data.metode_pembayaran?.toUpperCase() === "COD" && (
-              <div className="cod-text">COD</div>
-            )}
-          </div>
           <div className="top-header-right">
             <div className="airport-code">
               {data.wilayah && getAirportCode(data.wilayah)}
@@ -124,6 +119,7 @@ export default function PrintLayout({ data }) {
           <div>coli : {data.coli || 1}</div>
           <div>berat : {data.berat_kg || 1} kg</div>
           <div>total : {formatCurrency(data.total || 0)}</div>
+          <div>Metode: {data.metode_pembayaran?.toUpperCase()}</div>
         </div>
 
         <div className="content-section">

@@ -7,6 +7,7 @@ import AwbForm from "@/components/AwbForm"
 import HistoryManifest from "@/components/HistoryManifest"
 import PelunasanResi from "@/components/PelunasanResi"
 import { FaPlus } from "react-icons/fa"
+import DailyReport from "@/components/DailyReport"
 
 export default function BranchPage() {
   const [selectedMenu, setSelectedMenu] = useState("transaction")
@@ -86,7 +87,7 @@ export default function BranchPage() {
         )}
         {selectedMenu === "report" && (
           <div className="py-6">
-            {selectedSubMenu === "daily_report" && <h1 className="text-2xl font-bold">Daily Report</h1>}
+            {selectedSubMenu === "daily_report" && <DailyReport />}
             {selectedSubMenu === "recap" && <h1 className="text-2xl font-bold">Recap Manifest</h1>}
             {selectedSubMenu === "outstanding" && <h1 className="text-2xl font-bold">Outstanding Report</h1>}
             {selectedSubMenu === "sale" && <h1 className="text-2xl font-bold">Sale Report</h1>}

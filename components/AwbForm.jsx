@@ -307,9 +307,9 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       }
 
       .airport-code {
-        font-size: 14px;  /* Matches logo prominence */
+        font-size: 20px;  /* Matches logo prominence */
         font-weight: bold;
-        margin-top: 2mm;
+        margin-top: 4mm;
         text-align: right;
         margin-right: 2mm;
         width: 20mm;  /* Set to match logo width */
@@ -356,20 +356,30 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
 
     setTimeout(() => {
       if (printFrameRef.current) {
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write('<html><head><title>Cetak AWB</title>');
-          printWindow.document.write('<style>');
-          printWindow.document.write(printLayoutCss);
-          printWindow.document.write('</style></head><body>');
-          printWindow.document.write(printFrameRef.current.innerHTML);
-          printWindow.document.write('</body></html>');
-          printWindow.document.close();
-          setTimeout(() => printWindow.print(), 500);
-          setTimeout(() => {
-            printWindow.close();
-            if (onSuccess) onSuccess();
-          }, 1000);
+        try {
+          const printWindow = window.open('', '_blank');
+          if (printWindow) {
+            printWindow.document.write('<html><head><title>Cetak AWB</title>');
+            printWindow.document.write('<style>');
+            printWindow.document.write(printLayoutCss);
+            printWindow.document.write('</style></head><body>');
+            printWindow.document.write(printFrameRef.current.innerHTML);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            
+            printWindow.addEventListener('afterprint', () => {
+              printWindow.close();
+              if (onSuccess) onSuccess();
+            });
+            
+            setTimeout(() => printWindow.print(), 500);
+          } else {
+            console.error('Gagal membuka jendela print. Browser mungkin memblokir popup.');
+            alert('Mohon izinkan popup untuk mencetak.');
+          }
+        } catch (error) {
+          console.error('Error saat mencetak:', error);
+          alert('Terjadi kesalahan saat mencetak. Silakan coba lagi.');
         }
       }
     }, 100);
@@ -642,8 +652,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               type="number"
               name="total"
               value={form.total}
-              readOnly
-              className="bg-gray-100 rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-base shadow-sm transition font-bold"
+              onChange={handleChange}
+              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-base shadow-sm transition font-bold bg-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-auto">

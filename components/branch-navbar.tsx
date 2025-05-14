@@ -60,13 +60,15 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
 
   const handleMenuClick = (menu: string, submenu: string) => {
     // Check if the submenu requires password
-    const protectedSubmenus = ["daily_report", "recap", "outstanding"]
+    const protectedSubmenus = ["daily_report", "recap", "outstanding", "pelunasan"]
 
-    if (menu === "report" && protectedSubmenus.includes(submenu)) {
+    if (protectedSubmenus.includes(submenu)) {
       setMenuToAccess({ menu, submenu })
       setShowPasswordModal(true)
       setIsDesktopReportOpen(false)
+      setIsDesktopTransactionOpen(false)
       setIsReportSubmenuOpen(false)
+      setIsTransactionSubmenuOpen(false)
     } else {
       onMenuChange(menu, submenu)
       setIsDesktopTransactionOpen(false)
