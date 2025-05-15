@@ -11,7 +11,7 @@ import {
   TimelineBody,
 } from "@/components/ui/timeline"
 import { type ShipmentHistory, type Shipment } from "@/lib/db"
-import { Circle, Package } from 'lucide-react'
+import { Box } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { gsap } from 'gsap'
@@ -297,7 +297,7 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                           <div className="relative bg-muted rounded-md p-4 flex flex-col items-center cursor-pointer" onClick={() => item.photo_url && handleEnlargeImage(item.photo_url)}>
                             <div className="w-full max-w-md h-48 relative flex items-center justify-center border rounded-md overflow-hidden bg-background">
                               <div className="absolute inset-0 flex items-center justify-center">
-                                <Circle className="h-12 w-12 text-muted-foreground" />
+                                <Box className="h-12 w-12 text-muted-foreground" />
                               </div>
                               {item.photo_url && (
                                 <img
@@ -308,13 +308,13 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                                 />
                               )}
                             </div>
-                            <Button variant="outline" size="sm" className="mt-2" onClick={() => toggleImage(item.id)}>
+                            <Button variant="outline" size="sm" className="mt-2" onClick={(e) => { e.stopPropagation(); toggleImage(item.id); }}>
                               Hide Image
                             </Button>
                           </div>
                         ) : (
                           <Button variant="outline" size="sm" className="flex items-center gap-2 w-full sm:w-auto" onClick={() => toggleImage(item.id)}>
-                            <Package className="h-4 w-4" />
+                            <Box className="h-4 w-4" />
                             View Proof of {formatStatus(item.status)}
                           </Button>
                         )}
