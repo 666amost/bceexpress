@@ -8,20 +8,35 @@ import HistoryManifest from "@/components/HistoryManifest"
 import PelunasanResi from "@/components/PelunasanResi"
 import { FaPlus } from "react-icons/fa"
 import DailyReport from "@/components/DailyReport"
+import RecapManifest from "@/components/RecapManifest"
+import Salesreport from '@/components/Salesreport'
 
 export default function BranchPage() {
   const [selectedMenu, setSelectedMenu] = useState("transaction")
   const [selectedSubMenu, setSelectedSubMenu] = useState("input_resi")
   const [isClient, setIsClient] = useState(false)
   const [showAwbForm, setShowAwbForm] = useState(false)
-  const [isPasswordVerified, setIsPasswordVerified] = useState(false)
-  const [passwordInput, setPasswordInput] = useState('')
-  const [passwordError, setPasswordError] = useState('')
+  const [userRole, setUserRole] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
     setIsClient(true)
     checkAuth()
+    const fetchUserRole = async () => {
+      try {
+        const { supabaseClient } = await import("@/lib/auth")
+        const { data: { user } } = await supabaseClient.auth.getUser()
+        if (user) {
+          const { data: userData } = await supabaseClient.from('users').select('role').eq('id', user.id).single()
+          if (userData) {
+            setUserRole(userData.role)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user role:", error)
+      }
+    }
+    fetchUserRole()
   }, [])
 
   const checkAuth = async () => {
@@ -50,16 +65,6 @@ export default function BranchPage() {
     }
   }
 
-  const verifyPassword = () => {
-    if (passwordInput === 'bceadmin666') {
-      setIsPasswordVerified(true)
-      setPasswordError('')
-    } else {
-      setPasswordError('Password salah. Akses ditolak.')
-      setIsPasswordVerified(false)
-    }
-  }
-
   if (!isClient) {
     return null
   }
@@ -72,7 +77,12 @@ export default function BranchPage() {
           <>
             {selectedSubMenu === "input_resi" &&
               (showAwbForm ? (
-                <AwbForm onSuccess={() => setShowAwbForm(false)} onCancel={() => setShowAwbForm(false)} />
+                <AwbForm 
+                  onSuccess={() => setShowAwbForm(false)} 
+                  onCancel={() => setShowAwbForm(false)} 
+                  initialData={null}
+                  isEditing={false}
+                />
               ) : (
                 <>
                   <div className="flex justify-between items-center mb-4">
@@ -84,7 +94,11 @@ export default function BranchPage() {
                       <FaPlus /> Tambahkan
                     </button>
                   </div>
-                  <AwbForm />
+                  <AwbForm 
+                    onSuccess={() => setShowAwbForm(false)} 
+                    onCancel={() => setShowAwbForm(false)} 
+                    initialData={null} 
+                    isEditing={false} />
                 </>
               ))}
             {selectedSubMenu === "search_manifest" && (
@@ -95,44 +109,26 @@ export default function BranchPage() {
                 <HistoryManifest mode="pelunasan" />
               </>
             )}
-            {selectedSubMenu === "pelunasan" && <PelunasanResi />}
+            {selectedSubMenu === "pelunasan" && (
+              userRole === 'admin' || userRole === 'branch' ? (
+                <PelunasanResi />
+              ) : (
+                <div className="p-4 text-center text-red-500">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin atau branch.</div>
+              )
+            )}
           </>
         )}
         {selectedMenu === "report" && (
-          <div className="py-6">
-            {selectedSubMenu === "daily_report" && (
-              !isPasswordVerified ? (
-                <div className="p-4 bg-gray-200 rounded">
-                  <h3 className="text-lg font-bold mb-2">Masukkan Password</h3>
-                  <input
-                    type="password"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    className="border rounded p-2 mb-2 w-full"
-                    placeholder="Masukkan password"
-                  />
-                  <button
-                    onClick={verifyPassword}
-                    className="bg-blue-600 text-white px-4 py-2 rounded mr-2"
-                  >
-                    Konfirmasi
-                  </button>
-                  <button
-                    onClick={() => setPasswordError('Akses dibatalkan.')}
-                    className="bg-gray-400 text-white px-4 py-2 rounded"
-                  >
-                    Batal
-                  </button>
-                  {passwordError && <p className="text-red-500 mt-2">{passwordError}</p>}
-                </div>
-              ) : (
-                <DailyReport />
-              )
-            )}
-            {selectedSubMenu === "recap" && <h1 className="text-2xl font-bold">Recap Manifest</h1>}
-            {selectedSubMenu === "outstanding" && <h1 className="text-2xl font-bold">Outstanding Report</h1>}
-            {selectedSubMenu === "sale" && <h1 className="text-2xl font-bold">Sale Report</h1>}
-          </div>
+          userRole === 'admin' || userRole === 'branch' ? (
+            <div className="py-6">
+              {selectedSubMenu === "daily_report" && <DailyReport />}
+              {selectedSubMenu === "recap" && <RecapManifest />}
+              {selectedSubMenu === "outstanding" && <h1 className="text-2xl font-bold">Outstanding Report</h1>}
+              {selectedSubMenu === "sale" && <Salesreport />}
+            </div>
+          ) : (
+            <div className="p-4 text-center text-red-500">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin atau branch.</div>
+          )
         )}
       </div>
     </div>

@@ -17,10 +17,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
   const [isReportSubmenuOpen, setIsReportSubmenuOpen] = useState(false)
   const [isDesktopTransactionOpen, setIsDesktopTransactionOpen] = useState(false)
   const [isDesktopReportOpen, setIsDesktopReportOpen] = useState(false)
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [passwordInput, setPasswordInput] = useState("")
-  const [passwordError, setPasswordError] = useState("")
-  const [menuToAccess, setMenuToAccess] = useState<{ menu: string; submenu: string }>({ menu: "", submenu: "" })
   const router = useRouter()
   const transactionRef = useRef<HTMLDivElement>(null)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -47,34 +43,11 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
     router.push("/branch/login")
   }
 
-  const handlePasswordSubmit = () => {
-    if (passwordInput === "bceadmin666") {
-      setShowPasswordModal(false)
-      setPasswordInput("")
-      setPasswordError("")
-      onMenuChange(menuToAccess.menu, menuToAccess.submenu)
-    } else {
-      setPasswordError("Password salah!")
-    }
-  }
-
   const handleMenuClick = (menu: string, submenu: string) => {
-    // Check if the submenu requires password
-    const protectedSubmenus = ["daily_report", "recap", "outstanding", "pelunasan"]
-
-    if (protectedSubmenus.includes(submenu)) {
-      setMenuToAccess({ menu, submenu })
-      setShowPasswordModal(true)
-      setIsDesktopReportOpen(false)
-      setIsDesktopTransactionOpen(false)
-      setIsReportSubmenuOpen(false)
-      setIsTransactionSubmenuOpen(false)
-    } else {
-      onMenuChange(menu, submenu)
-      setIsDesktopTransactionOpen(false)
-      setIsDesktopReportOpen(false)
-      setIsMenuOpen(false)
-    }
+    onMenuChange(menu, submenu)
+    setIsDesktopTransactionOpen(false)
+    setIsDesktopReportOpen(false)
+    setIsMenuOpen(false)
   }
 
   return (
@@ -271,7 +244,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             <div className="space-y-1">
-              {/* Transaction Mobile Menu */}
               <button
                 className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
                   selectedMenu === "transaction" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
@@ -280,6 +252,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   onMenuChange("transaction")
                   setIsTransactionSubmenuOpen(!isTransactionSubmenuOpen)
                   setIsReportSubmenuOpen(false)
+                  setIsMenuOpen(false)
                 }}
               >
                 Transaction
@@ -326,7 +299,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                 </div>
               )}
 
-              {/* Report Mobile Menu */}
               <button
                 className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
                   selectedMenu === "report" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
@@ -335,6 +307,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   onMenuChange("report")
                   setIsReportSubmenuOpen(!isReportSubmenuOpen)
                   setIsTransactionSubmenuOpen(false)
+                  setIsMenuOpen(false)
                 }}
               >
                 Report
@@ -397,44 +370,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                 className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
               >
                 Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Masukkan Password</h3>
-            <div className="mb-4">
-              <input
-                type="password"
-                className="w-full border rounded px-3 py-2"
-                placeholder="Password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handlePasswordSubmit()
-                }}
-                autoFocus
-              />
-              {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-200 rounded"
-                onClick={() => {
-                  setShowPasswordModal(false)
-                  setPasswordInput("")
-                  setPasswordError("")
-                }}
-              >
-                Batal
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handlePasswordSubmit}>
-                Submit
               </button>
             </div>
           </div>

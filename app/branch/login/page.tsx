@@ -33,7 +33,7 @@ export default function BranchLogin() {
         const { data: userData, error: queryError } = await supabaseClient.from('users').select('role').eq('id', userId).single();
         if (queryError) {
           setError('Error saat memeriksa role: ' + queryError.message);
-        } else if (userData && (userData.role === 'branch' || userData.role === 'courier' || userData.role === 'couriers' || userData.role === 'admin')) {
+        } else if (userData && (userData.role === 'branch' || userData.role === 'couriers, branch' || userData.role === 'couriers' || userData.role === 'admin')) {
           router.push('/branch');
           if (rememberMe) {
             localStorage.setItem('rememberedEmail', email);

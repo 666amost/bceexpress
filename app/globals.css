@@ -146,7 +146,11 @@
   transform: scale(1.05);
 }
 
-
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
 
 @layer base {
   * {

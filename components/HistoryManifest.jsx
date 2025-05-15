@@ -12,7 +12,6 @@ const agentList = [
   'Duta Garden',
   'Poris Residence',
   'Kartini',
-  'OTTY OFFICIAL',  // Replaced from 'Otty Official'
   'UDR CASH',
   'SEA CASH',
   'GLC UDR TRF',
@@ -60,6 +59,7 @@ export default function HistoryManifest({ mode }) {
   const [showEditForm, setShowEditForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const printFrameRef = useRef(null)
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     setLoading(true)
@@ -71,6 +71,16 @@ export default function HistoryManifest({ mode }) {
         setData(data || [])
         setLoading(false)
       })
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user) {
+        const { data: userData } = await supabaseClient.from('users').select('role').eq('id', user.id).single();
+        if (userData) {
+          setUserRole(userData.role);
+        }
+      }
+    };
+    fetchUserRole();
   }, [saving])
 
   const openEditModal = (row) => {
@@ -186,7 +196,7 @@ export default function HistoryManifest({ mode }) {
       .address-box {
         flex: 1;
         border: 1px solid #000;
-        padding: 2mm;
+        padding: 1mm;
         margin-right: 3mm;
         display: flex;
         flex-direction: column;
@@ -199,7 +209,7 @@ export default function HistoryManifest({ mode }) {
       .address-box .recipient-info > div {
         border-bottom: 1px dotted #999;
         padding-bottom: 0.6mm;
-        margin-bottom: 0.5mm;
+        margin-bottom: 0mm;
         line-height: 1.4;
       }
       .address-box .recipient-info > div:last-child {
@@ -474,37 +484,39 @@ export default function HistoryManifest({ mode }) {
                         >
                           Download PDF
                         </button>
-                        <button
-                          className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
-                          onClick={async () => {
-                            if (confirm("Hapus item ini?")) {
-                              try {
-                                const { error } = await supabaseClient
-                                  .from("manifest")
-                                  .delete()
-                                  .eq("awb_no", m.awb_no);
-                                if (error) {
-                                  console.error("Error deleting item:", error);
-                                  alert("Gagal menghapus item: " + error.message);
-                                } else {
-                                  setData(data.filter((item) => item.awb_no !== m.awb_no));
-                                  supabaseClient
+                        {(userRole === 'admin' || userRole === 'branch') && (
+                          <button
+                            className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
+                            onClick={async () => {
+                              if (confirm("Hapus item ini?")) {
+                                try {
+                                  const { error } = await supabaseClient
                                     .from("manifest")
-                                    .select("*")
-                                    .order("awb_date", { ascending: false })
-                                    .then(({ data: freshData }) => {
-                                      setData(freshData || []);
-                                    });
+                                    .delete()
+                                    .eq("awb_no", m.awb_no);
+                                  if (error) {
+                                    console.error("Error deleting item:", error);
+                                    alert("Gagal menghapus item: " + error.message);
+                                  } else {
+                                    setData(data.filter((item) => item.awb_no !== m.awb_no));
+                                    supabaseClient
+                                      .from("manifest")
+                                      .select("*")
+                                      .order("awb_date", { ascending: false })
+                                      .then(({ data: freshData }) => {
+                                        setData(freshData || []);
+                                      });
+                                  }
+                                } catch (err) {
+                                  console.error("Unexpected error:", err);
+                                  alert("Terjadi kesalahan saat menghapus item.");
                                 }
-                              } catch (err) {
-                                console.error("Unexpected error:", err);
-                                alert("Terjadi kesalahan saat menghapus item.");
                               }
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>

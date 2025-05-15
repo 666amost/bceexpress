@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input" // Menggunakan komponen Input dari shadcn/ui
@@ -12,6 +12,7 @@ import { supabaseClient } from "@/lib/auth"
 // Import ikon yang dibutuhkan dari lucide-react
 import { Loader2, ShieldAlert, Eye, EyeOff } from "lucide-react" // Menambahkan Eye dan EyeOff
 import { useRouter } from "next/navigation"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export function AdminAuth() {
   const [isLoading, setIsLoading] = useState(false)
@@ -20,8 +21,19 @@ export function AdminAuth() {
   const [loginPassword, setLoginPassword] = useState("")
   // State baru untuk mengontrol visibilitas password
   const [showPassword, setShowPassword] = useState(false); // State untuk toggle password
+  const [rememberMe, setRememberMe] = useState(false);
 
   const router = useRouter()
+
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem("adminCredentials");
+    if (savedCredentials) {
+      const { email: savedEmail, password: savedPassword, rememberMe: savedRememberMe } = JSON.parse(savedCredentials);
+      setLoginEmail(savedEmail || "");
+      setLoginPassword(savedPassword || "");
+      setRememberMe(savedRememberMe || false);
+    }
+  }, []);
 
   // Fungsi untuk mengganti status visibilitas password
   const togglePasswordVisibility = () => {
@@ -85,6 +97,19 @@ export function AdminAuth() {
 
       // Redirect ke leader dashboard jika role sesuai
       router.push("/leader/dashboard")
+
+      if (rememberMe) {
+        localStorage.setItem(
+          "adminCredentials",
+          JSON.stringify({
+            email: loginEmail,
+            password: loginPassword,
+            rememberMe,
+          })
+        );
+      } else {
+        localStorage.removeItem("adminCredentials");
+      }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")
       setIsLoading(false)
@@ -157,6 +182,21 @@ export function AdminAuth() {
                       <Eye className="h-5 w-5" /> // Ikon "tampilkan" (mata terbuka)
                     )}
                   </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 mt-2">
+                  <Checkbox
+                    id="remember"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <label
+                    htmlFor="remember"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Remember me
+                  </label>
                 </div>
               </div>
               {/* Tombol Submit Login */}
