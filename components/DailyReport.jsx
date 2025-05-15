@@ -19,10 +19,6 @@ export default function DailyReport() {
   const agentList = [
     "GLC COD UDR",
     "GLC COD DRT",
-    "GLC DRT",
-    "Duta Garden",
-    "Poris Residence",
-    "Kartini",
     "OTTY OFFICIAL",  // Single, unique instance
     "UDR CASH",
     "SEA CASH",

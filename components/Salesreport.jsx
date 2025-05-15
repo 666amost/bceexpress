@@ -16,10 +16,6 @@ const SalesReport = () => {
   const agentList = [
     'GLC COD UDR',
     'GLC COD DRT',
-    'GLC DRT',
-    'Duta Garden',
-    'Poris Residence',
-    'Kartini',
     'OTTY OFFICIAL',
     'UDR CASH',
     'SEA CASH',

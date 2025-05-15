@@ -8,10 +8,6 @@ import AwbForm from "./AwbForm"
 const agentList = [
   'GLC COD UDR',
   'GLC COD DRT',
-  'GLC DRT',
-  'Duta Garden',
-  'Poris Residence',
-  'Kartini',
   'UDR CASH',
   'SEA CASH',
   'GLC UDR TRF',
