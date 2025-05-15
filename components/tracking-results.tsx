@@ -1,44 +1,64 @@
 "use client"  // New: Mark as client component to support hooks like useEffect
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, Package, CheckCircle, AlertTriangle, Truck, Box } from 'lucide-react';  // Assuming these are valid; if not, they have been verified against the package
-import { supabaseClient } from "@/lib/auth"
-import type { ShipmentStatus } from "@/lib/db"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Timeline,
+  TimelineItem,
+  TimelineConnector,
+  TimelineHeader,
+  TimelineIcon,
+  TimelineBody,
+} from "@/components/ui/timeline"
+import { type ShipmentHistory, type Shipment } from "@/lib/db"
+import { Circle, Package } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { gsap } from 'gsap'
+import { supabaseClient } from "@/lib/auth"
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+}
 
 export function TrackingResults({ awbNumber }: { awbNumber: string }) {
-  const [shipment, setShipment] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [courierName, setCourierName] = useState("BCE Express");
-  const [lastUpdateTime, setLastUpdateTime] = useState("");
-  const [isCourier, setIsCourier] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progressPercentage, setProgressPercentage] = useState(0);
-  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
-  const progressBarRef = useRef<HTMLDivElement>(null);
+  const [shipment, setShipment] = useState<Shipment | null>(null)
+  const [history, setHistory] = useState<ShipmentHistory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
+  const [showImages, setShowImages] = useState<Record<string, boolean>>({})
+  const [enlargedImageUrl, setEnlargedImageUrl] = useState<string | null>(null)
+  const [lastUpdateTime, setLastUpdateTime] = useState<string>("")
+  const [courierName, setCourierName] = useState<string>("")
+
+  const getProgress = (status: string) => {
+    switch (status) {
+      case 'processed':
+        return 20;
+      case 'shipped':
+        return 40;
+      case 'in_transit':
+        return 60;
+      case 'out_for_delivery':
+        return 80;
+      case 'delivered':
+        return 100;
+      default:
+        return 0;
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: shipmentData, error: shipmentError } = await supabaseClient
-          .from("shipments")
-          .select("*")
-          .eq("awb_number", awbNumber)
-          .single();
-
+        const { data: shipmentData, error: shipmentError } = await supabaseClient.from("shipments").select("*").eq("awb_number", awbNumber).single();
         if (shipmentError) {
           setError("Shipment not found");
           return;
         }
 
-        const { data: historyData, error: historyError } = await supabaseClient
-          .from("shipment_history")
-          .select("*")
-          .eq("awb_number", awbNumber)
-          .order("created_at", { ascending: false });
-
+        const { data: historyData, error: historyError } = await supabaseClient.from("shipment_history").select("*").eq("awb_number", awbNumber).order("created_at", { ascending: false });
         if (historyError) {
           setError(`Error fetching history: ${historyError.message}`);
         }
@@ -48,18 +68,6 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
 
         if (historyData && historyData.length > 0) {
           const latestEntry = historyData[0];
-          setLastUpdateTime(
-            new Date(latestEntry.created_at).toLocaleString("id-ID", {
-              timeZone: "Asia/Jakarta",
-              year: "numeric",
-              month: "numeric",
-              day: "numeric",
-              hour: "numeric",
-              minute: "numeric",
-              second: "numeric",
-            })
-          );
-
           if (latestEntry.notes) {
             const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
             const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
@@ -71,304 +79,261 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
               setCourierName(dashMatch[1]);
             } else if (bulkMatch && bulkMatch[1]) {
               setCourierName(bulkMatch[1]);
+            } else {
+              setCourierName("Unknown");  // Fallback jika tidak ada pola yang cocok
             }
+          } else {
+            setCourierName("Unknown");  // Fallback jika notes tidak ada
           }
+          setLastUpdateTime(new Date(latestEntry.created_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }));
+        } else if (shipmentData) {
+          setCourierName(shipmentData.courier || "Unknown");  // Fallback ke shipmentData jika history kosong
         }
 
-        const sessionResponse = await supabaseClient.auth.getSession();
-        if (sessionResponse.data && sessionResponse.data.session?.user) {
-          const { data: profile } = await supabaseClient
-            .from('users')
-            .select('role')
-            .eq('id', sessionResponse.data.session.user.id)
-            .single();
-          if (profile?.role === 'courier') {
-            setIsCourier(true);
-          }
+        if (!shipmentData) {
+          setError(`No shipment found with AWB number ${awbNumber}`);
         }
-
-        const getProgressPercentage = (status: ShipmentStatus) => {
-          switch (status) {
-            case "processed":
-              return 0;
-            case "shipped":
-              return 25;
-            case "in_transit":
-              return 50;
-            case "out_for_delivery":
-              return 75;
-            case "delivered":
-              return 100;
-            case "exception":
-              return 50;
-            default:
-              return 0;
-          }
-        };
-        setProgressPercentage(getProgressPercentage(shipmentData.current_status as ShipmentStatus));
       } catch (err) {
+        console.error("Error fetching tracking data:", err);
         setError("An error occurred while fetching data");
+      } finally {
+        setLoading(false);
       }
     };
-
     fetchData();
   }, [awbNumber]);
 
   useEffect(() => {
-    if (shipment && progressBarRef.current) {
-      gsap.from(progressBarRef.current, {
-        width: '0%',
-        duration: 2,
-        ease: 'power3.out',
-        onComplete: () => setIsAnimationComplete(true),
+    if (shipment) {
+      const progressPercent = getProgress(shipment.current_status);
+      const color = shipment.current_status === 'delivered' ? 'green' : 'blue';
+      gsap.to('#progress-bar', {
+        width: `${progressPercent}%`,
+        backgroundColor: color,
+        duration: 1,
+        ease: 'power2.out',
       });
     }
-  }, [progressPercentage]);
+  }, [shipment]);
+
+  const handleImageError = (id: string) => {
+    setImageErrors((prev) => ({ ...prev, [id]: true }))
+  }
+
+  const handleEnlargeImage = (url: string) => {
+    setEnlargedImageUrl(url);
+  };
+
+  const closeEnlargedImage = () => {
+    setEnlargedImageUrl(null);
+  };
+
+  const toggleImage = (id: string) => {
+    setShowImages((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-foreground mb-4">Error</h2>
-        <p className="text-muted-foreground">{error}</p>
-      </div>
-    );
+      <Alert variant="destructive" className="mb-4">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
   }
 
-  if (!shipment) {
+  if (!shipment && !loading) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-foreground mb-4">Loading...</h2>
-      </div>
-    );
+      <Alert variant="destructive" className="mb-4">
+        <AlertTitle>Not Found</AlertTitle>
+        <AlertDescription>No shipment found with AWB number {awbNumber}</AlertDescription>
+      </Alert>
+    )
   }
 
-  const getStatusIcon = (status: ShipmentStatus) => {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading shipment information...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "processed":
-        return <Box className="h-5 w-5" />;
+        return "bg-blue-500"
       case "shipped":
-        return <Truck className="h-5 w-5" />;
+        return "bg-indigo-500"
       case "in_transit":
-        return <Truck className="h-5 w-5" />;
+        return "bg-yellow-500"
       case "out_for_delivery":
-        return <Truck className="h-5 w-5" />;
+        return "bg-orange-500"
       case "delivered":
-        return <CheckCircle className="h-5 w-5" />;
+        return "bg-green-500"
       case "exception":
-        return <AlertTriangle className="h-5 w-5" />;
+        return "bg-red-500"
       default:
-        return <Package className="h-5 w-5" />;
+        return "bg-gray-500"
     }
-  };
+  }
 
   const formatStatus = (status: string) => {
-    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  };
-
-  const isAutoGenerated = shipment.sender_name === "Auto Generated" && shipment.receiver_name === "Auto Generated";
+    return status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  }
 
   return (
-    <Card className="shadow-lg border border-border/40">
-      <CardHeader className="bg-primary text-primary-foreground">
-        <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left px-4 sm:px-6 overflow-hidden">
-          <h2 className="text-2xl font-bold mb-2 sm:mb-0">Shipment Details</h2>
-          <Badge variant="secondary" className="bg-primary-foreground text-primary font-mono text-2xl sm:text-4xl font-bold w-full sm:w-auto text-center sm:text-left mx-auto sm:mx-0 max-w-full overflow-x-auto whitespace-nowrap">
+    <div className="space-y-6 p-4 sm:p-6 md:p-8 bg-background min-h-screen">
+      {enlargedImageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeEnlargedImage}>
+          <div className="relative max-w-[80%] sm:max-w-[70%] md:max-w-[60%] max-h-[80%]">
+            <img src={enlargedImageUrl} alt="Enlarged proof of delivery" className="w-full h-full object-contain rounded-lg shadow-lg" />
+            <Button variant="ghost" className="absolute top-2 right-2" onClick={closeEnlargedImage}>Close</Button>
+          </div>
+        </div>
+      )}
+
+      <Card className="shadow-md border-0 rounded-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-center">
+          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center sm:text-left">Shipment Details</CardTitle>
+          <div className="mt-2 text-xl sm:text-2xl font-bold text-blue-500 bg-muted p-3 rounded-md shadow-sm text-center sm:text-left">
             AWB: {awbNumber}
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-6">
-        {isAutoGenerated ? (
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6">
-            <h3 className="text-lg font-semibold mb-2">Courier Information</h3>
-            <p className="font-medium">
-              Handled by: {courierName}
-              {lastUpdateTime && (
-                <span className="block text-sm text-blue-600 dark:text-blue-400 mt-1">
-                  Last updated: {lastUpdateTime}
-                </span>
-              )}
-            </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <h3 className="text-muted-foreground font-semibold mb-2">Sender</h3>
-              <p className="font-medium">
-                {shipment.sender_name}
-                <br />
-                {shipment.sender_address}
-                <br />
-                {isCourier ? shipment.sender_phone : 'Hidden for privacy'}
-              </p>
+          {shipment && (
+            <div className="mt-4 text-sm sm:text-base text-muted-foreground bg-muted p-4 rounded-md flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p className="font-medium bg-yellow-100 p-2 rounded-md shadow-sm">Handled by: {courierName}</p>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-blue-500">
+                <p>Last updated: {lastUpdateTime}</p>
+              </div>
             </div>
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <h3 className="text-muted-foreground font-semibold mb-2">Receiver</h3>
-              <p className="font-medium">
-                {shipment.receiver_name}
-                <br />
-                {shipment.receiver_address}
-                <br />
-                {isCourier ? shipment.receiver_phone : 'Hidden for privacy'}
-              </p>
-            </div>
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <h3 className="text-muted-foreground font-semibold mb-2">Shipment Details</h3>
-              <p className="font-medium">
-                Weight: {shipment.weight} kg
-                <br />
-                Dimensions: {shipment.dimensions}
-                <br />
-                Service: {shipment.service_type}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold mb-4">
-            Current Status: <span className={shipment.current_status === "delivered" ? (isAnimationComplete ? "text-green-500" : "text-primary") : "text-primary"}>{formatStatus(shipment.current_status)}</span>
-          </h3>
-
-          <div className="tracking-progress">
-            <div ref={progressBarRef} className="tracking-progress-bar" style={{ width: `${progressPercentage}%` }}></div>
-            <div
-              className={`status-dot ${progressPercentage >= 0 ? "active" : "inactive"}`}
-              style={{ left: "0%" }}
-            ></div>
-            <div
-              className={`status-dot ${progressPercentage >= 25 ? "active" : "inactive"}`}
-              style={{ left: "25%" }}
-            ></div>
-            <div
-              className={`status-dot ${progressPercentage >= 50 ? "active" : "inactive"}`}
-              style={{ left: "50%" }}
-            ></div>
-            <div
-              className={`status-dot ${progressPercentage >= 75 ? "active" : "inactive"}`}
-              style={{ left: "75%" }}
-            ></div>
-            <div
-              className={`status-dot ${progressPercentage >= 100 ? "active" : "inactive"}`}
-              style={{ left: "100%" }}
-            ></div>
-          </div>
-
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>Processed</span>
-            <span>Shipped</span>
-            <span>In Transit</span>
-            <span>Out for Delivery</span>
-            <span>Delivered</span>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold mb-4">Tracking History</h3>
-          <div className="space-y-4">
-            {history.map((item) => (
-              <div key={item.id} className="flex">
-                <div className="mr-4">
-                  <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                      item.status?.toLowerCase().includes("delivered")
-                        ? "text-green-500 bg-green-100 dark:bg-green-900/30"
-                        : item.status === "exception"
-                          ? "text-red-500 bg-red-100 dark:bg-red-900/30"
-                          : "text-primary bg-primary/10"
-                    }`}
-                  >
-                    {getStatusIcon(item.status as ShipmentStatus)}
-                  </div>
-                </div>
-                <div className="flex-grow">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold capitalize">
-                      {formatStatus(item.status)}{" "}
-                      {item.status?.toLowerCase().includes("delivered") && item.photo_url && (
-                        <a
-                          href={item.photo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline ml-2"
-                        >
-                          POD Pengiriman
-                        </a>
-                      )}
-                    </h4>
-                    <span className="text-sm text-muted-foreground">
-                      {new Date(item.created_at).toLocaleDateString("id-ID", {
-                        timeZone: "Asia/Jakarta",
-                        year: "numeric",
-                        month: "numeric",
-                        day: "numeric",
-                      })}{" "}
-                      {new Date(item.created_at).toLocaleTimeString("id-ID", {
-                        timeZone: "Asia/Jakarta",
-                        hour: "numeric",
-                        minute: "numeric",
-                        second: "numeric",
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-foreground/80">{item.location}</p>
-                  {item.notes && <p className="text-sm text-muted-foreground mt-1">{item.notes}</p>}
-
-                  {item.latitude && item.longitude && (
-                    <div className="mt-2 text-xs text-muted-foreground flex items-center">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      GPS: {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+          )}
+        </CardHeader>
+        <CardContent className="p-6">
+          {shipment && (
+            <>
+              {(shipment.sender_name && shipment.sender_name !== 'Auto Generated') || (shipment.receiver_name && shipment.receiver_name !== 'Auto Generated') ? (
+                <div className="bg-muted p-4 rounded-lg shadow-sm space-y-4 mb-6">
+                  {shipment.sender_name && shipment.sender_name !== 'Auto Generated' && (
+                    <div className="text-center sm:text-left">
+                      <h3 className="text-base font-semibold mb-1 text-primary">Sender Information</h3>
+                      <p className="font-medium text-sm">{shipment.sender_name}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.sender_address}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.sender_phone}</p>
                     </div>
                   )}
+                  {shipment.receiver_name && shipment.receiver_name !== 'Auto Generated' && (
+                    <div className="text-center sm:text-left">
+                      <h3 className="text-base font-semibold mb-1 text-primary">Receiver Information</h3>
+                      <p className="font-medium text-sm">{shipment.receiver_name}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.receiver_address}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.receiver_phone}</p>
+                    </div>
+                  )}
+                  {(shipment.sender_name && shipment.sender_name !== 'Auto Generated') || (shipment.receiver_name && shipment.receiver_name !== 'Auto Generated') ? (
+                    <div className="text-center sm:text-left">
+                      <h3 className="text-base font-semibold mb-1 text-primary">Package Details</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {typeof shipment.weight === 'string' && shipment.weight !== 'Auto Generated' && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Weight</p>
+                            <p className="font-medium text-sm">{shipment.weight} kg</p>
+                          </div>
+                        )}
+                        {shipment.dimensions && shipment.dimensions !== 'Auto Generated' && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Dimensions</p>
+                            <p className="font-medium text-sm">{shipment.dimensions}</p>
+                          </div>
+                        )}
+                        {shipment.service_type && shipment.service_type !== 'Auto Generated' && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Service Type</p>
+                            <p className="font-medium text-sm">{shipment.service_type}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="w-full bg-gray-200 rounded-full h-6 mt-6 relative shadow-sm">
+                <div id="progress-bar" className="h-full rounded-full flex items-center justify-center text-center text-white font-medium transition-all duration-300" style={{ width: '0%', backgroundColor: 'blue' }}>
+                  {shipment && formatStatus(shipment.current_status)}
                 </div>
               </div>
-            ))}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-            {history.length === 0 && (
-              <p className="text-muted-foreground italic">No tracking history available yet.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Bagian Proof of Delivery yang menampilkan foto di luar hyperlink */}
-        {/* Komentari atau hapus blok kode di bawah ini jika Anda hanya ingin foto muncul saat hyperlink diklik */}
-        {/* {shipment.current_status === "delivered" && history.some((item) => item.photo_url) && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Proof of Delivery</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {history
-                .filter((item) => item.photo_url)
-                .map((item) => (
-                  <div key={`pod-${item.id}`} className="border rounded-lg p-2">
-                    <Image
-                      src={item.photo_url! || "/placeholder.svg"}
-                      alt="Proof of delivery"
-                      width={400}
-                      height={300}
-                      className="rounded-md object-cover w-full h-auto photo-preview"
-                    />
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {new Date(item.created_at).toLocaleDateString("id-ID", {
-                        timeZone: "Asia/Jakarta",
-                        year: "numeric",
-                        month: "numeric",
-                        day: "numeric",
-                      })}{" "}
-                      {new Date(item.created_at).toLocaleTimeString("id-ID", {
-                        timeZone: "Asia/Jakarta",
-                        hour: "numeric",
-                        minute: "numeric",
-                        second: "numeric",
-                      })}
-                    </p>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )} */}
-        {/* Akhir dari bagian Proof of Delivery */}
-      </CardContent>
-    </Card>
+      <Card className="shadow-md border-0 rounded-lg overflow-hidden">
+        <CardHeader>
+          <CardTitle className="text-2xl sm:text-3xl font-bold">Shipment History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {history.length > 0 ? (
+            <Timeline className="relative ml-4 sm:ml-6">
+              {history.map((item, index) => (
+                <TimelineItem key={item.id} className="mb-4">
+                  {index < history.length - 1 && <TimelineConnector className="bg-border absolute left-3.5 top-4 -bottom-9 w-px" aria-hidden="true" />}
+                  <TimelineHeader className="flex items-center gap-3 relative">
+                    <TimelineIcon className={`p-2 rounded-full ${getStatusColor(item.status)}`} />
+                    <div className="flex flex-col gap-1">
+                      <h4 className="text-base sm:text-lg font-semibold">{formatStatus(item.status)}</h4>
+                      <time className="text-sm text-muted-foreground">{formatDate(item.created_at)}</time>
+                    </div>
+                  </TimelineHeader>
+                  <TimelineBody className="ml-10 sm:ml-12 mt-2 space-y-2">
+                    <p className="text-foreground">{item.location}</p>
+                    {item.notes && <p className="text-sm text-muted-foreground">{item.notes}</p>}
+                    {item.photo_url && !imageErrors[item.id] && (
+                      <div className="mt-2">
+                        {showImages[item.id] ? (
+                          <div className="relative bg-muted rounded-md p-4 flex flex-col items-center cursor-pointer" onClick={() => item.photo_url && handleEnlargeImage(item.photo_url)}>
+                            <div className="w-full max-w-md h-48 relative flex items-center justify-center border rounded-md overflow-hidden bg-background">
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Circle className="h-12 w-12 text-muted-foreground" />
+                              </div>
+                              {item.photo_url && (
+                                <img
+                                  src={item.photo_url}
+                                  alt={`Proof of ${item.status}`}
+                                  className="relative z-10 max-w-full max-h-full object-contain"
+                                  onError={() => handleImageError(item.id)}
+                                />
+                              )}
+                            </div>
+                            <Button variant="outline" size="sm" className="mt-2" onClick={() => toggleImage(item.id)}>
+                              Hide Image
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button variant="outline" size="sm" className="flex items-center gap-2 w-full sm:w-auto" onClick={() => toggleImage(item.id)}>
+                            <Package className="h-4 w-4" />
+                            View Proof of {formatStatus(item.status)}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {item.latitude && item.longitude && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        GPS: {item.latitude}, {item.longitude}
+                      </div>
+                    )}
+                  </TimelineBody>
+                </TimelineItem>
+              ))}
+            </Timeline>
+          ) : (
+            <p className="text-center py-4 text-muted-foreground">No history available for this shipment.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
