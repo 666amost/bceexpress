@@ -42,6 +42,16 @@ const agentList = [
   'CHRISTINE PADEMANGAN'
 ];
 
+const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"];
+const kirimVia = ["udara", "darat"];
+const metodePembayaran = ["cash", "transfer", "cod"];
+const kotaWilayah = {
+  bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
+  "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
+  belitung: ["Tj Pandan"],
+  bali: ["Denpasar"],
+};
+
 export default function HistoryManifest({ mode }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +66,14 @@ export default function HistoryManifest({ mode }) {
   const [selectedItem, setSelectedItem] = useState(null)
   const printFrameRef = useRef(null)
   const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    if (selectedItem) {
+      const sub_total = (parseFloat(selectedItem.berat_kg) || 0) * (parseFloat(selectedItem.harga_per_kg) || 0);
+      const total = sub_total + (parseFloat(selectedItem.biaya_admin) || 0) + (parseFloat(selectedItem.biaya_packaging) || 0) + (parseFloat(selectedItem.biaya_transit) || 0);
+      setSelectedItem(prev => ({ ...prev, sub_total, total }));
+    }
+  }, [selectedItem?.berat_kg, selectedItem?.harga_per_kg, selectedItem?.biaya_admin, selectedItem?.biaya_packaging, selectedItem?.biaya_transit]);
 
   useEffect(() => {
     setLoading(true)
@@ -349,20 +367,66 @@ export default function HistoryManifest({ mode }) {
   // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
   const handleEditAwb = (item) => {
-    setSelectedItem(item)
-    setShowEditForm(true)
+    setSelectedItem(item);
+    setShowEditForm(true);
   }
 
-  const handleEditSuccess = () => {
-    setShowEditForm(false)
-    setSelectedItem(null)
+  const handleSaveEdit = async () => {
+    if (!selectedItem) return;
+    setSaving(true);
+    try {
+      const { error } = await supabaseClient
+        .from("manifest")
+        .update({
+          awb_no: selectedItem.awb_no,
+          awb_date: selectedItem.awb_date,
+          kirim_via: selectedItem.kirim_via,
+          kota_tujuan: selectedItem.kota_tujuan,
+          wilayah: selectedItem.wilayah,
+          metode_pembayaran: selectedItem.metode_pembayaran,
+          agent_customer: selectedItem.agent_customer,
+          nama_pengirim: selectedItem.nama_pengirim,
+          nomor_pengirim: selectedItem.nomor_pengirim,
+          nama_penerima: selectedItem.nama_penerima,
+          nomor_penerima: selectedItem.nomor_penerima,
+          alamat_penerima: selectedItem.alamat_penerima,
+          coli: selectedItem.coli,
+          berat_kg: selectedItem.berat_kg,
+          harga_per_kg: selectedItem.harga_per_kg,
+          sub_total: selectedItem.sub_total,
+          biaya_admin: selectedItem.biaya_admin,
+          biaya_packaging: selectedItem.biaya_packaging,
+          biaya_transit: selectedItem.biaya_transit,
+          total: selectedItem.total,
+        })
+        .eq("awb_no", selectedItem.awb_no);
+
+      if (error) {
+        console.error("Error updating item:", error);
+        alert("Gagal memperbarui data: " + error.message);
+      } else {
+        alert("Data berhasil diperbarui!");
     supabaseClient
       .from("manifest")
       .select("*")
       .order("awb_date", { ascending: false })
       .then(({ data }) => {
-        setData(data || [])
-      })
+            setData(data || []);
+          });
+        setShowEditForm(false);
+        setSelectedItem(null);
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      alert("Terjadi kesalahan saat memperbarui data.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setShowEditForm(false);
+    setSelectedItem(null);
   }
 
   const handleDownloadPDF = async (row) => {
@@ -385,22 +449,202 @@ export default function HistoryManifest({ mode }) {
   };
 
   if (showEditForm && selectedItem) {
+    const wilayahOptions = kotaWilayah[selectedItem.kota_tujuan] || [];
+
     return (
       <div className="mt-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-blue-900">Edit AWB</h2>
-          <button onClick={() => setShowEditForm(false)} className="px-4 py-2 bg-gray-200 rounded">
-            Back to List
+          <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-200 rounded">
+            Batal
           </button>
         </div>
-        <AwbForm
-          initialData={selectedItem}
-          onSuccess={handleEditSuccess}
-          onCancel={() => setShowEditForm(false)}
-          isEditing={true}
-        />
+        <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} className="bg-white p-4 rounded shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold">Nomor Resi (AWB)</label>
+              <input
+                type="text"
+                value={selectedItem.awb_no}
+                onChange={(e) => setSelectedItem({ ...selectedItem, awb_no: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Tanggal AWB</label>
+              <input
+                type="date"
+                value={selectedItem.awb_date}
+                onChange={(e) => setSelectedItem({ ...selectedItem, awb_date: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Kirim Via</label>
+              <select
+                name="kirim_via"
+                value={selectedItem.kirim_via}
+                onChange={(e) => setSelectedItem({ ...selectedItem, kirim_via: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">Pilih</option>
+                {kirimVia.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Kota Tujuan</label>
+              <select
+                name="kota_tujuan"
+                value={selectedItem.kota_tujuan}
+                onChange={(e) => setSelectedItem({ ...selectedItem, kota_tujuan: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">Pilih</option>
+                {kotaTujuan.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt.replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Wilayah</label>
+              <select
+                name="wilayah"
+                value={selectedItem.wilayah}
+                onChange={(e) => setSelectedItem({ ...selectedItem, wilayah: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+                disabled={!selectedItem.kota_tujuan}
+              >
+                <option value="">Pilih</option>
+                {wilayahOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Agent</label>
+              <select
+                name="agent_customer"
+                value={selectedItem.agent_customer}
+                onChange={(e) => setSelectedItem({ ...selectedItem, agent_customer: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">Pilih</option>
+                {agentList.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Nama Pengirim</label>
+              <input
+                type="text"
+                value={selectedItem.nama_pengirim}
+                onChange={(e) => setSelectedItem({ ...selectedItem, nama_pengirim: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Nama Penerima</label>
+              <input
+                type="text"
+                value={selectedItem.nama_penerima}
+                onChange={(e) => setSelectedItem({ ...selectedItem, nama_penerima: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Metode Pembayaran</label>
+              <select
+                name="metode_pembayaran"
+                value={selectedItem.metode_pembayaran}
+                onChange={(e) => setSelectedItem({ ...selectedItem, metode_pembayaran: e.target.value })}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">Pilih</option>
+                {metodePembayaran.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Berat (kg)</label>
+              <input
+                type="number"
+                value={selectedItem.berat_kg || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, berat_kg: e.target.value })}
+                min={0}
+                step={0.1}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Harga/kg</label>
+              <input
+                type="number"
+                value={selectedItem.harga_per_kg || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, harga_per_kg: e.target.value })}
+                min={0}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Biaya Admin</label>
+              <input
+                type="number"
+                value={selectedItem.biaya_admin || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, biaya_admin: e.target.value })}
+                min={0}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Biaya Packaging</label>
+              <input
+                type="number"
+                value={selectedItem.biaya_packaging || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, biaya_packaging: e.target.value })}
+                min={0}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Biaya Transit</label>
+              <input
+                type="number"
+                value={selectedItem.biaya_transit || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, biaya_transit: e.target.value })}
+                min={0}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Total</label>
+              <input
+                type="number"
+                value={selectedItem.total || 0}
+                readOnly
+                className="w-full border rounded px-2 py-1 bg-gray-100"
+              />
+            </div>
+          </div>
+          <button type="submit" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded" disabled={saving}>
+            {saving ? "Menyimpan..." : "Simpan Perubahan"}
+          </button>
+        </form>
       </div>
-    )
+    );
   }
 
   return (
@@ -473,26 +717,26 @@ export default function HistoryManifest({ mode }) {
                     {mode === "pelunasan" && (
                       <td className="px-2 py-1 flex gap-2">
                         <button
-                          className="bg-yellow-400 hover:bg-yellow-500 text-xs px-2 py-1 rounded"
+                          className="bg-black text-white hover:bg-gray-800 text-xs px-2 py-1 rounded"
                           onClick={() => handleEditAwb(m)}
                         >
                           Edit
                         </button>
                         <button
-                          className="bg-green-400 hover:bg-green-500 text-xs px-2 py-1 rounded"
+                          className="bg-green-500 hover:bg-green-600 text-xs px-2 py-1 rounded"
                           onClick={() => handlePrint(m)}
                         >
                           Print
                         </button>
                         <button
-                          className="bg-blue-400 hover:bg-blue-500 text-xs px-2 py-1 rounded"
+                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded"
                           onClick={() => handleDownloadPDF(m)}
                         >
                           Download PDF
                         </button>
                         {(userRole === 'admin' || userRole === 'branch') && (
                           <button
-                            className="bg-red-400 hover:bg-red-500 text-xs px-2 py-1 rounded"
+                            className="bg-red-500 hover:bg-red-600 text-xs px-2 py-1 rounded"
                             onClick={async () => {
                               if (confirm("Hapus item ini?")) {
                                 try {

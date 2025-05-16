@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
 import XLSX from "xlsx"
+import { FaDownload, FaPrint } from 'react-icons/fa'
 
 const kirimViaOptions = ["udara", "darat"]  // Diambil dari AwbForm.jsx
 const kotaTujuanOptions = ["bangka", "kalimantan barat", "belitung", "bali"]  // Diambil dari AwbForm.jsx dan HistoryManifest.jsx
@@ -187,15 +188,15 @@ export default function RecapManifest() {
       <div className="mb-4 flex justify-end no-print">
         <button
           onClick={downloadXLSX}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-2"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-2 flex items-center gap-2"
         >
-          Download XLSX
+          <FaDownload /> Download XLSX
         </button>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
         >
-          Print
+          <FaPrint /> Print
         </button>
       </div>
 

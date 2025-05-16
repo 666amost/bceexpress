@@ -18,6 +18,7 @@ export default function BranchPage() {
   const [isClient, setIsClient] = useState(false)
   const [showAwbForm, setShowAwbForm] = useState(false)
   const [userRole, setUserRole] = useState(null)
+  const [dashboardStats, setDashboardStats] = useState({ totalAWB: 0, totalAgents: 0, totalWilayah: 0 })
   const router = useRouter()
 
   useEffect(() => {
@@ -38,6 +39,34 @@ export default function BranchPage() {
       }
     }
     fetchUserRole()
+    
+    const fetchDashboardStats = async () => {
+      try {
+        const { supabaseClient } = await import("@/lib/auth")
+        const { data: manifestData, error } = await supabaseClient.from('manifest').select('awb_no, agent_customer, wilayah')
+        
+        if (error) {
+          console.error("Error fetching stats:", error)
+          return
+        }
+        
+        if (manifestData) {
+          const uniqueAWB = [...new Set(manifestData.map(item => item.awb_no).filter(Boolean))].length
+          const uniqueAgents = [...new Set(manifestData.map(item => item.agent_customer).filter(Boolean))].length
+          const uniqueWilayah = [...new Set(manifestData.map(item => item.wilayah).filter(Boolean))].length
+          
+          setDashboardStats({
+            totalAWB: uniqueAWB,
+            totalAgents: uniqueAgents,
+            totalWilayah: uniqueWilayah,
+          })
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching stats:", err)
+      }
+    }
+    
+    fetchDashboardStats()
   }, [])
 
   const checkAuth = async () => {
@@ -74,41 +103,45 @@ export default function BranchPage() {
     <div className="min-h-screen bg-gray-50">
       <BranchNavbar selectedMenu={selectedMenu} selectedSubMenu={selectedSubMenu} onMenuChange={handleMenuChange} />
       <div className="pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        {selectedMenu === "transaction" && selectedSubMenu === "input_resi" && !showAwbForm && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-blue-100 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-bold text-blue-800">Total AWB</h3>
+              <p className="text-2xl font-bold">{dashboardStats.totalAWB}</p>
+            </div>
+            <div className="bg-green-100 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-bold text-green-800">Total Agent</h3>
+              <p className="text-2xl font-bold">{dashboardStats.totalAgents}</p>
+            </div>
+            <div className="bg-yellow-100 p-6 rounded-lg shadow">
+              <h3 className="text-lg font-bold text-yellow-800">Total Wilayah</h3>
+              <p className="text-2xl font-bold">{dashboardStats.totalWilayah}</p>
+            </div>
+          </div>
+        )}
+        
         {selectedMenu === "transaction" && (
           <>
-            {selectedSubMenu === "input_resi" &&
-              (showAwbForm ? (
-                <AwbForm 
-                  onSuccess={() => setShowAwbForm(false)} 
-                  onCancel={() => setShowAwbForm(false)} 
-                  initialData={null}
-                  isEditing={false}
-                />
-              ) : (
-                <>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-white bg-blue-600 px-4 py-2 rounded">Input Resi</h2>
-                    <button
-                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700"
-                      onClick={() => setShowAwbForm(true)}
-                    >
-                      <FaPlus /> Tambahkan
-                    </button>
-                  </div>
-                  <AwbForm 
-                    onSuccess={() => setShowAwbForm(false)} 
-                    onCancel={() => setShowAwbForm(false)} 
-                    initialData={null} 
-                    isEditing={false} />
-                </>
-              ))}
+            {selectedSubMenu === "input_resi" && showAwbForm && (
+              <AwbForm 
+                onSuccess={() => setShowAwbForm(false)} 
+                onCancel={() => setShowAwbForm(false)} 
+                initialData={null}
+                isEditing={false}
+              />
+            )}
+            {selectedSubMenu === "input_resi" && !showAwbForm && (
+              <div className="flex justify-end items-center mb-4">
+                <button
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700"
+                  onClick={() => setShowAwbForm(true)}
+                >
+                  <FaPlus /> Tambahkan
+                </button>
+              </div>
+            )}
             {selectedSubMenu === "search_manifest" && (
-              <>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-white bg-blue-600 px-4 py-2 rounded">Search Manifest</h2>
-                </div>
-                <HistoryManifest mode="pelunasan" />
-              </>
+              <HistoryManifest mode="pelunasan" />
             )}
             {selectedSubMenu === "pelunasan" && (
               userRole === 'admin' || userRole === 'branch' ? (

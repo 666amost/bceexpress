@@ -152,17 +152,19 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
 
         if (sbError) {
           setError("Gagal memperbarui data: " + sbError.message)
+          return
         } else {
           setSuccess("Data berhasil diperbarui!")
-          handlePrint() // Panggil fungsi cetak setelah berhasil memperbarui
+          handlePrint()
         }
       } else {
         const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }])
         if (sbError) {
           setError("Gagal menyimpan data: " + sbError.message)
+          return
         } else {
           setSuccess("Data berhasil disimpan!")
-          handlePrint() // Panggil fungsi cetak setelah berhasil menyimpan
+          handlePrint()
         }
       }
     } catch (err) {
@@ -385,28 +387,26 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       if (printFrameRef.current) {
         try {
           const printWindow = window.open('', '_blank');
-          if (printWindow) {
-            printWindow.document.write('<html><head><title>Cetak AWB</title>');
-            printWindow.document.write('<style>');
-            printWindow.document.write(printLayoutCss);
-            printWindow.document.write('</style></head><body>');
-            printWindow.document.write(printFrameRef.current.innerHTML);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            
-            printWindow.addEventListener('afterprint', () => {
-              printWindow.close();
-              if (onSuccess) onSuccess();
-            });
-            
-            setTimeout(() => printWindow.print(), 500);
-          } else {
-            console.error('Gagal membuka jendela print. Browser mungkin memblokir popup.');
-            alert('Mohon izinkan popup untuk mencetak.');
+          if (!printWindow) {
+            throw new Error('Popup diblokir. Mohon izinkan popup di browser Anda.');
           }
+          printWindow.document.write('<html><head><title>Cetak AWB</title>');
+          printWindow.document.write('<style>');
+          printWindow.document.write(printLayoutCss);
+          printWindow.document.write('</style></head><body>');
+          printWindow.document.write(printFrameRef.current.innerHTML);
+          printWindow.document.write('</body></html>');
+          printWindow.document.close();
+          
+          printWindow.addEventListener('afterprint', () => {
+            printWindow.close();
+            if (onSuccess) onSuccess();
+          });
+          
+          setTimeout(() => printWindow.print(), 500);
         } catch (error) {
           console.error('Error saat mencetak:', error);
-          alert('Terjadi kesalahan saat mencetak. Silakan coba lagi.');
+          alert('Terjadi kesalahan saat mencetak: ' + error.message + '. Silakan coba lagi atau periksa pengaturan browser.');
         }
       }
     }, 100);
