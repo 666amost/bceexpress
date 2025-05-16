@@ -20,7 +20,9 @@ export default function PrintLayout({ data }) {
     "Mentok": "MNT",          // Example
     "Pontianak": "PNK",       // Added new entry
     "Singkawang": "SKW",       // Added new entry
-    "Sungai Pinyuh": "SPY",   // Added new entry
+    "Sungai Pinyuh": "SPY",
+    "Tj Pandan": "TJQ",
+    "Denpasar": "DPS",
     // Add more as needed, e.g., "Pontianak": "PNK"
   };
 
@@ -94,6 +96,21 @@ export default function PrintLayout({ data }) {
     }
   }, [data])
 
+  const generateAbbreviation = (agentName) => {
+    const words = agentName.trim().split(/\s+/);
+    let abbr = words.map(word => word[0].toUpperCase()).join('');
+    if (abbr.length > 3) {
+      abbr = abbr.slice(0, 3);
+    } else if (abbr.length < 3) {
+      const firstWord = words[0].toUpperCase();
+      while (abbr.length < 3 && firstWord.length > abbr.length) {
+        abbr += firstWord[abbr.length];
+      }
+      abbr = abbr.slice(0, 3);
+    }
+    return abbr;
+  };
+
   if (!data) return null
 
   return (
@@ -138,7 +155,14 @@ export default function PrintLayout({ data }) {
 
           <div className="logo-qr">
             {qrCodeDataUrl && (
-              <img src={qrCodeDataUrl} alt="QR Code" className="qr-code" />
+              <>
+                <img src={qrCodeDataUrl} alt="QR Code" className="qr-code" />
+                <div className="agent-abbr text-center text-xs mt-5">
+                  {data.agent_customer && (
+                    <span>{generateAbbreviation(data.agent_customer)}</span>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -339,6 +363,16 @@ export default function PrintLayout({ data }) {
           text-align: right;
           margin-right: 2mm;
           margin-top: -3mm;
+        }
+
+        .agent-abbr {
+          font-size: 15px;
+          font-weight: bold;
+          width: 100%;
+          text-align: center;
+          margin-top: 0mm;
+          position: relative;
+          top: 2mm;
         }
 
         @media print {

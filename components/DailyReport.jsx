@@ -1,10 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { supabaseClient } from "../lib/auth"
 import * as XLSX from 'xlsx'
 
 const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"];  // Daftar kota tujuan dari konteks lain
+
+const kotaWilayah = {
+  bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
+  "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
+  belitung: ["Tj Pandan"],
+  bali: ["Denpasar"]
+};
 
 export default function DailyReport() {
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
@@ -12,6 +19,7 @@ export default function DailyReport() {
   const [selectedKirimVia, setSelectedKirimVia] = useState("")  // State untuk filter kirim via
   const [selectedAgentCustomer, setSelectedAgentCustomer] = useState("")  // State untuk filter Agent/Customer
   const [selectedKotaTujuan, setSelectedKotaTujuan] = useState("")  // State baru untuk filter kota tujuan
+  const [selectedWilayah, setSelectedWilayah] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -53,12 +61,14 @@ export default function DailyReport() {
     "CHRISTINE PADEMANGAN"
   ];
 
+  const wilayahOptions = useMemo(() => kotaWilayah[selectedKotaTujuan] || [], [selectedKotaTujuan]);
+
   // Fetch data berdasarkan filter yang dipilih, termasuk kota tujuan
   useEffect(() => {
-    if (selectedDate || selectedKirimVia || selectedAgentCustomer || selectedKotaTujuan) {
+    if (selectedDate || selectedKirimVia || selectedAgentCustomer || selectedKotaTujuan || selectedWilayah) {
       fetchDailyReport()
     }
-  }, [selectedDate, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan])  // Tambahkan selectedKotaTujuan ke dependencies
+  }, [selectedDate, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah])  // Tambahkan selectedKotaTujuan ke dependencies
 
   async function fetchDailyReport() {
     setLoading(true)
@@ -77,6 +87,9 @@ export default function DailyReport() {
       }
       if (selectedKotaTujuan) {  // Tambahkan filter untuk kota tujuan
         query = query.eq("kota_tujuan", selectedKotaTujuan)
+      }
+      if (selectedWilayah) {
+        query = query.eq("wilayah", selectedWilayah)
       }
       
       const { data: fetchedData, error: fetchError } = await query
@@ -256,6 +269,20 @@ export default function DailyReport() {
           {kotaTujuan.map((kota) => (
             <option key={kota} value={kota}>
               {kota.toUpperCase()} 
+            </option>
+          ))}
+        </select>
+        
+        <label className="text-sm font-semibold">Filter by Wilayah:</label>
+        <select
+          value={selectedWilayah}
+          onChange={(e) => setSelectedWilayah(e.target.value)}
+          className="border rounded px-2 py-1 text-sm"
+        >
+          <option value="">Semua</option>
+          {wilayahOptions.map((wilayah) => (
+            <option key={wilayah} value={wilayah}>
+              {wilayah.toUpperCase()}
             </option>
           ))}
         </select>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
+import * as XLSX from 'xlsx'
+import { FaDownload } from 'react-icons/fa'
 
 export default function PelunasanResi() {
   const [activeTab, setActiveTab] = useState("history") // "history" or "add"
@@ -187,51 +189,69 @@ export default function PelunasanResi() {
     return unpaidData.filter((row) => row.selected).reduce((sum, row) => sum + Number(row.discountedTotal || 0), 0)
   }
 
-  // Download payment history as CSV
-  const downloadCSV = () => {
-    if (paymentHistory.length === 0) {
-      alert("No payment data to download")
-      return
+  // Replace the downloadCSV function with this new one
+  const downloadXLSXForDate = (date, items) => {
+    if (items.length === 0) return;
+    
+    const worksheet = XLSX.utils.json_to_sheet(
+      items.map((item, index) => ({
+        'No': index + 1,
+        'No Bukti': item.awb_no,
+        'Tgl Bayar': item.payment_date,
+        'Pengirim': item.nama_pengirim,
+        'Penerima': item.nama_penerima,
+        'Agent/Customer': item.agent_customer,
+        'Original Amount': item.original_amount,
+        'Discount': item.discount,
+        'Final Amount': item.final_amount
+      }))
+    );
+    
+    // Set column widths based on headers
+    worksheet['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 15 }, // No Bukti
+      { wch: 12 }, // Tgl Bayar
+      { wch: 15 }, // Pengirim
+      { wch: 15 }, // Penerima
+      { wch: 15 }, // Agent/Customer
+      { wch: 15 }, // Original Amount
+      { wch: 12 }, // Discount
+      { wch: 15 }  // Final Amount
+    ];
+    
+    // Add borders and styles
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let rowNum = range.s.r; rowNum <= range.e.r; rowNum++) {
+      for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: colNum });
+        if (!worksheet[cellAddress]) continue;
+        
+        worksheet[cellAddress].s = {
+          border: {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" }
+          }
+        };
+        
+        if (rowNum === range.s.r) {  // Header row
+          worksheet[cellAddress].s.font = { bold: true };
+        }
+        
+        // Format numbers for amount columns (e.g., columns 6-8, assuming 0-based index)
+        if (colNum >= 6 && colNum <= 8 && typeof worksheet[cellAddress].v === 'number') {
+          worksheet[cellAddress].z = '#,##0.00';  // Format as number with commas
+        }
+      }
     }
-
-    // Create CSV header
-    const headers = [
-      "No Bukti",
-      "Tgl Bayar",
-      "Pengirim",
-      "Penerima",
-      "Agent/Customer",
-      "Original Amount",
-      "Discount",
-      "Final Amount",
-    ]
-
-    // Create CSV rows
-    const rows = paymentHistory.map((item) => [
-      item.awb_no,
-      item.payment_date,
-      item.nama_pengirim,
-      item.nama_penerima,
-      item.agent_customer,
-      item.original_amount,
-      item.discount,
-      item.final_amount,
-    ])
-
-    // Combine header and rows
-    const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n")
-
-    // Create a blob and download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute("download", `payment_history_${new Date().toISOString().split("T")[0]}.csv`)
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Invoice');
+    const filename = `INV/${date.replace(/-/g, '/')}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
 
   // Function to toggle expansion
   const toggleGroup = (date) => {
@@ -326,42 +346,36 @@ export default function PelunasanResi() {
       {/* Payment History Tab */}
       {activeTab === "history" && (
         <div>
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={downloadCSV}
-              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
-              disabled={paymentHistory.length === 0}
-            >
-              Download CSV
-            </button>
-          </div>
+          <div className="space-y-4">
+            {groupedHistory.map((group) => {
+              const formattedDate = formatDateToInvoice(group.date);
+              const totalSTTB = group.items.length;
+              const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
+              const isExpanded = expandedGroups[group.date];
 
-          {loading ? (
-            <div className="text-center py-4">Loading payment history...</div>
-          ) : paymentHistory.length === 0 ? (
-            <div className="text-center py-4 bg-gray-50 rounded-md">No payment history found</div>
-          ) : (
-            <div className="space-y-4">
-              {groupedHistory.map((group) => {
-                const formattedDate = formatDateToInvoice(group.date);
-                const totalSTTB = group.items.length;
-                const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
-                const isExpanded = expandedGroups[group.date];
-
-                return (
-                  <div key={group.date} className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
-                    <button
-                      onClick={() => toggleGroup(group.date)}
-                      className="w-full text-left text-lg font-bold text-blue-600 hover:underline flex justify-between items-center"
-                    >
-                      <span>{formattedDate}</span>
-                      <span className="flex items-center">
-                        Total STTB: {totalSTTB} | Total Payment: Rp. {totalPayment}
-                        {isExpanded ? ' ▲' : ' ▼'}
-                      </span>
-                    </button>
-                    {isExpanded && (
-                      <div className="mt-4 overflow-x-auto transition-all duration-300 ease-in-out">
+              return (
+                <div key={group.date} className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
+                  <button
+                    onClick={() => toggleGroup(group.date)}
+                    className="w-full text-left text-lg font-bold text-blue-600 hover:underline flex justify-between items-center"
+                  >
+                    <span>{formattedDate}</span>
+                    <span className="flex items-center">
+                      Total STTB: {totalSTTB} | Total Payment: Rp. {totalPayment}
+                      {isExpanded ? ' ▲' : ' ▼'}
+                    </span>
+                  </button>
+                  {isExpanded && (
+                    <div className="mt-4">
+                      <div className="flex justify-end mb-2">
+                        <button
+                          onClick={() => downloadXLSXForDate(group.date, group.items)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-2 flex items-center gap-2"
+                        >
+                          <FaDownload /> Download XLSX for {group.date}
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto transition-all duration-300 ease-in-out">
                         <table className="min-w-full text-sm table-auto divide-y divide-gray-200">
                           <thead className="bg-blue-50">
                             <tr>
@@ -389,12 +403,12 @@ export default function PelunasanResi() {
                           </tbody>
                         </table>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -279,6 +279,16 @@ export default function HistoryManifest({ mode }) {
         justify-content: flex-end;
       }
 
+      .agent-abbr {
+          font-size: 15px;
+          font-weight: bold;
+          width: 100%;
+          text-align: center;
+          margin-top: 0mm;
+          position: relative;
+          top: 2mm;
+        }
+
       @media print {
         @page {
           size: 100mm 100mm;

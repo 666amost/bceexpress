@@ -10,6 +10,7 @@ import { FaPlus } from "react-icons/fa"
 import DailyReport from "@/components/DailyReport"
 import RecapManifest from "@/components/RecapManifest"
 import Salesreport from '@/components/Salesreport'
+import OutstandingReport from '@/components/OutstandingReport'
 
 export default function BranchPage() {
   const [selectedMenu, setSelectedMenu] = useState("transaction")
@@ -123,7 +124,7 @@ export default function BranchPage() {
             <div className="py-6">
               {selectedSubMenu === "daily_report" && <DailyReport />}
               {selectedSubMenu === "recap" && <RecapManifest />}
-              {selectedSubMenu === "outstanding" && <h1 className="text-2xl font-bold">Outstanding Report</h1>}
+              {selectedSubMenu === "outstanding" && <OutstandingReport />}
               {selectedSubMenu === "sale" && <Salesreport />}
             </div>
           ) : (
