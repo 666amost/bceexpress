@@ -424,7 +424,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         }
       }
 
-      let photoUrl = null
+      let photoUrl: string | null = null
       if (photo) {
         photoUrl = await uploadImage(photo, awbNumber)
       }
@@ -441,6 +441,26 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
       if (result) {
         setSuccess(true)
+
+        // Tambahkan logika trigger sync hanya jika status adalah "delivered"
+        if (status === "delivered") {
+          try {
+            const response = await fetch(`/api/sync?awb_number=${awbNumber}`, {
+              method: 'GET',  // Sesuaikan dengan metode di app/api/sync/route.ts
+            })
+            if (response.ok) {
+              console.log("Sinkronisasi ke API cabang berhasil!")
+              // Opsional: Tampilkan toast sukses jika diinginkan
+              toast.success("Status diperbarui dan disinkronkan ke cabang.")
+            } else {
+              console.error("Gagal sinkronisasi:", await response.text())
+              // Opsional: Tampilkan error toast
+              toast.error("Update sukses, tapi sinkronisasi gagal.")
+            }
+          } catch (syncError) {
+            console.error("Error saat memanggil API sync:", syncError)
+          }
+        }
       } else {
         setError("Failed to update shipment status. Please try again.")
       }
