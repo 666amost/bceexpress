@@ -738,7 +738,7 @@ export default function HistoryManifest({ mode }) {
                           <button
                             className="bg-red-500 hover:bg-red-600 text-xs px-2 py-1 rounded"
                             onClick={async () => {
-                              if (confirm("Hapus item ini?")) {
+                              if (confirm(`Hapus resi ini (AWB: ${m.awb_no})? Karena ini akan menghapus permanen.`)) {
                                 try {
                                   const { error } = await supabaseClient
                                     .from("manifest")

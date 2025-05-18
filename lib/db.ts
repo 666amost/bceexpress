@@ -140,3 +140,70 @@ export async function createShipmentFromManifest(awbNumber: string): Promise<boo
     return false
   }
 }
+
+// Tambahan baru: Fungsi untuk mengambil resi yang belum disinkronisasi
+export async function getUndeliveredShipments(awbNumber?: string) {
+  let query = supabase
+    .from('shipment_history')
+    .select('*')
+    .eq('status', 'delivered')
+    .like('awb_number', 'BE%');
+
+  if (awbNumber) {
+    query = query.eq('awb_number', awbNumber);  // Filter hanya untuk AWB spesifik
+  }
+
+  const { data, error } = await query;
+  
+  if (error) {
+    console.error('Error fetching undelivered shipments:', error);
+    return [];  // Kembalikan array kosong jika ada error
+  }
+
+  return data;  // Kembalikan array dari resi yang memenuhi kriteria
+}
+
+// Fungsi baru untuk mengambil nama pengguna berdasarkan user_id
+export async function getUserNameById(userId: string): Promise<string | null> {
+  if (!userId) {
+    return null;  // Kembalikan null jika user_id kosong
+  }
+  
+  const { data, error } = await supabase
+    .from('user')  // Ganti dengan nama tabel user yang benar
+    .select('name')  // Asumsikan field 'name' untuk nama pengguna; ganti jika berbeda
+    .eq('id', userId)
+    .single();  // Ambil satu baris
+  
+  if (error || !data) {
+    console.error(`Error fetching user name for ID ${userId}:`, error);
+    return null;  // Kembalikan null jika error
+  }
+  
+  return data.name;  // Kembalikan nama pengguna
+}
+
+export async function getPhotoUrlFromHistory(awb_number: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('shipment_history')
+      .select('photo_url')
+      .eq('awb_number', awb_number)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error querying shipment_history:', error);
+      return null;
+    }
+    
+    if (data && data.length > 0) {
+      return data[0].photo_url || null;
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error('Error querying shipment_history:', error);
+    return null;
+  }
+}

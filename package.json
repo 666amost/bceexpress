@@ -41,7 +41,6 @@
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-toggle-group": "^1.0.4",
     "@radix-ui/react-tooltip": "^1.0.7",
-    "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@zxing/browser": "^0.1.1",
@@ -87,7 +86,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.17.47",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.2.57",
     "@types/react-dom": "^18.2.19",
@@ -96,7 +95,8 @@
     "eslint-config-next": "15.2.4",
     "postcss": "^8.4.14",
     "tailwindcss": "^3.3.0",
-    "typescript": "^5.3.3"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "resolutions": {
     "tough-cookie": "^4.1.3",
