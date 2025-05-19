@@ -17,12 +17,12 @@ export function LeaderAuthGuard({ children }: { children: React.ReactNode }) {
       const currentUser = await getCurrentUser()
 
       if (!currentUser) {
-        router.push("/courier")
+        router.push("/admin")
         return
       }
 
       if (currentUser.role !== "leader" && currentUser.role !== "admin") {
-        router.push("/courier")
+        router.push("/admin")
         return
       }
 

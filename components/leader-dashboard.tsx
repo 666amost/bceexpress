@@ -215,7 +215,7 @@ export function LeaderDashboard() {
   const handleLogout = async () => {
     try {
       await supabaseClient.auth.signOut()
-      router.push("/courier")
+      router.push("/admin")
     } catch (err) {
       console.error("Error signing out:", err)
     }

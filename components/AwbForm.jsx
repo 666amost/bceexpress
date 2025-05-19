@@ -96,6 +96,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       biaya_packaging: 0,
       biaya_transit: 0,
       total: 0,
+      isi_barang: "",
     },
   )
   const [error, setError] = useState("")
@@ -584,7 +585,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
             />
           </div>
-          <div className="flex flex-col flex-1 min-w-[180px]">
+          <div className="flex flex-col w-full md:flex-1 md:min-w-[180px]"> {/* Make full width on mobile, flex on md+ */}
             <label className="text-xs font-semibold mb-1 text-blue-900">Alamat Penerima</label>
             <textarea
               id="alamat_penerima"
@@ -592,7 +593,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               value={form.alamat_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white min-h-[32px]"
+              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white min-h-[120px] md:min-h-[80px]" // Height already adjusted for mobile/md+
             />
           </div>
           <div className="flex flex-col w-24 min-w-[70px]">
@@ -605,6 +606,17 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               min={1}
               required
               className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+            />
+          </div>
+          {/* Moved Isi Barang field here */}
+          <div className="flex flex-col w-40 min-w-[140px]"> {/* Adjust width as needed */}
+            <label className="text-xs font-semibold mb-1 text-blue-900">Isi Barang</label>
+            <textarea
+              name="isi_barang"
+              value={form.isi_barang}
+              onChange={handleChange}
+              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white min-h-[32px]" // Keep smaller height
+              placeholder="Contoh: Pakaian, Elektronik, Makanan"
             />
           </div>
         </section>

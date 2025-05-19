@@ -144,6 +144,7 @@ export default function PrintLayout({ data }) {
             <div className="sender-info">
               <div>Pengirim: {data.nama_pengirim || 'Nama pengirim'}</div>
               <div>No. Pengirim: {data.nomor_pengirim || 'no pengirim'}</div>
+              <div>Isi Barang: {data.isi_barang || '-'}</div>
             </div>
             <div style={{ height: '5mm' }}></div>
             <div className="recipient-info">
@@ -262,9 +263,9 @@ export default function PrintLayout({ data }) {
 
         .shipping-details {
           display: flex;
-          flex-direction: row;  // Updated to make elements horizontal
-          align-items: flex-start;
-          gap: 2mm;
+          flex-direction: row;
+          align-items: baseline;
+          gap: 8mm;
           margin-bottom: 1mm;
           font-size: 12px;
           padding-left: 2mm;
@@ -273,13 +274,13 @@ export default function PrintLayout({ data }) {
         .content-section {
           display: flex;
           flex: 1;
-          margin-bottom: 1mm;
+          margin-bottom: 0mm;
         }
 
         .address-box {
           flex: 1;
           border: 1px solid #000;
-          padding: 2mm;
+          padding: 1mm;
           margin-right: 3mm;
           display: flex;
           flex-direction: column;
@@ -291,19 +292,17 @@ export default function PrintLayout({ data }) {
         /* Styles for underlines - Ensuring this is clean and targeted */
         .address-box .sender-info > div,
         .address-box .recipient-info > div {
-          border-bottom: 1px dotted #999;  /* Added underline for each div */
+          border-bottom: 1px dotted #999;
           padding-bottom: 0.6mm;
-          margin-bottom: 0.5mm;
+          margin-bottom: 0mm;
           line-height: 1.4;
-          font-size: 11px;  /* Enlarge font size */
-          font-weight: bold;  /* Make text bold */
         }
         .address-box .recipient-info > div:last-child {
           border-bottom: none;  /* Remove underline from the last item */
         }
 
         .address-box .sender-info {
-          margin-bottom: 5mm; /* Jarak antara informasi pengirim dan penerima */
+          margin-bottom: 2mm; /* Reduced space between sender and recipient */
         }
 
         .logo-qr {
@@ -313,7 +312,7 @@ export default function PrintLayout({ data }) {
           flex-direction: column;
           align-items: center;
           justify-content: flex-start;
-          padding-top: 7mm;
+          padding-top: 3mm; /* Reduced padding top to move content up */
         }
 
         .qr-code {
@@ -372,7 +371,7 @@ export default function PrintLayout({ data }) {
           text-align: center;
           margin-top: 0mm;
           position: relative;
-          top: 2mm;
+          top: 0mm; /* Remove or reduce this to move abbreviation up */
         }
 
         @media print {

@@ -675,6 +675,7 @@ export default function HistoryManifest({ mode }) {
               <th className="px-2 py-2">Pengirim</th>
               <th className="px-2 py-2">Penerima</th>
               <th className="px-2 py-2">Kg</th>
+              <th className="px-2 py-2">Isi Barang</th>
               <th className="px-2 py-2">Total STTB</th>
               {mode === "pelunasan" && <th className="px-2 py-2">Aksi</th>}
             </tr>
@@ -682,13 +683,13 @@ export default function HistoryManifest({ mode }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">
+                <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4">
                   Loading...
                 </td>
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={mode === "pelunasan" ? 11 : 10} className="text-center py-4">
+                <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4">
                   Belum ada data manifest.
                 </td>
               </tr>
@@ -713,6 +714,7 @@ export default function HistoryManifest({ mode }) {
                     <td className="px-2 py-1">{m.nama_pengirim}</td>
                     <td className="px-2 py-1">{m.nama_penerima}</td>
                     <td className="px-2 py-1 text-right">{m.berat_kg}</td>
+                    <td className="px-2 py-1">{m.isi_barang || '-'}</td>
                     <td className="px-2 py-1 text-right">{m.total}</td>
                     {mode === "pelunasan" && (
                       <td className="px-2 py-1 flex gap-2">

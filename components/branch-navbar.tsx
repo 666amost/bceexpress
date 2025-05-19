@@ -47,7 +47,10 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
     onMenuChange(menu, submenu)
     setIsDesktopTransactionOpen(false)
     setIsDesktopReportOpen(false)
-    setIsMenuOpen(false)
+    // Close mobile menu only after selecting a submenu
+    if (submenu) {
+      setIsMenuOpen(false)
+    }
   }
 
   return (
@@ -252,7 +255,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   onMenuChange("transaction")
                   setIsTransactionSubmenuOpen(!isTransactionSubmenuOpen)
                   setIsReportSubmenuOpen(false)
-                  setIsMenuOpen(false)
                 }}
               >
                 Transaction
@@ -307,7 +309,6 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   onMenuChange("report")
                   setIsReportSubmenuOpen(!isReportSubmenuOpen)
                   setIsTransactionSubmenuOpen(false)
-                  setIsMenuOpen(false)
                 }}
               >
                 Report
