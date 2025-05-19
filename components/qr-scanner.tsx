@@ -17,7 +17,6 @@ interface QRScannerProps {
 export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
-  const beepRef = useRef<ReturnType<typeof browserBeep> | null>(null)
   const lastScannedRef = useRef<string>("")
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
@@ -44,20 +43,20 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   }, [])
 
   useEffect(() => {
-    // Initialize beep sound with 100% volume
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    beepRef.current = browserBeep({ 
-      frequency: 800,
-      context: audioContext
-    })
-    
+    // No need for browserBeep or AudioContext initialization here anymore
+    // const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    // beepRef.current = browserBeep({
+    //   frequency: 800,
+    //   context: audioContext
+    // })
+
     return () => {
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop()
       }
-      if (audioContext) {
-        audioContext.close()
-      }
+      // if (audioContext) {
+      //   audioContext.close()
+      // }
       if (beepTimeoutRef.current) {
         clearTimeout(beepTimeoutRef.current)
       }
@@ -65,9 +64,13 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   }, [])
 
   const playBeep = () => {
-    if (beepRef.current && !beepTimeoutRef.current) {
-      beepRef.current(1) // Play beep once at full volume
-      
+    // Use Audio constructor to play sound file
+    if (!beepTimeoutRef.current) {
+      const audio = new Audio('/sounds/scan_success.mp3'); // Path to your sound file
+      audio.volume = 1; // Full volume
+      audio.play()
+        .catch(e => console.error("Error playing sound:", e)); // Catch potential errors
+
       // Set timeout to prevent multiple beeps
       beepTimeoutRef.current = setTimeout(() => {
         beepTimeoutRef.current = null

@@ -10,7 +10,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ChevronLeft, Scan, MapPin, Upload, X, Camera, Check } from "lucide-react"
+import { ChevronLeft } from "lucide-react"
+import { Scan } from "lucide-react"
+import { MapPin } from "lucide-react"
+import { Upload } from "lucide-react"
+import { X } from "lucide-react"
+import { Camera } from "lucide-react"
+import { CheckCircleIcon } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
@@ -46,7 +52,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [showScanner, setShowScanner] = useState(false)
   const [scannerError, setScannerError] = useState<string | null>(null)
-  const beepRef = useRef<ReturnType<typeof browserBeep> | null>(null)
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -81,31 +86,24 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   }, [initialAwb])
 
   useEffect(() => {
-    // Initialize beep sound with 100% volume
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    beepRef.current = browserBeep({
-      frequency: 800,
-      context: audioContext,
-    })
-
     return () => {
-      if (audioContext) {
-        audioContext.close()
-      }
-      if (beepTimeoutRef.current) {
-        clearTimeout(beepTimeoutRef.current)
+      if (showScanner) {
+        setShowScanner(false)
+        setScannerError(null)
       }
     }
   }, [])
 
   const playBeep = () => {
-    if (beepRef.current && !beepTimeoutRef.current) {
-      beepRef.current(1) // Play beep once at full volume
+    if (!beepTimeoutRef.current) {
+      const audio = new Audio('/sounds/scan_success.mp3');
+      audio.volume = 1;
+      audio.play()
+        .catch(e => console.error("Error playing sound:", e));
 
-      // Set timeout to prevent multiple beeps
       beepTimeoutRef.current = setTimeout(() => {
         beepTimeoutRef.current = null
-      }, 1000) // Prevent beep for 1 second
+      }, 1000)
     }
   }
 
@@ -160,7 +158,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       return
     }
 
-    setShowScanner(false) // Close scanner after successful scan
+    setShowScanner(false)
     setAwbNumber(result)
     fetchShipmentDetails(result)
     setScannerError(null)
@@ -175,16 +173,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     setShowScanner(false)
     setScannerError(null)
   }
-
-  // Add cleanup effect for scanner
-  useEffect(() => {
-    return () => {
-      if (showScanner) {
-        setShowScanner(false)
-        setScannerError(null)
-      }
-    }
-  }, [])
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -478,7 +466,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-              <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Status Updated Successfully!</h3>
             <p className="text-muted-foreground mb-6">
