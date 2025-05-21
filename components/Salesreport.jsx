@@ -203,6 +203,16 @@ const SalesReport = () => {
           </tbody>
         </table>
       )}
+      {filteredData.length > 0 && (
+        <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4">
+          <h3 className="text-sm font-semibold">Total:</h3>
+          <p>Total Kg: {filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
+          <p>Total Harga (Ongkir): Rp. {filteredData.reduce((sum, item) => sum + (item.harga_per_kg || 0), 0).toLocaleString('en-US')}</p>
+          <p>Total Admin: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('en-US')}</p>
+          <p>Total Packaging: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('en-US')}</p>
+          <p>Total Keseluruhan: Rp. {filteredData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+        </div>
+      )}
       {loading && <p>Loading data...</p>}
       {error && <p className="text-red-500">{error}</p>}
     </div>

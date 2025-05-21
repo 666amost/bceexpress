@@ -27,8 +27,6 @@ const hargaPerKg = {
 }
 
 const agentList = [
-  "GLC COD UDR",
-  "GLC COD DRT",
   "UDR CASH",
   "SEA CASH",
   "GLC UDR TRF",
@@ -156,7 +154,33 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           return
         } else {
           setSuccess("Data berhasil diperbarui!")
-          handlePrint()
+          setTimeout(() => {
+            handlePrint(() => {
+              setForm({
+                awb_no: "",
+                awb_date: new Date().toISOString().slice(0, 10),
+                kirim_via: "",
+                kota_tujuan: "",
+                wilayah: "",
+                metode_pembayaran: "",
+                agent_customer: "",
+                nama_pengirim: "",
+                nomor_pengirim: "",
+                nama_penerima: "",
+                nomor_penerima: "",
+                alamat_penerima: "",
+                coli: 1,
+                berat_kg: 1,
+                harga_per_kg: 0,
+                sub_total: 0,
+                biaya_admin: 0,
+                biaya_packaging: 0,
+                biaya_transit: 0,
+                total: 0,
+                isi_barang: "",
+              });
+            });
+          }, 100);
         }
       } else {
         const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }])
@@ -165,7 +189,33 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           return
         } else {
           setSuccess("Data berhasil disimpan!")
-          handlePrint()
+          setTimeout(() => {
+            handlePrint(() => {
+              setForm({
+                awb_no: "",
+                awb_date: new Date().toISOString().slice(0, 10),
+                kirim_via: "",
+                kota_tujuan: "",
+                wilayah: "",
+                metode_pembayaran: "",
+                agent_customer: "",
+                nama_pengirim: "",
+                nomor_pengirim: "",
+                nama_penerima: "",
+                nomor_penerima: "",
+                alamat_penerima: "",
+                coli: 1,
+                berat_kg: 1,
+                harga_per_kg: 0,
+                sub_total: 0,
+                biaya_admin: 0,
+                biaya_packaging: 0,
+                biaya_transit: 0,
+                total: 0,
+                isi_barang: "",
+              });
+            });
+          }, 100);
         }
       }
     } catch (err) {
@@ -173,8 +223,69 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
     }
   }
 
+  const handleDownloadPDF = async (e) => {
+    e.preventDefault && e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
+      setError("Mohon lengkapi semua field wajib.");
+      return;
+    }
+    try {
+      const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }]);
+      if (sbError) {
+        setError("Gagal menyimpan data: " + sbError.message);
+        return;
+      } else {
+        setSuccess("Data berhasil disimpan!");
+        // Tunggu PrintLayout render, lalu generate PDF
+        setTimeout(async () => {
+          if (printFrameRef.current) {
+            const html2pdf = await import('html2pdf.js');
+            html2pdf.default()
+              .set({
+                filename: form.awb_no + '.pdf',
+                margin: 0,
+                jsPDF: { unit: 'mm', format: [100, 100], orientation: 'portrait' }
+              })
+              .from(printFrameRef.current)
+              .save()
+              .then(() => {
+                // Reset form setelah PDF selesai didownload
+                setForm({
+                  awb_no: "",
+                  awb_date: new Date().toISOString().slice(0, 10),
+                  kirim_via: "",
+                  kota_tujuan: "",
+                  wilayah: "",
+                  metode_pembayaran: "",
+                  agent_customer: "",
+                  nama_pengirim: "",
+                  nomor_pengirim: "",
+                  nama_penerima: "",
+                  nomor_penerima: "",
+                  alamat_penerima: "",
+                  coli: 1,
+                  berat_kg: 1,
+                  harga_per_kg: 0,
+                  sub_total: 0,
+                  biaya_admin: 0,
+                  biaya_packaging: 0,
+                  biaya_transit: 0,
+                  total: 0,
+                  isi_barang: "",
+                });
+              });
+          }
+        }, 100);
+      }
+    } catch (err) {
+      setError("Terjadi kesalahan: " + err.message);
+    }
+  }
+
   // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
-  const handlePrint = () => {
+  const handlePrint = (onAfterPrint) => {
     // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
     const printLayoutCss = `
       /* === START: CSS disinkronkan dari PrintLayout.jsx === */
@@ -193,7 +304,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
         width: 100%;
         height: 100%;
         border: 1px solid #000;
-        padding: 0mm 3mm 3mm 3mm; 
+        padding: 0mm 3mm 3mm 3mm;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
@@ -261,7 +372,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       .address-box {
         flex: 1;
         border: 1px solid #000;
-        padding: 2mm;
+        padding: 1mm;
         margin-right: 3mm;
         display: flex;
         flex-direction: column;
@@ -282,7 +393,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       }
 
       .address-box .sender-info {
-        margin-bottom: 5mm;
+        margin-bottom: 2mm;
       }
 
       .logo-qr {
@@ -348,6 +459,16 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
         justify-content: flex-end;
       }
 
+      .agent-abbr {
+        font-size: 15px;
+        font-weight: bold;
+        width: 100%;
+        text-align: center;
+        margin-top: 0mm;
+        position: relative;
+        top: 2mm;
+      }
+
       @media print {
         @page {
           size: 100mm 100mm;
@@ -402,9 +523,10 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           printWindow.addEventListener('afterprint', () => {
             printWindow.close();
             if (onSuccess) onSuccess();
+            if (onAfterPrint) onAfterPrint();
           });
           
-          setTimeout(() => printWindow.print(), 500);
+          setTimeout(() => printWindow.print(), 750);
         } catch (error) {
           console.error('Error saat mencetak:', error);
           alert('Terjadi kesalahan saat mencetak: ' + error.message + '. Silakan coba lagi atau periksa pengaturan browser.');
@@ -713,18 +835,27 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
             </select>
           </div>
         </section>
-        <div className="flex flex-col md:flex-row justify-between mt-2">
+        <div className="flex flex-col md:flex-row justify-between mt-2 gap-2">
           {onCancel && (
             <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded mb-2 md:mb-0">
               Batal
             </button>
           )}
-          <button
-            type="submit"
-            className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-lg hover:bg-blue-700 transition text-base"
-          >
-            {isEditing ? "UPDATE DAN PRINT" : "SIMPAN DAN PRINT"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-lg hover:bg-blue-700 transition text-base"
+            >
+              {isEditing ? "UPDATE DAN PRINT" : "SIMPAN DAN PRINT"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="px-6 py-2 bg-red-600 text-white font-bold rounded shadow-lg hover:bg-red-700 transition text-base"
+            >
+              DOWNLOAD PDF
+            </button>
+          </div>
         </div>
       </form>
     </>

@@ -231,7 +231,7 @@ export default function HistoryManifest({ mode }) {
       }
 
       .address-box .sender-info {
-        margin-bottom: 5mm;
+        margin-bottom: 2mm;
       }
 
       .logo-qr {

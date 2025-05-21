@@ -99,21 +99,34 @@ export default function OutstandingReport() {
   }
 
   const handleDownloadXLSX = () => {
-    const worksheet = XLSX.utils.json_to_sheet(
-      outstandingData.map((item, index) => ({
-        No: index + 1,
-        "No AWB": item.awb_no,
-        "Tanggal": item.awb_date,
-        "Kota Tujuan": item.kota_tujuan,
-        "Pengirim": item.nama_pengirim,
-        "Penerima": item.nama_penerima,
-        "Total Ongkir": item.total,
-        "Total Dibayar": item.total_paid,
-        "Sisa Piutang": item.remaining_debt
-      }))
-    )
+    if (outstandingData.length === 0) {
+      alert("No data to download");
+      return;
+    }
+    const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+    const dataHeaders = ['No', 'No AWB', 'Tanggal', 'Kota Tujuan', 'Pengirim', 'Penerima', 'Total Ongkir', 'Total Dibayar', 'Sisa Piutang'].map(header => header.toUpperCase());
+    const dataRows = outstandingData.map((item, index) => [
+      index + 1,
+      item.awb_no,
+      item.awb_date,
+      item.kota_tujuan,
+      item.nama_pengirim,
+      item.nama_penerima,
+      item.total || 0,
+      item.total_paid || 0,
+      item.remaining_debt || 0
+    ]);
 
-    const workbook = XLSX.utils.book_new()
+    const totalOngkirSum = outstandingData.reduce((sum, item) => sum + (item.total || 0), 0);
+    const totalDibayarSum = outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0);
+    const totalSisaPiutangSum = outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0);
+
+    const totalsRow = ['Total Keseluruhan', '', '', '', '', '', totalOngkirSum, totalDibayarSum, totalSisaPiutangSum];
+
+    const allRows = [['Report dibuat pada: ' + today], dataHeaders, ...dataRows, totalsRow];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+    const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Outstanding Report")
     XLSX.writeFile(workbook, `outstanding_report_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
@@ -162,6 +175,12 @@ export default function OutstandingReport() {
               `).join('')}
             </tbody>
           </table>
+          <div style="margin-top: 20px; padding: 10px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px;">
+            <h3 style="font-weight: bold; margin-bottom: 10px;">Total:</h3>
+            <p>Total Ongkir: Rp. ${outstandingData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Dibayar: Rp. ${outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Sisa Piutang: Rp. ${outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0).toLocaleString('en-US')}</p>
+          </div>
         </body>
       </html>
     `)
@@ -237,51 +256,59 @@ export default function OutstandingReport() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200">
+          <table className="min-w-full bg-white border border-gray-200 border-collapse">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left">No</th>
-                <th className="px-4 py-2 text-left">No AWB</th>
-                <th className="px-4 py-2 text-left">Tanggal</th>
-                <th className="px-4 py-2 text-left">Kota Tujuan</th>
-                <th className="px-4 py-2 text-left">Pengirim</th>
-                <th className="px-4 py-2 text-left">Penerima</th>
-                <th className="px-4 py-2 text-right">Total Ongkir</th>
-                <th className="px-4 py-2 text-right">Total Dibayar</th>
-                <th className="px-4 py-2 text-right">Sisa Piutang</th>
+                <th className="px-4 py-2 text-left border border-gray-300">No</th>
+                <th className="px-4 py-2 text-left border border-gray-300">No AWB</th>
+                <th className="px-4 py-2 text-left border border-gray-300">Tanggal</th>
+                <th className="px-4 py-2 text-left border border-gray-300">Kota Tujuan</th>
+                <th className="px-4 py-2 text-left border border-gray-300">Pengirim</th>
+                <th className="px-4 py-2 text-left border border-gray-300">Penerima</th>
+                <th className="px-4 py-2 text-right border border-gray-300">Total Ongkir</th>
+                <th className="px-4 py-2 text-right border border-gray-300">Total Dibayar</th>
+                <th className="px-4 py-2 text-right border border-gray-300">Sisa Piutang</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center">
+                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300">
                     Loading...
                   </td>
                 </tr>
               ) : outstandingData.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center">
+                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300">
                     No outstanding data found
                   </td>
                 </tr>
               ) : (
                 outstandingData.map((item, index) => (
                   <tr key={item.awb_no} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">{index + 1}</td>
-                    <td className="px-4 py-2">{item.awb_no}</td>
-                    <td className="px-4 py-2">{item.awb_date}</td>
-                    <td className="px-4 py-2">{item.kota_tujuan}</td>
-                    <td className="px-4 py-2">{item.nama_pengirim}</td>
-                    <td className="px-4 py-2">{item.nama_penerima}</td>
-                    <td className="px-4 py-2 text-right">Rp. {item.total}</td>
-                    <td className="px-4 py-2 text-right">Rp. {item.total_paid}</td>
-                    <td className="px-4 py-2 text-right font-bold">Rp. {item.remaining_debt}</td>
+                    <td className="px-4 py-2 border border-gray-300">{index + 1}</td>
+                    <td className="px-4 py-2 border border-gray-300">{item.awb_no}</td>
+                    <td className="px-4 py-2 border border-gray-300">{item.awb_date}</td>
+                    <td className="px-4 py-2 border border-gray-300">{item.kota_tujuan}</td>
+                    <td className="px-4 py-2 border border-gray-300">{item.nama_pengirim}</td>
+                    <td className="px-4 py-2 border border-gray-300">{item.nama_penerima}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300">Rp. {item.total}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300">Rp. {item.total_paid}</td>
+                    <td className="px-4 py-2 text-right font-bold border border-gray-300">Rp. {item.remaining_debt}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {outstandingData.length > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4">
+            <h3 className="text-sm font-semibold">Total:</h3>
+            <p>Total Ongkir: Rp. {outstandingData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Dibayar: Rp. {outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Sisa Piutang: Rp. {outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0).toLocaleString('en-US')}</p>
+          </div>
+        )}
       </div>
     </div>
   )
