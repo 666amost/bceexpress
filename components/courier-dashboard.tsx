@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSpinner, faSignOutAlt, faEye, faBox, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { useToast } from "@/hooks/use-toast"
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { GoogleMapsButton } from "@/components/google-maps-button"
+import { DeliveryParcel as DeliveryParcelIcon } from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
 const formatPhoneForWhatsApp = (phoneNumber: string): string => {
@@ -295,7 +296,7 @@ export function CourierDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
         <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <FontAwesomeIcon icon={faBox} className="h-6 w-6 text-blue-500" />
+            <DeliveryParcelIcon className="h-6 w-6 text-blue-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Today's Assignments</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
@@ -384,7 +385,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faBox} className="h-4 w-4 text-blue-500" />
+                        <DeliveryParcelIcon className="h-4 w-4 text-blue-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="ml-2">
                           Out For Delivery
@@ -443,7 +444,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faBox} className="h-4 w-4 text-yellow-500" />
+                        <DeliveryParcelIcon className="h-4 w-4 text-yellow-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="text-xs">OFD</Badge>
                       </div>
