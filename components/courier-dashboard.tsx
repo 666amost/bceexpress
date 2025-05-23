@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader, LogOut, Eye, PackageIcon, CheckCircle, MessageCircle, MapPin } from "lucide-react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSpinner, faSignOutAlt, faEye, faBox, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { useToast } from "@/hooks/use-toast"
@@ -35,7 +36,7 @@ const formatPhoneForWhatsApp = (phoneNumber: string): string => {
 }
 
 // Component for WhatsApp button
-const WhatsAppButton = ({ phoneNumber, recipientName }: { phoneNumber: string; recipientName: string }) => {
+const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumber: string; recipientName: string; courierName: string }) => {
   // Don't show if:
   // 1. Phone number is empty, N/A, or Auto Generated
   // 2. Phone number has less than 10 digits after cleaning
@@ -52,7 +53,7 @@ const WhatsAppButton = ({ phoneNumber, recipientName }: { phoneNumber: string; r
   }
   
   const formattedNumber = formatPhoneForWhatsApp(phoneNumber);
-  const message = encodeURIComponent(`Halo ${recipientName}, Saya kurir bce express ingin menanyakan alamat penerima paket ini. Apakah alamatnya sudah benar?`);
+  const message = encodeURIComponent(`Halo pak ${recipientName}, saya ${courierName} kurir bce express. Yg akan mengirimkan paket bapak. Apakah alamat sudah sesuai di alamat pak? Atau boleh di kirimkan share lokasi nya?`);
   const whatsappUrl = `https://wa.me/${formattedNumber}?text=${message}`;
   
   return (
@@ -62,7 +63,7 @@ const WhatsAppButton = ({ phoneNumber, recipientName }: { phoneNumber: string; r
       className="ml-2 h-6 px-2 text-xs bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
       onClick={() => window.open(whatsappUrl, "_blank")}
     >
-      <MessageCircle className="h-3 w-3 mr-1" />
+      <FontAwesomeIcon icon={faComment} className="h-3 w-3 mr-1" />
       WA
     </Button>
   );
@@ -90,7 +91,7 @@ const MapsButton = ({ address }: { address: string }) => {
       className="ml-2 h-6 px-2 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
       onClick={() => window.open(mapsUrl, "_blank")}
     >
-      <MapPin className="h-3 w-3 mr-1" />
+      <FontAwesomeIcon icon={faMapMarkerAlt} className="h-3 w-3 mr-1" />
       Maps
     </Button>
   );
@@ -249,7 +250,7 @@ export function CourierDashboard() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader className="h-8 w-8 animate-spin text-primary" />
+        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -285,7 +286,7 @@ export function CourierDashboard() {
         <div className="flex gap-2">
           <GoogleMapsButton />
           <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Logout
+            <FontAwesomeIcon icon={faSignOutAlt} className="h-4 w-4 mr-2" /> Logout
           </Button>
         </div>
       </div>
@@ -294,7 +295,7 @@ export function CourierDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
         <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <PackageIcon className="h-6 w-6 text-blue-500" />
+            <FontAwesomeIcon icon={faBox} className="h-6 w-6 text-blue-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Today's Assignments</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
@@ -305,14 +306,14 @@ export function CourierDashboard() {
               onClick={() => setShowBulkDetails(true)}
               className="absolute right-6 top-6"
             >
-              <Eye className="h-4 w-4 mr-1" /> View
+              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
 
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <CheckCircle className="h-6 w-6 text-green-500" />
+            <FontAwesomeIcon icon={faCheckCircle} className="h-6 w-6 text-green-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
@@ -323,14 +324,14 @@ export function CourierDashboard() {
               onClick={() => setShowCompletedTodayDetails(true)}
               className="absolute right-6 top-6"
             >
-              <Eye className="h-4 w-4 mr-1" /> View
+              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
 
         <div className="bg-yellow-50/70 dark:bg-yellow-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <PackageIcon className="h-6 w-6 text-yellow-500" />
+            <FontAwesomeIcon icon={faExclamationTriangle} className="h-6 w-6 text-yellow-500" />
             <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
           </div>
           <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{pendingDeliveries}</span>
@@ -341,7 +342,7 @@ export function CourierDashboard() {
               onClick={() => setShowPendingDetails(true)}
               className="absolute right-6 top-6"
             >
-              <Eye className="h-4 w-4 mr-1" /> View
+              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
             </Button>
           )}
         </div>
@@ -383,7 +384,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <PackageIcon className="h-4 w-4 text-blue-500" />
+                        <FontAwesomeIcon icon={faBox} className="h-4 w-4 text-blue-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="ml-2">
                           Out For Delivery
@@ -396,6 +397,7 @@ export function CourierDashboard() {
                           <WhatsAppButton 
                             phoneNumber={shipment.receiver_phone} 
                             recipientName={shipment.receiver_name || "Customer"} 
+                            courierName={displayName}
                           />
                         )}
                       </div>
@@ -441,7 +443,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <PackageIcon className="h-4 w-4 text-yellow-500" />
+                        <FontAwesomeIcon icon={faBox} className="h-4 w-4 text-yellow-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                         <Badge variant="outline" className="text-xs">OFD</Badge>
                       </div>
@@ -452,6 +454,7 @@ export function CourierDashboard() {
                           <WhatsAppButton 
                             phoneNumber={shipment.receiver_phone} 
                             recipientName={shipment.receiver_name || "Customer"} 
+                            courierName={displayName}
                           />
                         )}
                       </div>
@@ -494,7 +497,7 @@ export function CourierDashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4 text-green-500" />
                         <span className="font-mono font-medium">{shipment.awb_number}</span>
                       </div>
                       <p className="text-sm mt-1">Location: {shipment.location}</p>
