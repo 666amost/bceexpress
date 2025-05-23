@@ -25,7 +25,6 @@ import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Oval as LoadingIcon } from 'react-loading-icons'
-import { RenewMotion as RefreshIconMotion } from '@carbon/icons-motion'
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -349,7 +348,7 @@ export function LeaderDashboard() {
                 onClick={handleRefresh}
                 className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
               >
-                <RefreshIconMotion className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
+                <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
                 Refresh
               </Button>
               <Button 
