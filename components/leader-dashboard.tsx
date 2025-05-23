@@ -11,6 +11,7 @@ import { supabaseClient } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
 import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { ssr: false, loading: () => <div>Loading shipments...</div> })
 
@@ -303,9 +304,8 @@ export function LeaderDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Robert Dashboard</h1>
-        <div className="flex gap-2">
-          {/* Data Range Selector */}
-          <div className="flex gap-1">
+        <div className="flex flex-wrap gap-4 justify-center md:justify-end items-center">
+          <div className="flex flex-wrap gap-2">
             {[1, 3, 7, 14, 30].map((days) => (
               <Button 
                 key={days}
@@ -323,6 +323,7 @@ export function LeaderDashboard() {
           <Button variant="outline" onClick={handleLogout}>
             <FontAwesomeIcon icon={faSignOutAlt} className="h-4 w-4 mr-2" /> Logout
           </Button>
+          <ThemeToggle className="ml-4" />
         </div>
       </div>
 
