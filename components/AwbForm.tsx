@@ -4,7 +4,16 @@ import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 
-const kotaWilayah = {
+interface AwbFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+  initialData: any | null;
+  isEditing: boolean;
+  userRole: string | null;
+  branchOrigin: string | null;
+}
+
+const kotaWilayahPusat = {
   bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
   "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
   belitung: ["Tj Pandan"],
@@ -65,13 +74,39 @@ const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
 const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"]
 
+// Data spesifik untuk cabang Tanjung Pandan (origin_branch = 'tanjung_pandan')
+const kotaWilayahTanjungPandan = {
+  jakarta: ["JKT"], // Simplified wilayah for Jakarta area
+  tangerang: ["TGT"],
+  bekasi: ["BKS"],
+  depok: ["DPK"],
+  bogor: ["BGR"],
+};
+
+const hargaPerKgTanjungPandan = {
+  JKT: 20000,
+  TGT: 23000,
+  BKS: 23000,
+  DPK: 27000,
+  BGR: 23000,
+};
+
+const agentListTanjungPandan = [
+  "COD",
+  "TRANSFER",
+  "CASH"
+];
+
+const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"]; // Same as pusat for now
+const kirimViaTanjungPandan = ["udara", "darat"]; // Same as pusat for now
+
 function generateAwbNo() {
   const timestamp = Date.now().toString()
   const lastSixDigits = timestamp.slice(-6)
   return "BCE" + lastSixDigits
 }
 
-export default function AwbForm({ onSuccess, onCancel, initialData, isEditing }) {
+export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: AwbFormProps) {
   const [form, setForm] = useState(
     initialData || {
       awb_no: "",
@@ -100,14 +135,22 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showPrintPreview, setShowPrintPreview] = useState(false) // State ini mungkin tidak digunakan secara langsung untuk pencetakan iframe
-  const printFrameRef = useRef(null) // Ref untuk div tersembunyi yang merender PrintLayout
-  const wilayahOptions = useMemo(() => kotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan])
+  const printFrameRef = useRef<HTMLDivElement>(null) // Ref untuk div tersembunyi yang merender PrintLayout
+  // Determine which data source to use based on userRole and branchOrigin
+  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
+  const currentHargaPerKg = userRole === 'cabang' ? hargaPerKgTanjungPandan : hargaPerKg;
+  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
+  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaran;
+  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimVia;
+  const currentKotaTujuan = Object.keys(currentKotaWilayah);
+
+  const wilayahOptions = useMemo(() => currentKotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan, currentKotaWilayah])
 
   React.useEffect(() => {
-    if (form.wilayah && hargaPerKg[form.wilayah]) {
-      setForm((f) => ({ ...f, harga_per_kg: hargaPerKg[form.wilayah] }))
+    if (form.wilayah && currentHargaPerKg[form.wilayah]) {
+      setForm((f) => ({ ...f, harga_per_kg: currentHargaPerKg[form.wilayah] }))
     }
-  }, [form.wilayah])
+  }, [form.wilayah, currentHargaPerKg])
 
   React.useEffect(() => {
     const sub_total = form.berat_kg * form.harga_per_kg
@@ -142,11 +185,17 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       return
     }
 
+    // Determine the target table
+    const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
+
+    // Add origin_branch if inserting into manifest_cabang
+    const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
+
     try {
       if (isEditing && initialData?.awb_no) {
         const { error: sbError } = await supabaseClient
-          .from("manifest")
-          .update({ ...form })
+          .from(targetTable)
+          .update(dataToSave)
           .eq("awb_no", initialData.awb_no)
 
         if (sbError) {
@@ -183,7 +232,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           }, 100);
         }
       } else {
-        const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }])
+        const { error: sbError } = await supabaseClient.from(targetTable).insert([dataToSave])
         if (sbError) {
           setError("Gagal menyimpan data: " + sbError.message)
           return
@@ -232,7 +281,10 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       return;
     }
     try {
-      const { error: sbError } = await supabaseClient.from("manifest").insert([{ ...form }]);
+      const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
+      const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
+
+      const { error: sbError } = await supabaseClient.from(targetTable).insert([dataToSave]);
       if (sbError) {
         setError("Gagal menyimpan data: " + sbError.message);
         return;
@@ -528,7 +580,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           
           setTimeout(() => printWindow.print(), 750);
         } catch (error) {
-          console.error('Error saat mencetak:', error);
           alert('Terjadi kesalahan saat mencetak: ' + error.message + '. Silakan coba lagi atau periksa pengaturan browser.');
         }
       }
@@ -547,18 +598,18 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
       </div>
 
       <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-0 px-0 py-6 bg-transparent">
-        <h2 className="text-2xl font-extrabold text-blue-900 mb-4 tracking-tight">
+        <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
           {isEditing ? "Edit AWB Manifest" : "Input AWB Manifest"}
         </h2>
-        {error && <div className="mb-2 p-2 bg-red-100 text-red-700 rounded-lg font-semibold shadow">{error}</div>}
+        {error && <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-semibold shadow border border-red-200 dark:border-red-800">{error}</div>}
         {success && (
-          <div className="mb-2 p-2 bg-green-100 text-green-700 rounded-lg font-semibold shadow">{success}</div>
+          <div className="mb-2 p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-semibold shadow border border-green-200 dark:border-green-800">{success}</div>
         )}
         {/* Section 1: Data Pengiriman - Improved spacing for landscape mode */}
-        <section className="bg-white/70 rounded-lg p-3 border border-blue-100 shadow flex flex-col md:flex-row gap-4 items-end mb-2">
+        <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-col md:flex-row gap-6 items-end mb-2">
           {/* AWB Number with Generate button - Fixed width to prevent overlap */}
           <div className="flex flex-col w-full md:w-64">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Nomor Resi (AWB)</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Resi (AWB)</label>
             <div className="flex w-full gap-2 items-center">
               <input
                 type="text"
@@ -566,74 +617,74 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
                 value={form.awb_no}
                 onChange={handleChange}
                 required
-                className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 flex-grow px-2 py-1 text-sm shadow-sm transition bg-white"
+                className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 flex-grow px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-0"
+                style={{ minWidth: 0 }}
               />
               <button
                 onClick={handleGenerateAwb}
                 type="button"
-                className="flex-shrink-0 px-4 py-1 bg-blue-600 text-white font-bold rounded shadow hover:bg-blue-700 text-sm whitespace-nowrap"
+                className="flex-shrink-0 px-4 py-1 bg-blue-600 dark:bg-blue-700 text-white font-bold rounded shadow hover:bg-blue-700 dark:hover:bg-blue-800 text-sm whitespace-nowrap transition-colors"
+                style={{ zIndex: 1 }}
               >
                 Generate
               </button>
             </div>
           </div>
-
-          {/* Date field - Separated with proper spacing */}
-          <div className="flex flex-col w-full md:w-40">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Tanggal AWB</label>
+          {/* Geser field lain ke kanan di desktop */}
+          <div className="flex flex-col w-full md:w-40 md:ml-4">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Tanggal AWB</label>
             <input
               type="date"
               name="awb_date"
               value={form.awb_date}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
-
-          <div className="flex flex-col w-full md:w-32">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Kirim Via</label>
+          <div className="flex flex-col w-full md:w-32 md:ml-4">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kirim Via</label>
             <select
               name="kirim_via"
               value={form.kirim_via}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Pilih</option>
-              {kirimVia.map((opt) => (
+              {currentKirimVia.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt.toUpperCase()}
                 </option>
               ))}
             </select>
           </div>
-          <div className="flex flex-col w-full md:w-40">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Kota Tujuan</label>
+          <div className="flex flex-col w-full md:w-40 md:ml-4">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kota Tujuan</label>
             <select
               name="kota_tujuan"
               value={form.kota_tujuan}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Pilih</option>
-              {kotaTujuan.map((opt) => (
+              {currentKotaTujuan.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt.replace(/\b\w/g, (l) => l.toUpperCase())}
                 </option>
               ))}
             </select>
           </div>
-          <div className="flex flex-col w-full md:w-36">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Wilayah</label>
+          <div className="flex flex-col w-full md:w-36 md:ml-4">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Wilayah</label>
             <select
               name="wilayah"
               value={form.wilayah}
               onChange={handleChange}
               required
               disabled={!form.kota_tujuan}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white disabled:bg-gray-100"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
             >
               <option value="">Pilih</option>
               {wilayahOptions.map((opt) => (
@@ -643,17 +694,17 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               ))}
             </select>
           </div>
-          <div className="flex flex-col w-full md:w-40">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Agent</label>
+          <div className="flex flex-col w-full md:w-40 md:ml-4">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Agent</label>
             <select
               name="agent_customer"
               value={form.agent_customer}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Pilih</option>
-              {agentList.map((opt) => (
+              {currentAgentList.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -662,64 +713,65 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
           </div>
         </section>
         {/* Section 2: Data Penerima */}
-        <section className="bg-white/70 rounded-lg p-3 border border-blue-100 shadow flex flex-wrap gap-4 items-end mb-2">
+        <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-wrap gap-4 items-end mb-2">
           <div className="flex flex-col w-40 min-w-[140px]">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Nama Pengirim</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nama Pengirim</label>
             <input
               type="text"
               name="nama_pengirim"
               value={form.nama_pengirim}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Nomor Pengirim</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Pengirim</label>
             <input
               type="text"
               name="nomor_pengirim"
               value={form.nomor_pengirim}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Nama Penerima</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nama Penerima</label>
             <input
               type="text"
               name="nama_penerima"
               value={form.nama_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Nomor Penerima</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Penerima</label>
             <input
               type="text"
               name="nomor_penerima"
               value={form.nomor_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
-          <div className="flex flex-col w-full md:flex-1 md:min-w-[180px]"> {/* Make full width on mobile, flex on md+ */}
-            <label className="text-xs font-semibold mb-1 text-blue-900">Alamat Penerima</label>
+          {/* FIELD ALAMAT PENERIMA FULL WIDTH */}
+          <div className="flex flex-col w-full">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Alamat Penerima</label>
             <textarea
               id="alamat_penerima"
               name="alamat_penerima"
               value={form.alamat_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white min-h-[120px] md:min-h-[80px]" // Height already adjusted for mobile/md+
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[120px] md:min-h-[80px]"
             />
           </div>
           <div className="flex flex-col w-24 min-w-[70px]">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Coli</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Coli</label>
             <input
               type="number"
               name="coli"
@@ -727,25 +779,25 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               onChange={handleChange}
               min={1}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           {/* Moved Isi Barang field here */}
-          <div className="flex flex-col w-40 min-w-[140px]"> {/* Adjust width as needed */}
-            <label className="text-xs font-semibold mb-1 text-blue-900">Isi Barang</label>
+          <div className="flex flex-col w-40 min-w-[140px]">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Isi Barang</label>
             <textarea
               name="isi_barang"
               value={form.isi_barang}
               onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white min-h-[32px]" // Keep smaller height
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[32px]"
               placeholder="Contoh: Pakaian, Elektronik, Makanan"
             />
           </div>
         </section>
         {/* Section 3: Ongkos & Biaya - Made responsive */}
-        <section className="bg-white/70 rounded-lg p-3 border border-blue-100 shadow flex flex-col md:flex-wrap md:flex-row gap-4 items-end mb-2">
+        <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-col md:flex-wrap md:flex-row gap-4 items-end mb-2">
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Berat (kg)</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Berat (kg)</label>
             <input
               type="number"
               name="berat_kg"
@@ -754,80 +806,80 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
               min={1}
               step={0.1}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Harga/kg</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Harga/kg</label>
             <input
               type="number"
               name="harga_per_kg"
               value={form.harga_per_kg}
               onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Subtotal</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Subtotal</label>
             <input
               type="number"
               name="sub_total"
               value={form.sub_total}
               readOnly
-              className="bg-gray-100 rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition"
+              className="bg-gray-100 dark:bg-gray-600 rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition text-gray-700 dark:text-gray-300"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Biaya Admin</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Biaya Admin</label>
             <input
               type="number"
               name="biaya_admin"
               value={form.biaya_admin}
               onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Biaya Packaging</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Biaya Packaging</label>
             <input
               type="number"
               name="biaya_packaging"
               value={form.biaya_packaging}
               onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Biaya Transit</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Biaya Transit</label>
             <input
               type="number"
               name="biaya_transit"
               value={form.biaya_transit}
               onChange={handleChange}
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-auto">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Total</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Total</label>
             <input
               type="number"
               name="total"
               value={form.total}
               readOnly
-              className="bg-gray-100 rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-base shadow-sm transition font-bold"
+              className="bg-gray-100 dark:bg-gray-600 rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-base shadow-sm transition font-bold text-gray-700 dark:text-gray-200"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-auto">
-            <label className="text-xs font-semibold mb-1 text-blue-900">Metode</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Metode</label>
             <select
               name="metode_pembayaran"
               value={form.metode_pembayaran}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-full px-2 py-1 text-sm shadow-sm transition bg-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Pilih</option>
-              {metodePembayaran.map((opt) => (
+              {currentMetodePembayaran.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt.toUpperCase()}
                 </option>
@@ -837,21 +889,21 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing })
         </section>
         <div className="flex flex-col md:flex-row justify-between mt-2 gap-2">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded mb-2 md:mb-0">
+            <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded mb-2 md:mb-0 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
               Batal
             </button>
           )}
           <div className="flex gap-2">
             <button
               type="submit"
-              className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-lg hover:bg-blue-700 transition text-base"
+              className="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white font-bold rounded shadow-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition text-base"
             >
               {isEditing ? "UPDATE DAN PRINT" : "SIMPAN DAN PRINT"}
             </button>
             <button
               type="button"
               onClick={handleDownloadPDF}
-              className="px-6 py-2 bg-red-600 text-white font-bold rounded shadow-lg hover:bg-red-700 transition text-base"
+              className="px-6 py-2 bg-red-600 dark:bg-red-700 text-white font-bold rounded shadow-lg hover:bg-red-700 dark:hover:bg-red-800 transition text-base"
             >
               DOWNLOAD PDF
             </button>

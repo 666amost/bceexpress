@@ -150,7 +150,7 @@ export function CourierDashboardWithUpdate() {
       await supabaseClient.auth.signOut()
       router.push("/courier")
     } catch (err) {
-      console.error("Error signing out:", err)
+      // Silent error during sign out
     }
   }
 

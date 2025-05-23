@@ -30,11 +30,25 @@ export default function BranchLogin() {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (user) {
         const userId = user.id;
-        const { data: userData, error: queryError } = await supabaseClient.from('users').select('role').eq('id', userId).single();
+        const { data: userData, error: queryError } = await supabaseClient.from('users').select('role, origin_branch').eq('id', userId).single();
         if (queryError) {
           setError('Error saat memeriksa role: ' + queryError.message);
-        } else if (userData && (userData.role === 'branch' || userData.role === 'couriers, branch' || userData.role === 'couriers' || userData.role === 'admin')) {
-          router.push('/branch');
+        } else if (userData && (
+          userData.role === 'branch' ||
+          userData.role === 'couriers, branch' ||
+          userData.role === 'couriers' ||
+          userData.role === 'admin' ||
+          userData.role === 'cabang'
+        )) {
+          if (userData.role === 'cabang' && userData.origin_branch === 'tanjung_pandan') {
+            router.push('/branch');
+          } else if (userData.role === 'branch' || userData.role === 'admin' || userData.role === 'couriers, branch' || userData.role === 'couriers') {
+            router.push('/branch');
+          } else {
+            setError('Akses tidak diizinkan untuk role/branch ini.');
+            await supabaseClient.auth.signOut();
+            return;
+          }
           if (rememberMe) {
             localStorage.setItem('rememberedEmail', email);
           } else {

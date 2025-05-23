@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Camera, Loader2 } from "lucide-react"
+import { Camera, Loader } from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 
@@ -79,23 +79,41 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     setShowScanner(false)
   }
 
-  // Function to check if AWB exists in manifest
+  // Function to check if AWB exists in manifest (both central and branch)
   const checkManifestAwb = async (awb: string) => {
     try {
-      const { data, error } = await supabaseClient.from("manifest").select("*").eq("awb_no", awb).single()
-      if (error) {
-        return null
+      // First check central manifest
+      const { data: centralData, error: centralError } = await supabaseClient
+        .from("manifest")
+        .select("*")
+        .eq("awb_no", awb)
+        .single()
+
+      if (!centralError && centralData) {
+        return { ...centralData, manifest_source: "central" }
       }
-      return data
+
+      // If not found in central, check branch manifest
+      const { data: branchData, error: branchError } = await supabaseClient
+        .from("manifest_cabang")
+        .select("*")
+        .eq("awb_no", awb)
+        .single()
+
+      if (!branchError && branchData) {
+        return { ...branchData, manifest_source: "cabang" }
+      }
+
+      return null
     } catch (err) {
       return null
     }
   }
 
-  // Function to create shipment with manifest data
+  // Function to create shipment with manifest data (handles both central and branch)
   const createShipmentWithManifestData = async (awb: string, manifestData: any, courierId: string) => {
     try {
-      // Create a new shipment with data from manifest
+      // Create a new shipment with data from manifest (either central or branch)
       await supabaseClient.from("shipments").insert([
         {
           awb_number: awb,
@@ -114,7 +132,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           courier_id: courierId,
         },
       ])
-      return { success: true, message: "Created from manifest data" }
+      
+      const source = manifestData.manifest_source === "central" ? "manifest pusat" : "manifest cabang"
+      return { success: true, message: `Created from ${source}` }
     } catch (err) {
       return { success: false, message: `Error: ${err}` }
     }
@@ -338,7 +358,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 <Button onClick={handleSubmit} disabled={isLoading}>
                   {isLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                      <Loader className="mr-2 h-4 w-4 animate-spin" /> Processing...
                     </>
                   ) : (
                     "Update All For Delivery"

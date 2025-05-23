@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Package, CheckCircle, TruckIcon, AlertTriangle, Clock } from "lucide-react";
+import { Loader, PackageIcon, CheckCircle, Truck, AlertTriangle, Clock } from "lucide-react";
 import { supabaseClient } from "@/lib/auth";
 
 interface CourierShipmentListProps {
@@ -60,7 +60,6 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
         .single();
 
       if (courierError) {
-        console.error("Error fetching courier:", courierError);
         setDebugInfo(`Error fetching courier: ${courierError.message}`);
         setIsLoading(false);
         return;
@@ -77,14 +76,12 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
 
 
       if (historyError) {
-        console.error("Error fetching all shipment history:", historyError); // Log error yang sebenarnya dari Supabase
         setDebugInfo(`Error fetching all history: ${historyError.message}`);
         setIsLoading(false);
         return;
       }
 
       setDebugInfo(`Workspaceed ${allHistoryData?.length || 0} total history entries.`);
-      console.log("All raw history data fetched:", allHistoryData); // Log semua data history
 
       // Filter history data berdasarkan nama atau email kurir di kolom 'notes'
       const courierUsername = courierData.email.split("@")[0];
@@ -97,13 +94,11 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
         ) || [];
 
       setDebugInfo(`Found ${courierHistoryData.length} relevant history entries for courier ${courierData.name} after filtering by notes.`);
-      console.log(`Filtered history data for ${courierData?.name} (courierHistoryData):`, courierHistoryData); // Log data history setelah filter notes
 
       // Get unique AWB numbers from relevant history
-      const awbNumbers = [...new Set(courierHistoryData.map((item) => item.awb_number))].filter(Boolean);
+      const awbNumbers = Array.from(new Set(courierHistoryData.map((item) => item.awb_number))).filter(Boolean);
 
       setDebugInfo(`Found ${awbNumbers.length} unique AWB numbers from relevant history after filtering.`);
-      console.log("Unique AWB numbers from relevant history:", awbNumbers); // Log daftar AWB
 
       // === Mengambil detail shipment menggunakan query .in() ===
       const shipmentDetails: any[] = [];
@@ -114,14 +109,12 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
             .in('awb_number', awbNumbers); // Ambil semua shipments yang AWB-nya ada di daftar AWB relevant
 
           if (shipmentsError) {
-            console.error("Error fetching shipments using .in():", shipmentsError);
             setDebugInfo(`Error fetching shipments: ${shipmentsError.message}`);
             setIsLoading(false);
             return;
           }
 
           setDebugInfo(`Workspaceed ${shipmentsData?.length || 0} shipment details using .in().`);
-          console.log("Shipment details fetched:", shipmentsData); // Log data shipments
 
            for (const shipment of shipmentsData || []) {
                // Cari latest history entry untuk shipment ini dari courierHistoryData (history relevant)
@@ -138,7 +131,6 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
 
       } else {
          setDebugInfo("No relevant AWB numbers found, skipping shipment details fetch.");
-         console.log("No relevant AWB numbers found, shipmentDetails will be empty.");
       }
       // === Akhir Mengambil detail shipment ===
 
@@ -147,9 +139,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
          const dateA = a.latest_update ? new Date(a.latest_update.created_at).getTime() : 0;
          const dateB = b.latest_update ? new Date(b.latest_update.created_at).getTime() : 0;
 
-         console.log(`Comparing AWB ${a.awb_number || 'N/A'} (${new Date(dateA).toLocaleString()}) and AWB ${b.awb_number || 'N/A'} (${new Date(dateB).toLocaleString()})`); // Log AWB dan tanggalnya
          const comparisonResult = dateB - dateA; // Logika descending
-         console.log(`Comparison Result: ${comparisonResult}`); // Log hasil perbandingan
 
          return comparisonResult; // Urutan menurun (terbaru lebih dulu)
        });
@@ -161,7 +151,6 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
       // Perhitungan jumlah per kategori akan dilakukan di useEffect setelah state shipments terupdate
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading courier data:", err); // Log error yang sebenarnya
       setDebugInfo(`Error loading courier data: ${err}`);
       setIsLoading(false);
     }
@@ -172,17 +161,17 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
       case "processed":
         return <Clock className="h-5 w-5 text-blue-500" />;
       case "shipped":
-        return <Package className="h-5 w-5 text-orange-500" />;
+        return <PackageIcon className="h-5 w-5 text-orange-500" />;
       case "in_transit":
-        return <TruckIcon className="h-5 w-5 text-blue-500" />;
+        return <Truck className="h-5 w-5 text-blue-500" />;
       case "out_for_delivery":
-        return <TruckIcon className="h-5 w-5 text-purple-500" />;
+        return <Truck className="h-5 w-5 text-purple-500" />;
       case "delivered":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "exception":
         return <AlertTriangle className="h-5 w-5 text-red-500" />;
       default:
-        return <Package className="h-5 w-5 text-gray-500" />;
+        return <PackageIcon className="h-5 w-5 text-gray-500" />;
     }
   };
 
@@ -193,7 +182,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }

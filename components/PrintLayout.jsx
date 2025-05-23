@@ -23,12 +23,17 @@ export default function PrintLayout({ data }) {
     "Sungai Pinyuh": "SPY",
     "Tj Pandan": "TJQ",
     "Denpasar": "DPS",
-    // Add more as needed, e.g., "Pontianak": "PNK"
+    // Tambahan untuk cabang tanjung pandan ke JKT dan sekitarnya
+    JKT: "JKT",
+    TGT: "TGR",
+    BKS: "BKS",
+    DPK: "DPK",
+    BGR: "BGR",
   };
 
   // Get the airport code based on the wilayah
   const getAirportCode = (wilayah) => {
-    return airportCodes[wilayah] || "N/A";  // Default to "N/A" if not found
+    return airportCodes[wilayah] || wilayah || "N/A";
   };
 
   // Fungsi untuk memformat mata uang
@@ -42,9 +47,6 @@ export default function PrintLayout({ data }) {
   };
 
   useEffect(() => {
-    console.log("PrintLayout - Data received:", data);
-    console.log("PrintLayout - AWB Number for QR:", data?.awb_no);
-
     if (barcodeRef.current && data?.awb_no) {
       JsBarcode(barcodeRef.current, data.awb_no, {
         format: "CODE128",
@@ -56,43 +58,52 @@ export default function PrintLayout({ data }) {
     }
 
     if (data?.awb_no) {
-      console.log("Attempting to draw QR Code on an off-screen canvas for DataURL conversion.");
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
       
-      const canvas = document.createElement('canvas');
-      canvas.width = 100; 
-      canvas.height = 100;
-
-      const context = canvas.getContext('2d');
-      if (!context) {
-        console.error("Failed to get 2D context for temporary canvas.");
-        setQrCodeDataUrl(null);
-        return;
-      }
-
-      QRCode.toCanvas(canvas, data.awb_no, {
-        width: 100,
-        margin: 0,
-        color: {
-          dark: '#000000ff',
-          light: '#ffffffff'
+      if (context) {
+        try {
+          QRCode.toCanvas(
+            canvas,
+            data.awb_no,
+            {
+              width: 120, // Size of QR code
+              margin: 1, // Margin around QR code
+              color: {
+                dark: "#000000", // QR code color
+                light: "#ffffff", // Background color
+              },
+            },
+            function (error) {
+              if (!error) {
+                const tempCanvas = document.createElement("canvas");
+                const tempContext = tempCanvas.getContext("2d");
+                
+                if (tempContext) {
+                  tempCanvas.width = canvas.width;
+                  tempCanvas.height = canvas.height;
+                  tempContext.fillStyle = "#FFFFFF";
+                  tempContext.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                  tempContext.drawImage(canvas, 0, 0);
+                  
+                  try {
+                    const dataURL = tempCanvas.toDataURL("image/png");
+                    setQrCodeDataUrl(dataURL);
+                  } catch (err) {
+                    // QR code generation failed
+                  }
+                } else {
+                  // Failed to get 2D context
+                }
+              }
+            }
+          );
+        } catch (err) {
+          // Error in QR code generation
         }
-      })
-        .then(() => {
-          console.log("QR Code drawing successful on temporary canvas!");
-          const dataUrl = canvas.toDataURL("image/png");
-          setQrCodeDataUrl(dataUrl);
-          console.log("QR Code Data URL generated.");
-        })
-        .catch(err => {
-          console.error("Error drawing QR Code to temporary canvas:", err);
-          alert("Error generating QR Code. Check browser console for details.");
-          setQrCodeDataUrl(null);
-        });
+      }
     } else {
-      console.warn("QR Code not generated: data.awb_no is missing/empty.", {
-        awbNo: data?.awb_no
-      });
-      setQrCodeDataUrl(null);
+      // No AWB number provided
     }
   }, [data])
 
@@ -146,7 +157,6 @@ export default function PrintLayout({ data }) {
               <div>No. Pengirim: {data.nomor_pengirim || 'no pengirim'}</div>
               <div>Isi Barang: {data.isi_barang || '-'}</div>
             </div>
-            <div style={{ height: '5mm' }}></div>
             <div className="recipient-info">
               <div>Penerima: {data.nama_penerima || 'nama penerima'}</div>
               <div>No. Penerima: {data.nomor_penerima || 'no penerima'}</div>
@@ -200,37 +210,37 @@ export default function PrintLayout({ data }) {
           width: 100%;
           height: 100%;
           border: 1px solid #000;
-          padding: 0mm 3mm 3mm 3mm; 
+          padding: 0mm 3mm 3mm 3mm;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
 
         .top-header-container {
           display: flex;
-          justify-content: space-between;  /* Distributes items across the container */
+          justify-content: space-between;
           align-items: center;
           width: 100%;
           padding-bottom: 0mm;
         }
 
         .top-header-left {
-          flex: 0 0 auto;  /* Prevents growth, keeps it on the left */
+          flex: 0 0 auto;
         }
 
         .top-header-center {
-          flex: 1;  /* Allows it to take up available space and center content */
-          text-align: center;  /* Centers the text within this div */
+          flex: 1;
+          text-align: center;
         }
 
         .top-header-right {
-          flex: 0 0 auto;  /* Prevents growth, keeps it on the right */
+          flex: 0 0 auto;
         }
 
         .cod-text {
           font-size: 14px;
           font-weight: bold;
-          /* Removed margin for now to let flex handle spacing */
         }
 
         .header-logo {
@@ -248,6 +258,7 @@ export default function PrintLayout({ data }) {
           margin-bottom: 1mm;
           border: 2px solid #000;
           padding: 1mm;
+          flex-shrink: 0;
         }
 
         .barcode-section svg {
@@ -269,12 +280,14 @@ export default function PrintLayout({ data }) {
           margin-bottom: 1mm;
           font-size: 12px;
           padding-left: 2mm;
+          flex-shrink: 0;
         }
 
         .content-section {
           display: flex;
           flex: 1;
           margin-bottom: 0mm;
+          overflow: hidden;
         }
 
         .address-box {
@@ -287,9 +300,16 @@ export default function PrintLayout({ data }) {
           justify-content: flex-start;
           font-size: 11px;
           font-weight: bold;
+          height: 40mm;
+          overflow-y: auto;
+          ::-webkit-scrollbar {
+            display: none;
+          }
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+          flex-shrink: 0;
         }
 
-        /* Styles for underlines - Ensuring this is clean and targeted */
         .address-box .sender-info > div,
         .address-box .recipient-info > div {
           border-bottom: 1px dotted #999;
@@ -298,11 +318,11 @@ export default function PrintLayout({ data }) {
           line-height: 1.4;
         }
         .address-box .recipient-info > div:last-child {
-          border-bottom: none;  /* Remove underline from the last item */
+          border-bottom: none;
         }
 
         .address-box .sender-info {
-          margin-bottom: 2mm; /* Reduced space between sender and recipient */
+          margin-bottom: 2mm;
         }
 
         .logo-qr {
@@ -312,7 +332,8 @@ export default function PrintLayout({ data }) {
           flex-direction: column;
           align-items: center;
           justify-content: flex-start;
-          padding-top: 3mm; /* Reduced padding top to move content up */
+          padding-top: 3mm;
+          flex-shrink: 0;
         }
 
         .qr-code {
@@ -324,7 +345,8 @@ export default function PrintLayout({ data }) {
 
         .footer-container {
           width: 100%;
-          margin-top: auto; 
+          margin-top: auto;
+          flex-shrink: 0;
         }
 
         .dotted-line {
@@ -350,10 +372,10 @@ export default function PrintLayout({ data }) {
         .admin-contact {
           text-align: right;
           white-space: nowrap;
-          display: flex; /* Menjadikan flex container untuk menyelaraskan ikon */
-          align-items: center; /* Menyelaraskan ikon dan teks secara vertikal */
-          justify-content: flex-end; /* Menempatkan konten ke kanan */
-          color: black; /* Memastikan warna teks dan ikon (jika menggunakan currentColor) terlihat */
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          color: black;
         }
 
         .airport-code {
@@ -371,7 +393,7 @@ export default function PrintLayout({ data }) {
           text-align: center;
           margin-top: 0mm;
           position: relative;
-          top: 0mm; /* Remove or reduce this to move abbreviation up */
+          top: 0mm;
         }
 
         @media print {
@@ -395,6 +417,68 @@ export default function PrintLayout({ data }) {
             top: 0;
             width: 100mm;
             height: 100mm;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+
+          .shipping-label {
+             width: 100%;
+             height: 100%;
+             box-sizing: border-box;
+             display: flex;
+             flex-direction: column;
+             overflow: hidden;
+          }
+
+          .top-header-container, .barcode-section, .shipping-details, .footer-container {
+              flex-shrink: 0;
+          }
+
+          .content-section {
+              flex: 1;
+              display: flex;
+              flex-direction: row;
+              overflow: hidden;
+          }
+
+          .address-box {
+              flex: 1;
+              padding: 1mm;
+              margin-right: 3mm;
+              overflow-y: auto;
+              font-size: 11px;
+              font-weight: bold;
+              border: 1px solid #000;
+              display: flex;
+              flex-direction: column;
+              flex-shrink: 0;
+          }
+
+          .logo-qr {
+              width: 30mm;
+              height: auto;
+              flex-shrink: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: flex-start;
+              padding-top: 3mm;
+              overflow: hidden;
+          }
+
+          .address-box .sender-info > div,
+          .address-box .recipient-info > div {
+            border-bottom: 1px dotted #999;
+            padding-bottom: 0.6mm;
+            margin-bottom: 0mm;
+            line-height: 1.4;
+          }
+          .address-box .recipient-info > div:last-child {
+            border-bottom: none;
+          }
+
+          .address-box .sender-info {
+            margin-bottom: 2mm;
           }
         }
       `}</style>

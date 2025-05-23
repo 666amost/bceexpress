@@ -5,7 +5,16 @@ import { supabaseClient } from "../lib/auth"
 import * as XLSX from 'xlsx'
 import { FaDownload, FaPrint } from 'react-icons/fa'
 
-export default function OutstandingReport() {
+const agentListTanjungPandan = [
+  "COD",
+  "TRANSFER",
+  "CASH"
+];
+
+/**
+ * @param {{ userRole: string, branchOrigin: string }} props
+ */
+export default function OutstandingReport({ userRole, branchOrigin }) {
   const [agentList, setAgentList] = useState([])
   const [selectedAgent, setSelectedAgent] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -14,6 +23,8 @@ export default function OutstandingReport() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
+
   useEffect(() => {
     fetchAgents()
     fetchOutstandingData()
@@ -21,16 +32,27 @@ export default function OutstandingReport() {
 
   async function fetchAgents() {
     try {
-      const { data, error } = await supabaseClient
-        .from("manifest")
-        .select("agent_customer")
+      // Central users: query central tables, Branch users: query branch tables with filtering
+      let query;
+      if (userRole === 'cabang') {
+        query = supabaseClient
+          .from("manifest_cabang")
+          .select("agent_customer")
+          .eq('origin_branch', branchOrigin)
+      } else {
+        // Central users query central table without any filtering
+        query = supabaseClient
+          .from("manifest")
+          .select("agent_customer")
+      }
+      
+      const { data, error } = await query
       
       if (error) throw error
       
       const distinctAgents = [...new Set(data.map(item => item.agent_customer).filter(Boolean))]
       setAgentList(distinctAgents)
     } catch (err) {
-      console.error("Error fetching agents:", err)
       setError("Failed to fetch agents")
     }
   }
@@ -38,18 +60,37 @@ export default function OutstandingReport() {
   async function fetchOutstandingData() {
     setLoading(true)
     try {
-      let query = supabaseClient
-        .from("manifest")
-        .select(`
-          awb_no,
-          awb_date,
-          kota_tujuan,
-          nama_pengirim,
-          nama_penerima,
-          total,
-          agent_customer
-        `)
-        .eq("buktimembayar", false)
+      // Central users: query central tables, Branch users: query branch tables with filtering
+      let query;
+      if (userRole === 'cabang') {
+        query = supabaseClient
+          .from("manifest_cabang")
+          .select(`
+            awb_no,
+            awb_date,
+            kota_tujuan,
+            nama_pengirim,
+            nama_penerima,
+            total,
+            agent_customer
+          `)
+          .eq("buktimembayar", false)
+          .eq('origin_branch', branchOrigin)
+      } else {
+        // Central users query central table without any filtering
+        query = supabaseClient
+          .from("manifest")
+          .select(`
+            awb_no,
+            awb_date,
+            kota_tujuan,
+            nama_pengirim,
+            nama_penerima,
+            total,
+            agent_customer
+          `)
+          .eq("buktimembayar", false)
+      }
 
       if (selectedAgent) {
         query = query.eq("agent_customer", selectedAgent)
@@ -70,11 +111,19 @@ export default function OutstandingReport() {
       // Process the data to include payment information
       const processedData = await Promise.all(
         data.map(async (item) => {
-          // Get total paid amount from pelunasan table
-          const { data: paymentData, error: paymentError } = await supabaseClient
-            .from("pelunasan")
+          // Get total paid amount from pelunasan table - use appropriate table based on user role
+          const pelunasanTable = userRole === 'cabang' ? "pelunasan_cabang" : "pelunasan"
+          let pelunasanQuery = supabaseClient
+            .from(pelunasanTable)
             .select("final_amount")
             .eq("awb_no", item.awb_no)
+            
+          // For branch users, also filter pelunasan by origin_branch
+          if (userRole === 'cabang') {
+            pelunasanQuery = pelunasanQuery.eq('origin_branch', branchOrigin)
+          }
+          
+          const { data: paymentData, error: paymentError } = await pelunasanQuery
 
           if (paymentError) throw paymentError
 
@@ -91,7 +140,6 @@ export default function OutstandingReport() {
 
       setOutstandingData(processedData)
     } catch (err) {
-      console.error("Error fetching outstanding data:", err)
       setError("Failed to fetch outstanding data")
     } finally {
       setLoading(false)
@@ -189,21 +237,21 @@ export default function OutstandingReport() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-blue-900 mb-4">Outstanding Report</h2>
+        <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">Outstanding Report</h2>
         
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Agent/Customer</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent/Customer</label>
             <select
-              className="w-full border rounded-md px-3 py-2"
+              className="w-full border rounded-md px-3 py-2 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 focus:ring-blue-500 focus:border-blue-500"
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
             >
               <option value="">All Agents</option>
-              {agentList.map((agent) => (
+              {currentAgentList.map((agent) => (
                 <option key={agent} value={agent}>
                   {agent}
                 </option>
@@ -212,20 +260,20 @@ export default function OutstandingReport() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
             <input
               type="date"
-              className="w-full border rounded-md px-3 py-2"
+              className="w-full border rounded-md px-3 py-2 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 focus:ring-blue-500 focus:border-blue-500"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
             <input
               type="date"
-              className="w-full border rounded-md px-3 py-2"
+              className="w-full border rounded-md px-3 py-2 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 focus:ring-blue-500 focus:border-blue-500"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
@@ -236,65 +284,65 @@ export default function OutstandingReport() {
         <div className="flex justify-end gap-2 mb-4">
           <button
             onClick={handleDownloadXLSX}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-2 flex items-center gap-2"
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 mr-2 flex items-center gap-2"
           >
             <FaDownload /> Download XLSX
           </button>
           <button
             onClick={handlePrint}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 flex items-center gap-2"
           >
             <FaPrint /> Print
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md dark:bg-red-900/30 dark:text-red-300">
             {error}
           </div>
         )}
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 border-collapse">
-            <thead className="bg-gray-50">
+          <table className="min-w-full bg-white border border-gray-200 border-collapse dark:bg-gray-800 dark:border-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-2 text-left border border-gray-300">No</th>
-                <th className="px-4 py-2 text-left border border-gray-300">No AWB</th>
-                <th className="px-4 py-2 text-left border border-gray-300">Tanggal</th>
-                <th className="px-4 py-2 text-left border border-gray-300">Kota Tujuan</th>
-                <th className="px-4 py-2 text-left border border-gray-300">Pengirim</th>
-                <th className="px-4 py-2 text-left border border-gray-300">Penerima</th>
-                <th className="px-4 py-2 text-right border border-gray-300">Total Ongkir</th>
-                <th className="px-4 py-2 text-right border border-gray-300">Total Dibayar</th>
-                <th className="px-4 py-2 text-right border border-gray-300">Sisa Piutang</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">No</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">No AWB</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Tanggal</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Kota Tujuan</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Pengirim</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Penerima</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Total Ongkir</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Total Dibayar</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Sisa Piutang</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300">
+                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
                     Loading...
                   </td>
                 </tr>
               ) : outstandingData.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300">
+                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
                     No outstanding data found
                   </td>
                 </tr>
               ) : (
                 outstandingData.map((item, index) => (
-                  <tr key={item.awb_no} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 border border-gray-300">{index + 1}</td>
-                    <td className="px-4 py-2 border border-gray-300">{item.awb_no}</td>
-                    <td className="px-4 py-2 border border-gray-300">{item.awb_date}</td>
-                    <td className="px-4 py-2 border border-gray-300">{item.kota_tujuan}</td>
-                    <td className="px-4 py-2 border border-gray-300">{item.nama_pengirim}</td>
-                    <td className="px-4 py-2 border border-gray-300">{item.nama_penerima}</td>
-                    <td className="px-4 py-2 text-right border border-gray-300">Rp. {item.total}</td>
-                    <td className="px-4 py-2 text-right border border-gray-300">Rp. {item.total_paid}</td>
-                    <td className="px-4 py-2 text-right font-bold border border-gray-300">Rp. {item.remaining_debt}</td>
+                  <tr key={item.awb_no} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{index + 1}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.awb_no}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.awb_date}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.kota_tujuan}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.nama_pengirim}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.nama_penerima}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {item.total}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {item.total_paid}</td>
+                    <td className="px-4 py-2 text-right font-bold border border-gray-300 dark:border-gray-600 dark:text-green-400">Rp. {item.remaining_debt}</td>
                   </tr>
                 ))
               )}
@@ -302,7 +350,7 @@ export default function OutstandingReport() {
           </table>
         </div>
         {outstandingData.length > 0 && (
-          <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4">
+          <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-200">
             <h3 className="text-sm font-semibold">Total:</h3>
             <p>Total Ongkir: Rp. {outstandingData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
             <p>Total Dibayar: Rp. {outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0).toLocaleString('en-US')}</p>

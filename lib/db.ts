@@ -42,7 +42,6 @@ export async function getShipmentByAwb(awbNumber: string): Promise<Shipment | nu
   const { data, error } = await supabase.from("shipments").select("*").eq("awb_number", awbNumber).single()
 
   if (error || !data) {
-    console.error("Error fetching shipment:", error)
     return null
   }
 
@@ -58,7 +57,6 @@ export async function getShipmentHistory(awbNumber: string): Promise<ShipmentHis
     .order("created_at", { ascending: false })
 
   if (error || !data) {
-    console.error("Error fetching shipment history:", error)
     return []
   }
 
@@ -79,7 +77,6 @@ export async function addShipmentHistory(
     .eq("awb_number", historyEntry.awb_number)
 
   if (updateError) {
-    console.error("Error updating shipment status:", updateError)
     return null
   }
 
@@ -87,7 +84,6 @@ export async function addShipmentHistory(
   const { data, error } = await supabase.from("shipment_history").insert([historyEntry]).select().single()
 
   if (error || !data) {
-    console.error("Error adding shipment history:", error)
     return null
   }
 
@@ -103,7 +99,6 @@ export async function uploadImage(file: File, awbNumber: string): Promise<string
   const { error } = await supabase.storage.from("shipment-photos").upload(filePath, file)
 
   if (error) {
-    console.error("Error uploading image:", error)
     return null
   }
 
@@ -117,7 +112,6 @@ export async function checkManifestAwb(awbNumber: string): Promise<any> {
   const { data, error } = await supabase.from("manifest").select("*").eq("awb_no", awbNumber).single()
 
   if (error) {
-    console.error("Error checking manifest:", error)
     return null
   }
 
@@ -130,13 +124,11 @@ export async function createShipmentFromManifest(awbNumber: string): Promise<boo
     const { data, error } = await supabase.rpc("create_shipment_from_manifest", { awb_number: awbNumber })
 
     if (error) {
-      console.error("Error creating shipment from manifest:", error)
       return false
     }
 
     return true
   } catch (error) {
-    console.error("Error calling RPC:", error)
     return false
   }
 }
@@ -156,7 +148,6 @@ export async function getUndeliveredShipments(awbNumber?: string) {
   const { data, error } = await query;
   
   if (error) {
-    console.error('Error fetching undelivered shipments:', error);
     return [];  // Kembalikan array kosong jika ada error
   }
 
@@ -176,7 +167,6 @@ export async function getUserNameById(userId: string): Promise<string | null> {
     .single();  // Ambil satu baris
   
   if (error || !data) {
-    console.error(`Error fetching user name for ID ${userId}:`, error);
     return null;  // Kembalikan null jika error
   }
   
@@ -193,7 +183,6 @@ export async function getPhotoUrlFromHistory(awb_number: string): Promise<string
       .limit(1);
 
     if (error) {
-      console.error('Error querying shipment_history:', error);
       return null;
     }
     
@@ -203,7 +192,6 @@ export async function getPhotoUrlFromHistory(awb_number: string): Promise<string
       return null;
     }
   } catch (error) {
-    console.error('Error querying shipment_history:', error);
     return null;
   }
 }

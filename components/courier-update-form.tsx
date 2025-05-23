@@ -10,13 +10,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ChevronLeft } from "lucide-react"
-import { Scan } from "lucide-react"
-import { MapPin } from "lucide-react"
-import { Upload } from "lucide-react"
-import { X } from "lucide-react"
-import { Camera } from "lucide-react"
-import { CheckCircleIcon } from "lucide-react"
+import { 
+  ChevronLeft, 
+  ScanLine, 
+  MapPin, 
+  Upload, 
+  X, 
+  Camera, 
+  CheckCircle 
+} from "lucide-react"
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
@@ -121,7 +123,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         return
       }
 
-      // If shipment doesn't exist, check if it exists in manifest
+      // If shipment doesn't exist, check if it exists in manifest (central)
       const { data: manifestData, error: manifestError } = await supabaseClient
         .from("manifest")
         .select("*")
@@ -129,7 +131,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         .single()
 
       if (!manifestError && manifestData) {
-        // If found in manifest, show the data but don't create shipment yet
+        // If found in central manifest, show the data
         setShipmentDetails({
           awb_number: manifestData.awb_no,
           receiver_name: manifestData.nama_penerima,
@@ -138,12 +140,51 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           sender_name: manifestData.nama_pengirim,
           sender_phone: manifestData.nomor_pengirim,
           weight: manifestData.berat_kg,
-          current_status: "in_transit", // Default status for new shipments from manifest
-          from_manifest: true, // Flag to indicate this data is from manifest
+          current_status: "in_transit",
+          from_manifest: true,
+          manifest_source: "central"
         })
 
-        toast.info("Data ditemukan di manifest", {
-          description: "Data akan otomatis diisi dari manifest",
+        toast.info("Data ditemukan di manifest pusat", {
+          description: "Data akan otomatis diisi dari manifest pusat",
+          duration: 3000,
+        })
+        return
+      }
+
+      // If not found in central manifest, check manifest_cabang (branch)
+      const { data: manifestCabangData, error: manifestCabangError } = await supabaseClient
+        .from("manifest_cabang")
+        .select("*")
+        .eq("awb_no", awb)
+        .single()
+
+      if (!manifestCabangError && manifestCabangData) {
+        // If found in branch manifest, show the data
+        setShipmentDetails({
+          awb_number: manifestCabangData.awb_no,
+          receiver_name: manifestCabangData.nama_penerima,
+          receiver_address: manifestCabangData.alamat_penerima,
+          receiver_phone: manifestCabangData.nomor_penerima,
+          sender_name: manifestCabangData.nama_pengirim,
+          sender_phone: manifestCabangData.nomor_pengirim,
+          weight: manifestCabangData.berat_kg,
+          current_status: "in_transit",
+          from_manifest: true,
+          manifest_source: "cabang"
+        })
+
+        toast.info("Data ditemukan di manifest cabang", {
+          description: "Data akan otomatis diisi dari manifest cabang",
+          duration: 3000,
+        })
+        return
+      }
+
+      // If not found in either manifest, show message
+      if (manifestError && manifestCabangError) {
+        toast.warning("AWB tidak ditemukan di manifest", {
+          description: "Shipment akan dibuat dengan data auto-generated",
           duration: 3000,
         })
       }
@@ -251,18 +292,76 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const createShipmentFromManifest = async (awbNumber: string): Promise<boolean> => {
     try {
-      // Call the RPC function to create shipment from manifest
-      const { data, error } = await supabaseClient.rpc("create_shipment_from_manifest", { awb_number: awbNumber })
+      // First try to create from central manifest
+      const { data: manifestData, error: manifestError } = await supabaseClient
+        .from("manifest")
+        .select("*")
+        .eq("awb_no", awbNumber)
+        .single()
 
-      if (error) {
-        console.error("Error creating shipment from manifest:", error)
-        // If the RPC fails, try to create a basic shipment
-        return await createBasicShipment(awbNumber)
+      if (!manifestError && manifestData) {
+        // Create shipment from central manifest
+        const { error: insertError } = await supabaseClient.from("shipments").insert([
+          {
+            awb_number: awbNumber,
+            sender_name: manifestData.nama_pengirim || "Auto Generated",
+            sender_address: manifestData.alamat_pengirim || "Auto Generated", 
+            sender_phone: manifestData.nomor_pengirim || "Auto Generated",
+            receiver_name: manifestData.nama_penerima || "Auto Generated",
+            receiver_address: manifestData.alamat_penerima || "Auto Generated",
+            receiver_phone: manifestData.nomor_penerima || "Auto Generated",
+            weight: manifestData.berat_kg || 1,
+            dimensions: manifestData.dimensi || "10x10x10",
+            service_type: "Standard",
+            current_status: status as string,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ])
+
+        if (!insertError) {
+          toast.success("Shipment dibuat dari manifest pusat")
+          return true
+        }
       }
 
-      return true
+      // If not found in central manifest, try branch manifest
+      const { data: manifestCabangData, error: manifestCabangError } = await supabaseClient
+        .from("manifest_cabang")
+        .select("*")
+        .eq("awb_no", awbNumber)
+        .single()
+
+      if (!manifestCabangError && manifestCabangData) {
+        // Create shipment from branch manifest
+        const { error: insertError } = await supabaseClient.from("shipments").insert([
+          {
+            awb_number: awbNumber,
+            sender_name: manifestCabangData.nama_pengirim || "Auto Generated",
+            sender_address: manifestCabangData.alamat_pengirim || "Auto Generated",
+            sender_phone: manifestCabangData.nomor_pengirim || "Auto Generated", 
+            receiver_name: manifestCabangData.nama_penerima || "Auto Generated",
+            receiver_address: manifestCabangData.alamat_penerima || "Auto Generated",
+            receiver_phone: manifestCabangData.nomor_penerima || "Auto Generated",
+            weight: manifestCabangData.berat_kg || 1,
+            dimensions: manifestCabangData.dimensi || "10x10x10",
+            service_type: "Standard",
+            current_status: status as string,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ])
+
+        if (!insertError) {
+          toast.success("Shipment dibuat dari manifest cabang")
+          return true
+        }
+      }
+
+      // If not found in either manifest, fallback to basic shipment
+      return await createBasicShipment(awbNumber)
     } catch (error) {
-      console.error("Error calling RPC:", error)
+      console.error("Error creating shipment from manifest:", error)
       return await createBasicShipment(awbNumber)
     }
   }
@@ -466,7 +565,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-              <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Status Updated Successfully!</h3>
             <p className="text-muted-foreground mb-6">
@@ -555,7 +654,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   onClick={() => setShowScanner(true)}
                   className="flex items-center gap-1"
                 >
-                  <Scan className="w-6 h-6" />
+                  <ScanLine className="w-6 h-6" />
                   <span>Scan QR</span>
                 </Button>
               </div>

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, LogOut, User, Package, CheckCircle, AlertCircle } from "lucide-react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSpinner, faSignOutAlt, faUser, faBox, faCheckCircle, faExclamationCircle } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
 import dynamic from 'next/dynamic'
@@ -25,16 +26,15 @@ export function LeaderDashboard() {
   const [totalShipments, setTotalShipments] = useState(0)
   const [totalCompleted, setTotalCompleted] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
-  const [debugInfo, setDebugInfo] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any>(null)
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
   const [pendingShipments, setPendingShipments] = useState<any[]>([])
+  const [dataRange, setDataRange] = useState(1) // Default to 1 day for faster loading
 
   const router = useRouter()
 
   useEffect(() => {
-    console.time('loadDashboard');
     async function loadUserProfile() {
       try {
         const {
@@ -48,12 +48,11 @@ export function LeaderDashboard() {
 
         const { data: userData, error } = await supabaseClient
           .from("users")
-          .select("id, role") // Hanya ambil id dan role untuk verifikasi awal
+          .select("id, role")
           .eq("id", session.user.id)
           .single()
 
         if (error) {
-          console.error("Error fetching user profile:", error)
           setIsLoading(false)
           return
         }
@@ -64,149 +63,167 @@ export function LeaderDashboard() {
         }
 
         setUser(userData)
-        await loadCouriers()
+        await loadDashboardData()
       } catch (err) {
-        console.error("Error loading dashboard:", err)
         setIsLoading(false)
       }
     }
 
     loadUserProfile()
-    console.timeEnd('loadDashboard');
   }, [router])
 
-  const loadCouriers = async () => {
+  // Fixed date range function with proper UTC handling
+  const getDateRange = (days: number) => {
+    const now = new Date()
+    
+    // Create end date (end of today in UTC)
+    const endDate = new Date(Date.UTC(
+      now.getFullYear(), 
+      now.getMonth(), 
+      now.getDate(), 
+      23, 59, 59, 999
+    ))
+    
+    // Create start date (start of X days ago in UTC)
+    const startDate = new Date(Date.UTC(
+      now.getFullYear(), 
+      now.getMonth(), 
+      now.getDate() - (days - 1),
+      0, 0, 0, 0
+    ))
+    
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    }
+  }
+
+  const loadDashboardData = async (daysToLoad?: number) => {
     setIsLoading(true)
-    setDebugInfo("Loading couriers...")
+    
+    // Use parameter if provided, otherwise use state
+    const currentRange = daysToLoad !== undefined ? daysToLoad : dataRange
+    
     try {
-      const { data: { session } } = await supabaseClient.auth.getSession()
-      
-      let { data: courierData, error } = await supabaseClient
+      // Get consistent date range
+      const { startDate, endDate } = getDateRange(currentRange)
+
+      // Load couriers first (small dataset)
+      const { data: courierData, error: courierError } = await supabaseClient
         .from("users")
         .select("id, name, email, role")
-        .eq("role", "couriers")
+        .or("role.eq.courier,role.eq.couriers")
         .order("name", { ascending: true })
 
-      if (!courierData || courierData.length === 0) {
-        const { data: courierDataSingular, error: errorSingular } = await supabaseClient
-          .from("users")
-          .select("id, name, email, role")
-          .eq("role", "courier")
-          .order("name", { ascending: true })
-
-        if (courierDataSingular && courierDataSingular.length > 0) {
-          courierData = courierDataSingular
-          error = errorSingular
-        }
-      }
-
-      if (!courierData || courierData.length === 0) {
-        const { data: allUsers, error: allUsersError } = await supabaseClient
-          .from("users")
-          .select("id, name, email, role")
-          .order("name", { ascending: true })
-
-        if (allUsers) {
-          courierData = allUsers.filter(
-            (user) =>
-              user.role === "courier" || user.role === "couriers" || user.role?.toLowerCase().includes("courier"),
-          )
-          error = allUsersError
-        }
-      }
-
-      if (error) {
-        console.error("Error fetching couriers:", error)
-        setDebugInfo(`Error fetching couriers: ${error.message}`)
+      if (courierError || !courierData) {
+        setIsLoading(false)
         return
       }
 
-      setDebugInfo(`Found ${courierData?.length || 0} couriers`)
-      setCouriers(courierData || [])
-      
-      if (courierData) {
-        const promises = courierData.map(async (courier) => {
-          setDebugInfo(`Processing courier: ${courier.name}`)
-          const shipmentsPromise = supabaseClient
-            .from("shipments")
-            .select("awb_number, current_status")
-            .eq("courier_id", courier.id)
-          const historyPromise = supabaseClient
-            .from("shipment_history")
-            .select("*, created_at, latitude, longitude")
-            .order("created_at", { ascending: false })
-          
-          const [shipmentsResult, historyResult] = await Promise.all([shipmentsPromise, historyPromise])
-          
-          if (shipmentsResult.error) {
-            console.error(`Error fetching shipments for ${courier.name}:`, shipmentsResult.error)
-            return null
-          }
-          
-          const total = shipmentsResult.data?.length || 0
-          const completed = shipmentsResult.data?.filter((shipment) => shipment.current_status === "delivered").length || 0
-          const pendingShipmentsList = shipmentsResult.data?.filter((shipment) => shipment.current_status !== "delivered") || []
-          const pending = pendingShipmentsList.length
-          
-          if (historyResult.error) {
-            console.error(`Error fetching history for ${courier.name}:`, historyResult.error)
-            return { total, completed, pending, latestLatitude: null, latestLongitude: null, pendingShipments: null }
-          }
-          
-          const courierUsername = courier.email.split("@")[0]
-          const courierHistoryData = historyResult.data?.filter(
-            (entry) =>
-              entry.notes &&
-              (entry.notes.toLowerCase().includes(courier.name.toLowerCase()) ||
-                entry.notes.toLowerCase().includes(courierUsername.toLowerCase()))
-          ) || []
-          
-          const latestEntry = courierHistoryData[0]
-          const latestLatitude = latestEntry?.latitude
-          const latestLongitude = latestEntry?.longitude
-          
-          setDebugInfo(`Courier ${courier.name}: ${total} total, ${completed} completed, ${pending} pending, Lat: ${latestLatitude}, Lon: ${latestLongitude}`)
-          
-          return { id: courier.id, total, completed, pending, latestLatitude, latestLongitude, pendingShipments: pendingShipmentsList }
-        })
-        
-        const results = await Promise.all(promises)
-        let allPendingShipments: any[] = []
-        const stats: Record<string, { total: number; completed: number; pending: number }> = {}
-        let totalShipmentCount = 0
-        let totalCompletedCount = 0
-        let totalPendingCount = 0
-        
-        results.forEach((result) => {
-          if (result) {
-            stats[result.id] = { total: result.total, completed: result.completed, pending: result.pending }
-            totalShipmentCount += result.total
-            totalCompletedCount += result.completed
-            totalPendingCount += result.pending
-            
-            if (result.pendingShipments) {
-              allPendingShipments = [...allPendingShipments, ...result.pendingShipments.map(shipment => ({ ...shipment, courierId: result.id }))]
-            }
-          }
-        })
-        
-        setPendingShipments(allPendingShipments)
-        setCourierStats(stats)
-        setTotalShipments(totalShipmentCount)
-        setTotalCompleted(totalCompletedCount)
-        setTotalPending(totalPendingCount)
-        setCouriers(courierData.map((courier, index) => ({ ...courier, latestLatitude: results[index]?.latestLatitude, latestLongitude: results[index]?.latestLongitude })))
-      } else {
-        setDebugInfo("No courier data found")
-        setCourierStats({})
-        setTotalShipments(0)
-        setTotalCompleted(0)
-        setTotalPending(0)
-        setCouriers([])
+      // Get shipments within date range with consistent filtering
+      const { data: recentShipments, error: shipmentsError } = await supabaseClient
+        .from("shipments")
+        .select("awb_number, current_status, courier_id, created_at")
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .order("created_at", { ascending: false })
+
+      if (shipmentsError) {
+        setIsLoading(false)
+        return
       }
+
+      const shipmentsData = recentShipments || []
+
+      // Get total counts with SAME date filtering
+      const [totalCountResult, completedCountResult] = await Promise.all([
+        // Total shipments count with same date filter
+        supabaseClient
+          .from("shipments")
+          .select("*", { count: 'exact', head: true })
+          .gte("created_at", startDate)
+          .lte("created_at", endDate),
+        
+        // Completed shipments count with same date filter
+        supabaseClient
+          .from("shipments")
+          .select("*", { count: 'exact', head: true })
+          .eq("current_status", "delivered")
+          .gte("created_at", startDate)
+          .lte("created_at", endDate)
+      ])
+
+      // Process shipment stats efficiently
+      const stats: Record<string, { total: number; completed: number; pending: number }> = {}
+      const allPendingShipments: any[] = []
+      let totalShipmentCount = totalCountResult.count || 0
+      let totalCompletedCount = completedCountResult.count || 0
+      let totalPendingCount = 0
+
+      // Group shipments by courier_id for efficient processing
+      const shipmentsByCourier = shipmentsData.reduce((acc, shipment) => {
+        if (!acc[shipment.courier_id]) {
+          acc[shipment.courier_id] = []
+        }
+        acc[shipment.courier_id].push(shipment)
+        return acc
+      }, {} as Record<string, any[]>)
+
+      // Calculate stats for each courier
+      courierData.forEach((courier) => {
+        const courierShipments = shipmentsByCourier[courier.id] || []
+        const total = courierShipments.length
+        const completed = courierShipments.filter((s) => s.current_status === "delivered").length
+        const pendingShipmentsList = courierShipments.filter((s) => s.current_status !== "delivered")
+        const pending = pendingShipmentsList.length
+
+        stats[courier.id] = { total, completed, pending }
+        totalPendingCount += pending
+
+        // Add to pending shipments with courier info (limit to 50 for modal)
+        allPendingShipments.push(...pendingShipmentsList.slice(0, 50).map(shipment => ({ 
+          ...shipment, 
+          courierId: courier.id 
+        })))
+      })
+
+      // Get latest locations with same date filtering
+      const { data: latestLocations } = await supabaseClient
+        .from("shipment_history")
+        .select("notes, latitude, longitude, created_at")
+        .not("latitude", "is", null)
+        .not("longitude", "is", null)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .order("created_at", { ascending: false })
+        .limit(50)
+
+      // Match locations to couriers efficiently
+      const couriersWithLocations = courierData.map((courier) => {
+        const courierUsername = courier.email.split("@")[0]
+        const locationEntry = latestLocations?.find((entry: any) =>
+          entry.notes &&
+          (entry.notes.toLowerCase().includes(courier.name.toLowerCase()) ||
+            entry.notes.toLowerCase().includes(courierUsername.toLowerCase()))
+        )
+        
+        return {
+          ...courier,
+          latestLatitude: locationEntry?.latitude || null,
+          latestLongitude: locationEntry?.longitude || null
+        }
+      })
+
+      // Update state
+      setCouriers(couriersWithLocations)
+      setCourierStats(stats)
+      setTotalShipments(totalShipmentCount)
+      setTotalCompleted(totalCompletedCount)
+      setTotalPending(totalPendingCount)
+      setPendingShipments(allPendingShipments.slice(0, 100))
+
     } catch (err) {
-      console.error("Error loading couriers:", err)
-      setDebugInfo(`Error loading couriers: ${err}`)
+      // Handle error silently
     } finally {
       setIsLoading(false)
     }
@@ -217,20 +234,26 @@ export function LeaderDashboard() {
       await supabaseClient.auth.signOut()
       router.push("/admin")
     } catch (err) {
-      console.error("Error signing out:", err)
+      // Handle error
     }
   }
 
   const handleRefresh = () => {
     setIsLoading(true)
-    loadCouriers()
+    loadDashboardData()
+  }
+
+  const handleRangeChange = (days: number) => {
+    setDataRange(days)
+    setIsLoading(true)
+    // Pass days directly to avoid state race condition
+    loadDashboardData(days)
   }
 
   const handleSearch = async () => {
     if (searchQuery.trim()) {
       const { data, error } = await supabaseClient.from('shipments').select('*').eq('awb_number', searchQuery).single();
       if (error) {
-        console.error('Error searching shipment:', error);
         setSearchResults({ error: 'Shipment not found' });
       } else {
         const courierData = await supabaseClient.from('users').select('name').eq('id', data.courier_id).single();
@@ -239,20 +262,16 @@ export function LeaderDashboard() {
     }
   };
 
-  // Update deleteShipmentHistory to include type for awbNumber
   async function deleteShipmentHistory(awbNumber: string) {
     const { data, error } = await supabaseClient.from('shipment_history').delete().eq('awb_number', awbNumber);
     if (error) {
-      console.error('Error deleting shipment history:', error);
       alert(`Deletion from history failed: ${error.message || 'Unknown error'}`);
     } else {
-      console.log('Shipment history deleted successfully:', data);
-      return true;  // Return success for chaining
+      return true;
     }
     return false;
   }
 
-  // Update handleDeleteShipment to use the new function
   const handleDeleteShipment = async (awbNumber: string) => {
     if (window.confirm('Are you sure you want to delete this shipment?')) {
       try {
@@ -260,14 +279,12 @@ export function LeaderDashboard() {
         if (historyDeleted) {
           const { error } = await supabaseClient.from('shipments').delete().eq('awb_number', awbNumber);
           if (error) {
-            console.error('Error deleting from shipments:', error);
             alert(`Deletion failed: ${error.message || 'Unknown error'}`);
           } else {
-            await loadCouriers();  // Refresh data
+            await loadDashboardData();
           }
         }
       } catch (err) {
-        console.error('Unexpected error:', err);
         alert('An unexpected error occurred during deletion.');
       }
     }
@@ -276,7 +293,7 @@ export function LeaderDashboard() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -287,37 +304,63 @@ export function LeaderDashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Robert Dashboard</h1>
         <div className="flex gap-2">
+          {/* Data Range Selector */}
+          <div className="flex gap-1">
+            {[1, 3, 7, 14, 30].map((days) => (
+              <Button 
+                key={days}
+                variant={dataRange === days ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleRangeChange(days)}
+              >
+                {days}d
+              </Button>
+            ))}
+          </div>
           <Button variant="outline" onClick={handleRefresh}>
             Refresh Data
           </Button>
           <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Logout
+            <FontAwesomeIcon icon={faSignOutAlt} className="h-4 w-4 mr-2" /> Logout
           </Button>
         </div>
+      </div>
+
+      {/* Data Range Info */}
+      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          📊 Showing data from last <strong>{dataRange} day{dataRange > 1 ? 's' : ''}</strong> for optimal performance.
+        </p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
         <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
-          <User className="h-8 w-8 text-blue-500 mb-2" />
+          <FontAwesomeIcon icon={faUser} className="h-8 w-8 text-blue-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Couriers</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{couriers.length}</span>
         </div>
         <div className="bg-orange-50/70 dark:bg-orange-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
-          <Package className="h-8 w-8 text-orange-500 mb-2" />
-          <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Total Shipments</span>
+          <FontAwesomeIcon icon={faBox} className="h-8 w-8 text-orange-500 mb-2" />
+          <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">
+            {dataRange === 1 ? "Today's Shipments" : "Recent Shipments"}
+          </span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalShipments}</span>
+          <span className="text-xs text-zinc-500">({dataRange} day{dataRange > 1 ? 's' : ''})</span>
         </div>
         <div className="bg-yellow-50/70 dark:bg-yellow-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
-          <AlertCircle className="h-8 w-8 text-yellow-500 mb-2" />
+          <FontAwesomeIcon icon={faExclamationCircle} className="h-8 w-8 text-yellow-500 mb-2" />
           <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalPending}</span>
-          <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm">(view)</Button>
+          <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm">(view top 100)</Button>
         </div>
         <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 items-center">
-          <CheckCircle className="h-8 w-8 text-green-500 mb-2" />
-          <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Deliveries</span>
+          <FontAwesomeIcon icon={faCheckCircle} className="h-8 w-8 text-green-500 mb-2" />
+          <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">
+            {dataRange === 1 ? "Today's Completed" : "Completed Deliveries"}
+          </span>
           <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{totalCompleted}</span>
+          <span className="text-xs text-zinc-500">({dataRange} day{dataRange > 1 ? 's' : ''})</span>
         </div>
       </div>
 
@@ -344,7 +387,7 @@ export function LeaderDashboard() {
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                      <User className="h-5 w-5 text-blue-500" />
+                      <FontAwesomeIcon icon={faUser} className="h-5 w-5 text-blue-500" />
                     </div>
                     <div>
                       <h3 className="font-medium text-lg text-zinc-800 dark:text-zinc-100">{courier.name}</h3>
@@ -353,17 +396,17 @@ export function LeaderDashboard() {
                   </div>
                   <div className="flex gap-4 mt-2">
                     <div className="flex flex-col items-center">
-                      <Package className="h-4 w-4 text-blue-500" />
+                      <FontAwesomeIcon icon={faBox} className="h-4 w-4 text-blue-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.total || 0}</span>
                       <span className="text-xs text-zinc-400">Total</span>
                     </div>
                     <div className="flex flex-col items-center">
-                      <AlertCircle className="h-4 w-4 text-yellow-500" />
+                      <FontAwesomeIcon icon={faExclamationCircle} className="h-4 w-4 text-yellow-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.pending || 0}</span>
                       <span className="text-xs text-zinc-400">Pending</span>
                     </div>
                     <div className="flex flex-col items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4 text-green-500" />
                       <span className="text-2xl font-bold">{courierStats[courier.id]?.completed || 0}</span>
                       <span className="text-xs text-zinc-400">Completed</span>
                     </div>
@@ -433,7 +476,7 @@ export function LeaderDashboard() {
     <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
       <DialogContent className="max-w-md sm:max-w-lg md:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Pending Deliveries</DialogTitle>
+          <DialogTitle>Pending Deliveries (Top 100)</DialogTitle>
         </DialogHeader>
         <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">

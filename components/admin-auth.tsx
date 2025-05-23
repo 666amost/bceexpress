@@ -44,7 +44,6 @@ export function AdminAuth() {
           }
         }
       } catch (err) {
-        console.error("Auth check error:", err)
         // Don't show error to user, just let them login
       }
     }

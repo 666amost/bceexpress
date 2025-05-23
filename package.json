@@ -1,9 +1,9 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
+  "name": "BCE EXPRESS",
+  "version": "09.05.2025",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

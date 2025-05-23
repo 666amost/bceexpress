@@ -94,10 +94,9 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
           setError(`No shipment found with AWB number ${awbNumber}`);
         }
       } catch (err) {
-        console.error("Error fetching tracking data:", err);
-        setError("An error occurred while fetching data");
+        setError("Terjadi kesalahan saat mengambil data tracking")
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
     };
     fetchData();

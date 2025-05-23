@@ -18,7 +18,6 @@ export function ErrorBoundary({
 
   useEffect(() => {
     const errorHandler = (error: ErrorEvent) => {
-      console.error("Caught error:", error)
       setError(error.error)
       setHasError(true)
     }

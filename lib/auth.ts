@@ -58,8 +58,7 @@ export async function signOut(): Promise<{ error: string | null }> {
     }
     return { error: null }
   } catch (error) {
-    console.error("Sign out error:", error)
-    return { error: "An unexpected error occurred" }
+    throw error
   }
 }
 
@@ -68,7 +67,6 @@ export async function getCurrentUser(): Promise<UserSession | null> {
     const { data, error: sessionError } = await supabaseClient.auth.getSession()
 
     if (sessionError || !data.session || !data.session.user) {
-      console.error("Session error:", sessionError)
       return null
     }
 
@@ -80,7 +78,6 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       .single()
 
     if (userError || !userData) {
-      console.error("Get user profile error:", userError)
       return null
     }
 
@@ -91,7 +88,6 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       role: userData.role as UserRole,
     }
   } catch (error) {
-    console.error("Get current user error:", error)
-    return null
+    throw error
   }
 }
