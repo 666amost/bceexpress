@@ -148,6 +148,7 @@ export default function PrintLayout({ data }) {
           <div>berat : {data.berat_kg || 1} kg</div>
           <div>total : {formatCurrency(data.total || 0)}</div>
           <div>Metode: {data.metode_pembayaran?.toUpperCase()}</div>
+          <div> {data.awb_date}</div>
         </div>
 
         <div className="content-section">

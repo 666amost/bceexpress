@@ -12,9 +12,11 @@ import { supabaseClient } from "@/lib/auth"
 interface QRScannerProps {
   onScan: (result: string) => void
   onClose: () => void
+  hideCloseButton?: boolean
+  disableAutoUpdate?: boolean
 }
 
-export function QRScanner({ onScan, onClose }: QRScannerProps) {
+export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAutoUpdate = false }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const lastScannedRef = useRef<string>("")
@@ -171,23 +173,28 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           // Play success beep
           playBeep()
           
-          // Update shipment status
-          const success = await updateShipmentStatus(decodedText)
-          
-          if (success) {
-            // Show success notification
-            toast.success("AWB berhasil di-scan!", {
-              description: `${decodedText} telah diupdate ke Out for Delivery`,
-              duration: 2000,
-            })
+          if (!disableAutoUpdate) {
+            // Update shipment status
+            const success = await updateShipmentStatus(decodedText)
             
-            // Handle the scanned code
-            onScan(decodedText)
+            if (success) {
+              // Show success notification
+              toast.success("AWB berhasil di-scan!", {
+                description: `${decodedText} telah diupdate ke Out for Delivery`,
+                duration: 2000,
+              })
+              
+              // Handle the scanned code
+              onScan(decodedText)
+            } else {
+              toast.error("Gagal mengupdate status AWB", {
+                description: "Silakan coba lagi",
+                duration: 2000,
+              })
+            }
           } else {
-            toast.error("Gagal mengupdate status AWB", {
-              description: "Silakan coba lagi",
-              duration: 2000,
-            })
+            // Just handle the scanned code without updating
+            onScan(decodedText)
           }
           
           // Reset last scanned after a short delay to allow rescanning the same code
@@ -238,9 +245,11 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
               Stop Camera
             </Button>
           )}
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
+          {!hideCloseButton && (
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          )}
         </div>
       </div>
     </Card>

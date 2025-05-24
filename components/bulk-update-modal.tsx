@@ -298,16 +298,16 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         }
       }}
     >
-      <DialogContent className={showScanner ? "sm:max-w-md" : "sm:max-w-md"}>
+      <DialogContent className={`sm:max-w-md p-6 ${showScanner ? "" : "bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700"}`}>
         {showScanner ? (
           <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle>Bulk Update AWB Numbers</DialogTitle>
-              <DialogDescription>
+            <DialogHeader className="mb-4">
+              <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white">Bulk Update AWB Numbers</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
                 Enter multiple AWB numbers (one per line or separated by commas) to update their status to{" "}
-                <b>Out For Delivery</b>
+                <b className="text-blue-600 dark:text-blue-400">Out For Delivery</b>
               </DialogDescription>
             </DialogHeader>
 
@@ -315,12 +315,12 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               {error && <p className="text-sm text-red-500">{error}</p>}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="awb-numbers">AWB Numbers</Label>
+                  <Label htmlFor="awb-numbers" className="text-gray-700 dark:text-gray-300 font-semibold">AWB Numbers</Label>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowScanner(true)}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                   >
                     <Camera className="h-4 w-4" />
                     <span>Scan QR</span>
@@ -332,30 +332,30 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                   rows={6}
                   value={awbNumbers}
                   onChange={(e) => setAwbNumbers(e.target.value)}
-                  className="font-mono"
+                  className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-muted-foreground">
                   contoh: BCE123456789, BCE987654321, BE0423056087 hati-hati dijalan
                 </p>
                 {currentUser && (
                   <p className="text-xs text-blue-600 dark:text-blue-400">
-                    Updates will be attributed to: {currentUser.name || currentUser.email?.split("@")[0]}
+                    Updates will be attributed to: <span className="font-semibold">{currentUser.name || currentUser.email?.split("@")[0]}</span>
                   </p>
                 )}
               </div>
             </div>
 
-            <DialogFooter className="flex flex-col space-y-2">
+            <DialogFooter className="flex flex-col space-y-2 mt-4">
               {processingStatus && (
                 <div className="w-full text-center text-sm text-blue-600 dark:text-blue-400 mb-2">
                   {processingStatus}
                 </div>
               )}
               <div className="flex justify-end space-x-2 w-full">
-                <Button variant="outline" onClick={onClose} disabled={isLoading}>
+                <Button variant="outline" onClick={onClose} disabled={isLoading} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={isLoading}>
+                <Button onClick={handleSubmit} disabled={isLoading} className="bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white">
                   {isLoading ? (
                     <>
                       <Loader className="mr-2 h-4 w-4 animate-spin" /> Processing...

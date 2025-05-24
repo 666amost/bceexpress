@@ -10,15 +10,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { 
-  ChevronLeft, 
-  ScanLine, 
-  MapPin, 
-  Upload, 
-  X, 
-  Camera, 
-  CheckCircle 
-} from "lucide-react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faQrcode, faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import {
+  ChevronLeft,
+  Scan as ScanIcon,
+  Map as MapIcon,
+  Upload as UploadIcon,
+  Close as CloseIcon,
+  Camera as CameraIcon,
+  CheckmarkFilled as CheckmarkIcon,
+} from '@carbon/icons-react'
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
 import { QRScanner } from "@/components/qr-scanner"
@@ -561,32 +563,36 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   if (success) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center p-4 sm:p-6">
+        <Card className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
+                <CheckmarkIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Status Updated Successfully!</h3>
+              <p className="text-muted-foreground mb-6">
+                The shipment status for AWB <span className="font-mono font-medium">{awbNumber}</span> has been updated to <span className="font-medium">{status.replace(/_/g, " ")}</span>.
+              </p>
+              <div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0 justify-center">
+                <Button onClick={() => router.push(`/track/${awbNumber}`)} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
+                  View Tracking
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
+                  Back to Dashboard
+                </Button>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Status Updated Successfully!</h3>
-            <p className="text-muted-foreground mb-6">
-              The shipment status for AWB {awbNumber} has been updated to {status.replace(/_/g, " ")}.
-            </p>
-            <div className="flex justify-center space-x-4">
-              <Button onClick={() => router.push(`/track/${awbNumber}`)}>View Tracking</Button>
-              <Button variant="outline" onClick={() => router.push("/courier/dashboard")}>
-                Back to Dashboard
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   if (showScanner) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="w-full max-w-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6">
           <QRScanner
             onScan={(result) => {
               setAwbNumber(result)
@@ -595,7 +601,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             onClose={() => setShowScanner(false)}
           />
           <div className="text-center mt-4">
-            <Button variant="outline" onClick={() => setShowScanner(false)}>
+            <Button variant="outline" onClick={() => setShowScanner(false)} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
               Close Scanner
             </Button>
           </div>
@@ -606,55 +612,66 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   if (scannerError) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{scannerError}</AlertDescription>
-      </Alert>
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center p-4 sm:p-6">
+        <Card className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+          <CardContent className="pt-6">
+            <Alert variant="destructive">
+              <AlertDescription>{scannerError}</AlertDescription>
+            </Alert>
+             <div className="mt-6 text-center">
+               <Button variant="outline" onClick={() => setScannerError(null)} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
+                OK
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="mb-6">
-          <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")}>
-            <ChevronLeft className="w-6 h-6" /> Back to Dashboard
-          </Button>
-        </div>
-
-        {shipmentDetails && (
-          <div className="mb-4 p-3 bg-muted/50 rounded-md">
-            <h3 className="font-medium mb-1">Shipment Details</h3>
-            <p className="text-sm">Receiver: {shipmentDetails.receiver_name}</p>
-            <p className="text-sm">Phone: {shipmentDetails.receiver_phone || "N/A"}</p>
-            <p className="text-sm">Address: {shipmentDetails.receiver_address}</p>
-            <p className="text-sm">
-              Current Status: {shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}
-            </p>
-            {shipmentDetails.from_manifest && (
-              <p className="text-sm text-green-600 font-medium mt-1">Data loaded from manifest</p>
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-4 sm:p-6">
+      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+        <CardContent className="pt-6">
+          <div className="mb-6">
+            <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
+              <ChevronLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+            </Button>
           </div>
-        )}
 
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {shipmentDetails && (
+            <div className="mb-6 p-4 bg-muted/50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Shipment Details</h3>
+              <p className="text-sm text-gray-700 dark:text-gray-300">Receiver: <span className="font-medium">{shipmentDetails.receiver_name}</span></p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">Phone: <span className="font-medium">{shipmentDetails.receiver_phone || "N/A"}</span></p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">Address: <span className="font-medium">{shipmentDetails.receiver_address}</span></p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                Current Status: <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}</span>
+              </p>
+              {shipmentDetails.from_manifest && (
+                <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-1">Data loaded from manifest ({shipmentDetails.manifest_source})</p>
+              )}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-6">
+          {error && (
+            <Alert variant="destructive" className="mb-6 border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+              <AlertDescription className="text-red-700 dark:text-red-300">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <Label htmlFor="courier-awb">AWB Number</Label>
+                <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold">AWB Number</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowScanner(true)}
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                 >
-                  <ScanLine className="w-6 h-6" />
+                  <FontAwesomeIcon icon={faQrcode} className="w-4 h-4 mr-1" />
                   <span>Scan QR</span>
                 </Button>
               </div>
@@ -669,16 +686,17 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   }
                 }}
                 required
+                className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
             <div>
-              <Label htmlFor="shipment-status">Status</Label>
+              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-semibold">Status</Label>
               <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)}>
-                <SelectTrigger id="shipment-status">
-                  <SelectValue placeholder="Select Status" />
+                <SelectTrigger id="shipment-status" className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Select Status" className="text-gray-400 dark:text-gray-600" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
                   <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
@@ -686,20 +704,21 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <Label htmlFor="location">Current Location</Label>
-              <div className="flex">
-                <Input
-                  id="location"
-                  placeholder="Enter location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="rounded-r-none"
-                  required
-                />
-                <Button type="button" onClick={getCurrentLocation} className="rounded-l-none">
-                  <MapPin className="w-6 h-6" /> GPS
+              <div className="flex justify-between items-center mb-1.5">
+                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold">Current Location</Label>
+                 <Button type="button" onClick={getCurrentLocation} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
+                  <FontAwesomeIcon icon={faMapPin} className="w-4 h-4 mr-1" />
+                  <span>Get GPS</span>
                 </Button>
               </div>
+              <Input
+                id="location"
+                placeholder="Enter location or use GPS"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                required={status === "delivered"} // Require location only for 'delivered' status
+              />
               {gpsCoords && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Lat: {gpsCoords.lat.toFixed(6)}, Lng: {gpsCoords.lng.toFixed(6)}
@@ -708,8 +727,8 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <Label>Proof of Delivery</Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+              <Label className="text-gray-700 dark:text-gray-300 font-semibold">Proof of Delivery</Label>
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center bg-gray-50 dark:bg-gray-800">
                 <input
                   type="file"
                   id="delivery-photo"
@@ -725,7 +744,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                     <img
                       src={photoPreview || "/placeholder.svg"}
                       alt="Preview"
-                      className="mx-auto photo-preview max-h-40 rounded-lg shadow"
+                      className="mx-auto photo-preview max-h-60 rounded-lg shadow-md"
                     />
                     <Button
                       type="button"
@@ -734,15 +753,15 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                       onClick={removePhoto}
                       className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                     >
-                      <X className="h-4 w-4 mr-1" /> Remove Photo
+                      <CloseIcon className="h-4 w-4 mr-1" /> Remove Photo
                     </Button>
                   </div>
                 ) : (
                   <div>
-                    <Camera className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground mb-2">Upload photo proof of delivery</p>
-                    <Button type="button" onClick={() => fileInputRef.current?.click()}>
-                      <Upload className="w-6 h-6" /> Select Photo
+                    <CameraIcon className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-600 dark:text-gray-400 mb-3">Upload photo proof of delivery (Optional)</p>
+                    <Button type="button" onClick={() => fileInputRef.current?.click()} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
+                      <UploadIcon className="w-4 h-4 mr-2" /> Select Photo
                     </Button>
                   </div>
                 )}
@@ -750,28 +769,36 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-semibold">Notes (Optional)</Label>
               <Textarea
                 id="notes"
                 rows={3}
                 placeholder="Add any additional notes about this update"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
               />
               {currentUser && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your name ({currentUser}) will be added to the update.
+                  Your name (<span className="font-semibold">{currentUser}</span>) will be added to the update notes.
                 </p>
               )}
             </div>
 
-            <Button type="submit" className="w-full font-bold py-3" disabled={isLoading}>
-              {isLoading ? "Updating..." : "Update Status"}
+            <Button type="submit" className="w-full font-bold py-3 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600" disabled={isLoading || (status === 'delivered' && !location)}>
+              {isLoading ? (
+                 <><span className="animate-spin"><FontAwesomeIcon icon={faSpinner} className="h-5 w-5 mr-2" /></span> Updating...</>
+              ) : (
+                "Update Status"
+              )}
             </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+             {status === 'delivered' && !location && (
+                 <p className="text-sm text-red-500 mt-2 text-center">* Location is required for 'Delivered' status.</p>
+             )}
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

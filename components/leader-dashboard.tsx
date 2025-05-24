@@ -396,8 +396,8 @@ export function LeaderDashboard() {
               <WarningIcon className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" style={{ fontWeight: 'bold' }} />
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending</span>
-            <span className="text-2xl sm:text-4xl font-black text-red-600 dark:text-red-400">{totalPending}</span>
-            <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm" className="text-xs p-0 h-auto text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+            <span className="text-2xl sm:text-4xl font-black text-red-600 dark:text-red-400 block">{totalPending}</span>
+            <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm" className="text-xs p-0 h-auto text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mt-1">
               (view details)
             </Button>
           </div>

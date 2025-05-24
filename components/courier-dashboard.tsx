@@ -6,14 +6,26 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { Camera } from 'lucide-react'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
+import { ContinuousScanModal } from "./continuous-scan-modal"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { GoogleMapsButton } from "@/components/google-maps-button"
-import { DeliveryParcel as DeliveryParcelIcon } from '@carbon/icons-react'
+import {
+  DeliveryParcel as DeliveryParcelIcon,
+  Logout as LogoutIcon,
+  CheckmarkFilled as CheckmarkIcon,
+  WarningFilled as WarningIcon,
+  View as ViewIcon,
+  Map as MapIcon,
+  Chat as ChatIcon,
+  Scan as ScanIcon,
+  Box as BoxIcon
+} from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
 const formatPhoneForWhatsApp = (phoneNumber: string): string => {
@@ -104,6 +116,7 @@ export function CourierDashboard() {
   const [completedCount, setCompletedCount] = useState(0)
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
+  const [isContinuousScanOpen, setIsContinuousScanOpen] = useState(false)
   const [totalBulkShipments, setTotalBulkShipments] = useState(0)
   const [pendingDeliveries, setPendingDeliveries] = useState(0)
   const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
@@ -142,14 +155,14 @@ export function CourierDashboard() {
         }
 
         setCurrentUser(userData)
-        loadShipmentData(userData)
+        await loadShipmentData(userData)
       } catch (err) {
         setIsLoading(false)
       }
     }
 
     loadUserProfile()
-  }, [router])
+  }, [])
 
   const loadShipmentData = async (user: any) => {
     setIsLoading(true)
@@ -199,7 +212,7 @@ export function CourierDashboard() {
       // Get completed today with only necessary fields
       const { data: completedTodayData, error: completedTodayError } = await supabaseClient
         .from("shipment_history")
-        .select("awb_number, status, created_at")
+        .select("awb_number, status, created_at, location")
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
@@ -233,8 +246,14 @@ export function CourierDashboard() {
   const handleBulkUpdateSuccess = (count: number) => {
     toast({
       title: "Bulk Update Successful",
-      description: `${count} shipments have been updated to "Shipped" status.`,
+      description: `${count} shipments have been updated to "Out For Delivery" status.`,
     })
+    if (currentUser) {
+      loadShipmentData(currentUser)
+    }
+  }
+
+  const handleContinuousScanSuccess = () => {
     if (currentUser) {
       loadShipmentData(currentUser)
     }
@@ -250,8 +269,11 @@ export function CourierDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
+        <div className="text-center">
+          <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse mt-2">Loading Dashboard...</p>
+        </div>
       </div>
     )
   }
@@ -260,7 +282,7 @@ export function CourierDashboard() {
   const emailDisplay = currentUser?.email || ""
 
   return (
-    <div className="relative max-w-5xl mx-auto px-4 py-8 overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900">
       {/* Watermark Background */}
       <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04]">
         {Array.from({ length: 48 }).map((_, i) => (
@@ -271,90 +293,120 @@ export function CourierDashboard() {
       </div>
 
       {/* Header */}
-      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Courier Dashboard</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-            Welcome, <span className="font-semibold">{displayName}</span>
-          </p>
-          <p className="text-sm text-zinc-400">{emailDisplay}</p>
-          {lastCompletedAwb && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <GoogleMapsButton />
-          <Button variant="outline" onClick={handleLogout}>
-            <FontAwesomeIcon icon={faSignOutAlt} className="h-4 w-4 mr-2" /> Logout
-          </Button>
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                Courier Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Welcome, <span className="font-semibold text-gray-800 dark:text-gray-200">{displayName}</span> ({emailDisplay})
+              </p>
+              {lastCompletedAwb && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 sm:gap-4 justify-center sm:justify-end items-center">
+              <GoogleMapsButton />
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+              >
+                <LogoutIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+                Logout
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-        <div className="bg-blue-50/70 dark:bg-blue-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
-          <div className="flex items-center gap-3 mb-2">
-            <DeliveryParcelIcon className="h-6 w-6 text-blue-500" />
-            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Today's Assignments</span>
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-100 dark:bg-blue-900/60 rounded-full flex items-center justify-center flex-shrink-0">
+              <DeliveryParcelIcon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <div className="flex-1">
+              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Today's Assignments</span>
+              <span className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white leading-none block">{totalBulkShipments}</span>
+            </div>
+            {totalBulkShipments > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkDetails(true)}
+                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+              >
+                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View
+              </Button>
+            )}
           </div>
-          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{totalBulkShipments}</span>
-          {totalBulkShipments > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowBulkDetails(true)}
-              className="absolute right-6 top-6"
-            >
-              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
-            </Button>
-          )}
         </div>
 
-        <div className="bg-green-50/70 dark:bg-green-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
-          <div className="flex items-center gap-3 mb-2">
-            <FontAwesomeIcon icon={faCheckCircle} className="h-6 w-6 text-green-500" />
-            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Completed Today</span>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-green-100 dark:bg-green-900/60 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckmarkIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <div className="flex-1">
+              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Completed Today</span>
+              <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400 leading-none block">{completedCount}</span>
+            </div>
+            {completedCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCompletedTodayDetails(true)}
+                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+              >
+                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View Details
+              </Button>
+            )}
           </div>
-          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{completedCount}</span>
-          {completedCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCompletedTodayDetails(true)}
-              className="absolute right-6 top-6"
-            >
-              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
-            </Button>
-          )}
         </div>
 
-        <div className="bg-yellow-50/70 dark:bg-yellow-900/40 rounded-xl shadow-lg p-8 flex flex-col gap-2 relative transition hover:shadow-2xl">
-          <div className="flex items-center gap-3 mb-2">
-            <FontAwesomeIcon icon={faExclamationTriangle} className="h-6 w-6 text-yellow-500" />
-            <span className="text-lg font-semibold text-zinc-700 dark:text-zinc-200">Pending Deliveries</span>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-yellow-200 dark:border-yellow-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-yellow-100 dark:bg-yellow-900/60 rounded-full flex items-center justify-center flex-shrink-0">
+              <WarningIcon className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <div className="flex-1">
+              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending Deliveries</span>
+              <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 leading-none block">{pendingDeliveries}</span>
+            </div>
+            {pendingDeliveries > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPendingDetails(true)}
+                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+              >
+                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View Details
+              </Button>
+            )}
           </div>
-          <span className="text-5xl font-extrabold text-zinc-900 dark:text-white">{pendingDeliveries}</span>
-          {pendingDeliveries > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPendingDetails(true)}
-              className="absolute right-6 top-6"
-            >
-              <FontAwesomeIcon icon={faEye} className="h-4 w-4 mr-1" /> View
-            </Button>
-          )}
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col md:flex-row gap-4 mb-10">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-6">
         <Button
-          className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black font-semibold py-6 text-lg flex-1 shadow"
+          className="w-full bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white h-auto py-4 text-base sm:text-lg shadow-lg"
+          onClick={() => setIsContinuousScanOpen(true)}
+        >
+          <ScanIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
+          Continuous Scan
+        </Button>
+        <Button
+          className="w-full bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white h-auto py-4 text-base sm:text-lg shadow-lg"
           onClick={() => setIsBulkModalOpen(true)}
         >
+          <BoxIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
           Bulk Shipped Update
         </Button>
       </div>
@@ -363,6 +415,12 @@ export function CourierDashboard() {
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
         onSuccess={handleBulkUpdateSuccess}
+      />
+
+      <ContinuousScanModal
+        isOpen={isContinuousScanOpen}
+        onClose={() => setIsContinuousScanOpen(false)}
+        onSuccess={handleContinuousScanSuccess}
       />
 
       {/* Bulk Shipments Details Dialog */}
