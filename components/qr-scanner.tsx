@@ -22,6 +22,8 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   const lastScannedRef = useRef<string>("")
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [torchSupported, setTorchSupported] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
 
   useEffect(() => {
     // Get current user
@@ -169,14 +171,49 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       )
       
       setIsScanning(true)
+
+      // Automatically turn on flash if supported
+      try {
+        const capabilities = scannerRef.current.getRunningTrackCapabilities();
+        if (capabilities.torch) {
+          setTorchSupported(true);
+          await scannerRef.current.applyVideoConstraints({
+            advanced: [{ torch: true }]
+          });
+          setTorchOn(true);
+          console.log("Flash turned on automatically.");
+        } else {
+          setTorchSupported(false);
+          console.log("Flash (torch) not supported on this device/browser.");
+        }
+      } catch (err) {
+        console.error("Failed to access torch capabilities or turn on flash:", err);
+        setTorchSupported(false);
+        setTorchOn(false);
+      }
+
     } catch (err) {
       console.error("Error starting scanner:", err)
       toast.error("Gagal memulai kamera. Silakan coba lagi.")
+      setIsScanning(false) // Ensure scanning state is false on error
     }
   }
 
   const stopScanning = async () => {
     if (scannerRef.current?.isScanning) {
+      // Turn off flash before stopping
+      if (torchOn) {
+        try {
+          await scannerRef.current.applyVideoConstraints({
+            advanced: [{ torch: false }]
+          });
+          setTorchOn(false);
+          console.log("Flash turned off.");
+        } catch (err) {
+          console.error("Failed to turn off flash:", err);
+        }
+      }
+
       await scannerRef.current.stop()
       setIsScanning(false)
     }
@@ -212,7 +249,31 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
             </Button>
           )}
         </div>
+        {isScanning && torchSupported && (
+          <Button onClick={() => toggleTorch(scannerRef.current, !torchOn, setTorchOn)} variant="outline" size="sm">
+            {torchOn ? 'Turn Flash Off' : 'Turn Flash On'}
+          </Button>
+        )}
       </div>
     </Card>
   )
-} 
+}
+
+const toggleTorch = async (html5QrcodeInstance: Html5Qrcode | null, turnOn: boolean, setTorchOn: (on: boolean) => void) => {
+  if (html5QrcodeInstance && html5QrcodeInstance.isScanning) {
+    try {
+      const capabilities = html5QrcodeInstance.getRunningTrackCapabilities();
+      if (capabilities.torch) {
+        await html5QrcodeInstance.applyVideoConstraints({
+          advanced: [{ torch: turnOn }]
+        });
+        setTorchOn(turnOn);
+        console.log(`Flash turned ${turnOn ? 'on' : 'off'.`);
+      } else {
+        console.warn("Flash (torch) not supported on this device/browser.");
+      }
+    } catch (err) {
+      console.error("Failed to toggle flash:", err);
+    }
+  }
+}; 
