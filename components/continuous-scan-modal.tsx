@@ -43,12 +43,6 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
     audio.play().catch(e => console.error(`Error playing ${status} sound:`, e));
   };
 
-  const playSoundByPrefixValidity = (isValid: boolean) => {
-    const audio = new Audio(isValid ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3');
-    audio.volume = 0.5; // Adjust volume as needed
-    audio.play().catch(e => console.error(`Error playing prefix validation sound:`, e));
-  };
-
   useEffect(() => {
     async function getCurrentUser() {
       const { data } = await supabaseClient.auth.getSession()
@@ -206,110 +200,90 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
   const processAwb = async (awb: string) => {
     setIsProcessing(true)
     
+    let status: ScannedItem['status'] = 'error';
+    let message: string = 'Processing failed';
+
     try {
       if (!validateAwb(awb)) {
-        const newItem: ScannedItem = {
-          awb,
-          status: 'error',
-          message: 'Invalid AWB format (must start with BCE or BE)',
-          timestamp: new Date()
-        }
-        setScannedItems(prev => [newItem, ...prev])
-        playScanSound('error')
-        setIsProcessing(false)
-        return
-      }
+        status = 'error';
+        message = 'Invalid AWB format (must start with BCE or BE)';
+      } else if (processedAwbsRef.current.includes(awb)) {
+        status = 'duplicate';
+        message = 'Already scanned in this session';
+      } else {
+        const existingItemIndex = scannedItems.findIndex(item => item.awb === awb);
 
-      if (processedAwbsRef.current.includes(awb)) {
-        const newItem: ScannedItem = {
-          awb,
-          status: 'duplicate',
-          message: 'Already scanned in this session',
-          timestamp: new Date()
-        }
-        setScannedItems(prev => [newItem, ...prev])
-        playScanSound('duplicate')
-        setIsProcessing(false)
-        return
-      }
+        const { data: session } = await supabaseClient.auth.getSession()
+        const courierId = session?.session?.user?.id
+        const courierName = currentUser?.name || session?.session?.user?.email?.split("@")[0] || "courier"
 
-      const { data: session } = await supabaseClient.auth.getSession()
-      const courierId = session?.session?.user?.id
-      const courierName = currentUser?.name || session?.session?.user?.email?.split("@")[0] || "courier"
-
-      if (!courierId) {
-        const newItem: ScannedItem = {
-          awb,
-          status: 'error',
-          message: 'No courier session found',
-          timestamp: new Date()
-        }
-        setScannedItems(prev => [newItem, ...prev])
-        playScanSound('error')
-        setIsProcessing(false)
-        return
-      }
-
-      const { data: existingShipment } = await supabaseClient
-        .from("shipments")
-        .select("awb_number")
-        .eq("awb_number", awb)
-        .single()
-
-      let result
-      if (!existingShipment) {
-        const manifestData = await checkManifestAwb(awb)
-        
-        if (manifestData) {
-          result = await createShipmentWithManifestData(awb, manifestData, courierId)
-          if (!result.success) {
-            result = await createBasicShipment(awb, courierId)
-          }
+        if (!courierId) {
+          status = 'error';
+          message = 'No courier session found';
         } else {
-          result = await createBasicShipment(awb, courierId)
-        }
-      } else {
-        result = await updateExistingShipment(awb, courierId)
-      }
+          const { data: existingShipment } = await supabaseClient
+            .from("shipments")
+            .select("awb_number")
+            .eq("awb_number", awb)
+            .single()
 
-      if (result.success) {
-        await addShipmentHistory(awb, courierName)
-        
-        processedAwbsRef.current.push(awb)
-        
-        const newItem: ScannedItem = {
-          awb,
-          status: 'success',
-          message: result.message,
-          timestamp: new Date()
+          let result
+          if (!existingShipment) {
+            const manifestData = await checkManifestAwb(awb)
+            
+            if (manifestData) {
+              result = await createShipmentWithManifestData(awb, manifestData, courierId)
+              if (!result.success) {
+                result = await createBasicShipment(awb, courierId)
+              }
+            } else {
+              result = await createBasicShipment(awb, courierId)
+            }
+          } else {
+            result = await updateExistingShipment(awb, courierId)
+          }
+
+          if (result.success) {
+            await addShipmentHistory(awb, courierName)
+            
+            processedAwbsRef.current.push(awb);
+            status = 'success';
+            message = result.message;
+            
+            toast({
+              title: "AWB Processed",
+              description: `${awb} successfully added to today's assignments`,
+            });
+          } else {
+            status = 'error';
+            message = result.message;
+          }
         }
-        setScannedItems(prev => [newItem, ...prev])
-        playScanSound('success')
-        
-        toast({
-          title: "AWB Processed",
-          description: `${awb} successfully added to today's assignments`,
-        })
-      } else {
-        const newItem: ScannedItem = {
-          awb,
-          status: 'error',
-          message: result.message,
-          timestamp: new Date()
-        }
-        setScannedItems(prev => [newItem, ...prev])
-        playScanSound('error')
       }
     } catch (error) {
-      const newItem: ScannedItem = {
-        awb,
-        status: 'error',
-        message: 'Processing error occurred',
-        timestamp: new Date()
-      }
-      setScannedItems(prev => [newItem, ...prev])
-      playScanSound('error')
+      status = 'error';
+      message = 'Processing error occurred';
     }
+
+    const updatedItem: ScannedItem = {
+      awb,
+      status: status,
+      message: message,
+      timestamp: new Date()
+    };
+
+    setScannedItems(prev => {
+      const existingItemIndex = prev.findIndex(item => item.awb === awb);
+      if (existingItemIndex > -1) {
+        const newState = [...prev];
+        newState[existingItemIndex] = updatedItem;
+        return newState;
+      } else {
+        return [updatedItem, ...prev];
+      }
+    });
+
+    playScanSound(status);
     
     setIsProcessing(false)
   }
