@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -34,6 +34,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [showScanner, setShowScanner] = useState(false)
+  const processedAwbsRef = useRef<string[]>([])
   const { toast } = useToast()
 
   const playScanSound = (status: 'success' | 'error' | 'duplicate') => {
@@ -219,8 +220,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
         return
       }
 
-      const alreadyScanned = scannedItems.some(item => item.awb === awb && item.status === 'success')
-      if (alreadyScanned) {
+      if (processedAwbsRef.current.includes(awb)) {
         const newItem: ScannedItem = {
           awb,
           status: 'duplicate',
@@ -274,6 +274,8 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
 
       if (result.success) {
         await addShipmentHistory(awb, courierName)
+        
+        processedAwbsRef.current.push(awb)
         
         const newItem: ScannedItem = {
           awb,
