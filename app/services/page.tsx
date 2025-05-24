@@ -1,353 +1,426 @@
 "use client"
 
+import { useState, useEffect, useRef, useLayoutEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import Image from "next/image"
-import { useEffect, useState, useRef } from 'react';
-import gsap from 'gsap';
-import { library } from '@fortawesome/fontawesome-svg-core';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlane, faShip, faBolt, faClock, faShieldAlt, faMapMarkerAlt, faStar, faCheckCircle, faTimes } from '@fortawesome/free-solid-svg-icons';
+import {
+  Plane as PlaneIcon,
+  DeliveryParcel as BoatIcon,
+  Flash as FlashIcon,
+  Time as TimeIcon,
+  CheckmarkFilled as ShieldIcon,
+  Location as LocationIcon,
+  Star as StarIcon,
+  Checkmark as CheckmarkIcon,
+  Close as CloseIcon,
+  Package as PackageIcon,
+  Delivery as DeliveryIcon,
+  Phone as PhoneIcon,
+  Chat as ChatIcon,
+} from '@carbon/icons-react'
 import Link from "next/link"
-// Import TextPlugin from GSAP
-import { TextPlugin } from 'gsap/TextPlugin';
-
-// Add the imported icons to the FontAwesome library
-library.add(faPlane, faShip, faBolt, faClock, faShieldAlt, faMapMarkerAlt, faStar, faCheckCircle, faTimes);
-
-// Register GSAP plugins
-gsap.registerPlugin(TextPlugin);
+import { Oval as LoadingIcon } from 'react-loading-icons'
+import Image from "next/image"
+import gsap from 'gsap'
+import { TextPlugin } from 'gsap/TextPlugin'
 
 export default function ServicesPage() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalContent, setModalContent] = useState<{title: string, pricelist: string} | null>(null)
+
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  const rotatingTexts = [
+    "Layanan Pengiriman Terbaik",
+    "Spesialist Pengiriman Makanan",
+    "Jaminan 1 hari sampai tujuan"
+  ]
+
+  useEffect(() => {
+    // Simulate loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+
+    // Cleanup timer on unmount
+    return () => clearTimeout(timer);
+  }, []); // Effect runs once on mount for loading simulation
+
+  useLayoutEffect(() => {
+    // Set up GSAP after the ref is available and loading is done
+    if (!isLoading && headingRef.current) {
+      gsap.registerPlugin(TextPlugin);
+
+      const timeline = gsap.timeline({ repeat: -1, repeatDelay: 1 });
+
+      // Type the first text
+      timeline.to(headingRef.current, { duration: 1.5, text: rotatingTexts[0] });
+      timeline.to(headingRef.current, { duration: 1, delay: 2 }); // Pause after first text
+
+      // Loop through the rest of the texts
+      rotatingTexts.slice(1).forEach(text => {
+        timeline.to(headingRef.current, { duration: 1, text: "" }); // Clear text
+        timeline.to(headingRef.current, { duration: 1.5, text: text, delay: 0.5 }); // Type new text
+        timeline.to(headingRef.current, { duration: 1, delay: 2 }); // Pause before next text
+      });
+
+      // Cleanup GSAP animation on unmount or when dependencies change
+      return () => {
+        if (headingRef.current) {
+          gsap.killTweensOf(headingRef.current);
+        }
+      };
+    }
+  }, [isLoading, rotatingTexts, headingRef.current]); // Depend on loading state, text array, and ref
+
   const services = [
     {
+      id: "oneday",
       title: "One Day",
       subtitle: "Pengiriman Super Cepat via Udara",
-      description: "Layanan pengiriman tercepat kami dengan jaminan sampai dalam 1 hari",
-      icon: faPlane,
+      description: "Layanan pengiriman tercepat kami dengan jaminan sampai dalam 1 hari ke seluruh Indonesia",
+      icon: PlaneIcon,
       color: "bg-blue-500",
+      borderColor: "border-blue-200 dark:border-blue-700",
+      bgColor: "bg-blue-50 dark:bg-blue-900/20",
       features: [
         "Pengiriman 1 hari ke seluruh Indonesia",
-        "Real-time tracking",
-        "Asuransi gratis",
-        "Priority handling",
+        "Real-time tracking GPS",
+        "Asuransi gratis hingga 10 juta",
+        "Priority handling & packaging",
         "Customer service 24/7"
       ],
       coverage: "JAKARTA, KALIMANTAN, BANGKA - BELITUNG dan BALI",
       delivery: "1 Hari",
       weight: "Hingga 50kg",
-      pricelist: "Pricelist untuk OneDay BCE EXPRESS"
+      price: "Mulai dari Rp 25.000",
+      pricelist: "Informasi lengkap ongkir One Day tersedia melalui customer service kami. Hubungi untuk mendapatkan penawaran terbaik."
     },
     {
+      id: "seacargo",
       title: "Sea Cargo",
       subtitle: "Pengiriman Ekonomis via Laut", 
-      description: "Solusi pengiriman hemat untuk barang besar dan cargo dengan keamanan terjamin",
-      icon: faShip,
+      description: "Solusi pengiriman hemat untuk barang besar dan cargo dengan keamanan terjamin dan handling profesional",
+      icon: BoatIcon,
       color: "bg-teal-500",
+      borderColor: "border-teal-200 dark:border-teal-700",
+      bgColor: "bg-teal-50 dark:bg-teal-900/20",
       features: [
-        "Biaya pengiriman ekonomis",
+        "Biaya pengiriman paling ekonomis",
         "Cocok untuk barang besar & berat",
-        "Packaging profesional",
+        "Packaging profesional & aman",
         "Door to door service",
-        "Asuransi cargo"
+        "Asuransi cargo lengkap"
       ],
       coverage: "JAKARTA - BANGKA / sebaliknya",
       delivery: "3-7 Hari", 
       weight: "Tanpa Batas",
-      pricelist: "Pricelist untuk Sea Cargo..."
+      price: "Mulai dari Rp 8.000",
+      pricelist: "Tarif Sea Cargo dihitung berdasarkan volume dan berat. Konsultasi gratis untuk mendapatkan harga terbaik."
     },
     {
+      id: "sangkilat",
       title: "SANGKILAT",
       subtitle: "Lightning Fast Local Delivery",
-      description: "Layanan kilat khusus area Jabodetabek dengan waktu pengiriman super cepat dan akurat",
+      description: "Layanan kilat khusus area Jabodetabek dengan waktu pengiriman super cepat dan tracking real-time",
       icon: "/images/LOGO-SK.png",
-      color: "bg-yellow-500",
+      color: "bg-white-500",
+      borderColor: "border-white-200 dark:border-white-700",
+      bgColor: "bg-white-50 dark:bg-white-900/20",
       features: [
-        "Same day delivery",
+        "Same day delivery guarantee",
         "Real-time GPS tracking",
-        "Instant notification",
+        "Instant notification update",
         "Multiple pickup points",
-        "Express handling"
+        "Express handling priority"
       ],
       coverage: "Jabodetabek (JAKARTA, TANGERANG, DEPOK, BEKASI, BOGOR)",
       delivery: "3-12 Jam",
       weight: "Hingga 25kg",
-      pricelist: "Pricelist untuk SANGKILAT Jabodetabek..."
+      price: "Mulai dari Rp 15.000",
+      pricelist: "Layanan SANGKILAT khusus Jabodetabek dengan tarif kompetitif. Hubungi untuk informasi detail dan booking."
     }
   ]
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState<{title: string, pricelist: string} | null>(null);
-
-  const airIconRef = useRef<HTMLDivElement>(null);
-  const otherIconsRef = useRef<(HTMLDivElement | null)[]>([]);
-  const headingRef = useRef<HTMLHeadingElement>(null); // Ref for the main heading
-
-  // Texts for typing animation
-  const rotatingTexts = [
-    "Layanan Pengiriman Terbaik",
-    "Spesialist Pengiriman Makanan",
-    "Jaminan 1 hari sampai tujuan"
-  ];
-
-  useEffect(() => {
-    // Animate Plane icon - fly in from left
-    if (airIconRef.current) {
-      gsap.from(airIconRef.current, {
-        duration: 1.5,
-        x: -100,
-        opacity: 0,
-        ease: "power3.out"
-      });
-    }
-
-    // Animate other icons (Ship, SANGKILAT) - fade in/up
-    otherIconsRef.current.forEach(icon => {
-      if(icon) {
-        gsap.from(icon, {
-          duration: 1,
-          opacity: 0,
-          y: 20,
-          delay: 0.5, // Add a slight delay after plane starts
-          ease: "power3.out"
-        });
-      }
-    });
-
-    // Typing animation for heading
-    if (headingRef.current) {
-      const timeline = gsap.timeline({ repeat: -1, repeatDelay: 1 });
-
-      rotatingTexts.forEach(text => {
-        timeline.to(headingRef.current, { duration: 1, text: "" }); // Clear text
-        timeline.to(headingRef.current, { duration: 1.5, text: text, delay: 0.5 }); // Type new text
-        timeline.to(headingRef.current, { duration: 1, delay: 2 }); // Pause before next text
-      });
-    }
-
-  }, []);
-
   const openModal = (service: typeof services[0]) => {
-    setModalContent({ title: `Informasi Ongkir ${service.title}`, pricelist: service.pricelist });
-    setIsModalOpen(true);
-  };
+    setModalContent({ 
+      title: `Informasi Ongkir ${service.title}`, 
+      pricelist: service.pricelist 
+    })
+    setIsModalOpen(true)
+  }
 
   const closeModal = () => {
-    setIsModalOpen(false);
-    setModalContent(null);
-  };
+    setIsModalOpen(false)
+    setModalContent(null)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
+        <div className="text-center">
+          <LoadingIcon className="h-16 w-16 animate-spin mx-auto mb-4" style={{ color: '#4a5568', fontWeight: 'bold' }} />
+          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">Loading Services...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900">
       <Navbar />
       
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/10 via-primary/5 to-transparent py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-6xl mx-auto">
-            
-            <h1 
-              ref={headingRef}
-              className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent min-h-32 flex items-center justify-center"
-            >
-              {/* Initial Text */}
-              Layanan Pengiriman Terbaik
-            </h1>
-            <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-              Kami menyediakan berbagai solusi pengiriman yang cepat, aman, dan terpercaya 
-              untuk memenuhi kebutuhan bisnis dan personal Anda
-            </p>
-            <div className="flex flex-wrap justify-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faShieldAlt} className="h-5 w-5 text-green-500" />
-                <span>100% Aman</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faClock} className="h-5 w-5 text-blue-500" />
-                <span>Tepat Waktu</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faStar} className="h-5 w-5 text-yellow-500" />
-                <span>Rating 4.9/5</span>
-              </div>
+      {/* Header Section */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 ref={headingRef} className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                {isLoading ? rotatingTexts[0] : ''}
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Solusi pengiriman terpercaya untuk semua kebutuhan Anda
+              </p>
+            </div>
+            <div className="flex gap-4 items-center">
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Services Section */}
-      <section className="py-20 bg-background">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {services.map((service, index) => {
-              const IconComponent = service.icon
-              return (
-                <Card key={index} className="group hover:shadow-xl transition-all duration-300 hover:scale-105 border-0 shadow-lg overflow-hidden">
-                  <div className={`h-2 ${service.color}`}></div>
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div 
-                        ref={service.title === "OneDay BCE EXPRESS" ? airIconRef : (el) => {otherIconsRef.current[index -1] = el;}} 
-                        className={`p-3 rounded-full ${service.color} bg-opacity-10 flex items-center justify-center service-icon-wrapper`}
-                      >
-                        {typeof IconComponent === 'string' ? (
-                           <Image
-                            src={IconComponent}
-                            alt={`${service.title} Icon`}
-                            width={32}
-                            height={32}
-                            className="h-8 w-8 object-contain"
-                           />
-                        ) : (
-                          <FontAwesomeIcon icon={IconComponent} className={`h-8 w-8 text-white`} style={{color: service.color.replace('bg-', '').replace('-500', '')}} />
-                        )}
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">
-                          {service.title}
-                        </CardTitle>
-                        <CardDescription className="text-sm font-medium text-muted-foreground">
-                          {service.subtitle}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {service.description}
-                    </p>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-6">
-                    {/* Quick Info */}
-                    <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-primary">{service.delivery}</div>
-                        <div className="text-xs text-muted-foreground">Waktu</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-primary">{service.weight}</div>
-                        <div className="text-xs text-muted-foreground">Berat</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-primary">
-                          <FontAwesomeIcon icon={faMapMarkerAlt} className="h-4 w-4 mx-auto" />
-                        </div>
-                        <div className="text-xs text-muted-foreground">{service.coverage}</div>
-                      </div>
-                    </div>
-
-                    {/* Features */}
-                    <div>
-                      <h4 className="font-semibold mb-3 text-sm uppercase tracking-wide">Keunggulan:</h4>
-                      <ul className="space-y-2">
-                        {service.features.map((feature, featureIndex) => (
-                          <li key={featureIndex} className="flex items-center gap-2 text-sm">
-                            <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <Button className="w-full group-hover:bg-primary/90 transition-colors" onClick={() => openModal(service)}>
-                      Informasi Ongkir
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 dark:bg-blue-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <PlaneIcon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">One Day</span>
+            <span className="text-2xl sm:text-4xl font-black text-blue-600 dark:text-blue-400">1</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block">hari sampai</span>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-teal-100 dark:bg-teal-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <BoatIcon className="h-6 w-6 sm:h-8 sm:w-8 text-teal-600 dark:text-teal-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Sea Cargo</span>
+            <span className="text-2xl sm:text-4xl font-black text-teal-600 dark:text-teal-400">∞</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block">berat maksimal</span>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-yellow-100 dark:bg-yellow-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <FlashIcon className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">SANGKILAT</span>
+            <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400">3</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block">jam terkilat</span>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-100 dark:bg-green-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <ShieldIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Asuransi</span>
+            <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400">100%</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block">terjamin</span>
           </div>
         </div>
-      </section>
 
-      {/* Additional Info Section */}
-      <section className="py-16 bg-muted/20">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto">
-            <h2 className="text-3xl font-bold mb-6">Mengapa Memilih Layanan Kami?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-              <div className="text-center">
-                <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faShieldAlt} className="h-8 w-8 text-primary" />
+        {/* Services Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {services.map((service) => {
+            const IconComponent = service.icon
+            return (
+              <div
+                key={service.id}
+                className={`bg-white dark:bg-gray-900 rounded-2xl shadow-xl border-2 ${service.borderColor} p-6 transition-all duration-300 hover:shadow-2xl`}
+              >
+                {/* Service Header */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-16 h-16 ${service.bgColor} rounded-2xl flex items-center justify-center`}>
+                    {typeof IconComponent === 'string' ? (
+                      <Image
+                        src={IconComponent}
+                        alt={`${service.title} Icon`}
+                        width={32}
+                        height={32}
+                        className="h-10 w-10 object-contain"
+                      />
+                    ) : (
+                      <IconComponent className="h-8 w-8 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-xl text-gray-800 dark:text-gray-100">{service.title}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{service.subtitle}</p>
+                  </div>
                 </div>
-                <h3 className="font-semibold mb-2">Keamanan Terjamin</h3>
-                <p className="text-sm text-muted-foreground">
-                  Setiap pengiriman diasuransikan dan ditangani dengan standar keamanan tertinggi
+
+                {/* Service Description */}
+                <p className="text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
+                  {service.description}
                 </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faClock} className="h-8 w-8 text-primary" />
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                    <TimeIcon className="h-5 w-5 text-gray-600 dark:text-gray-400 mx-auto mb-1" style={{ fontWeight: 'bold' }} />
+                    <span className="text-sm font-bold text-gray-900 dark:text-white block">{service.delivery}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Waktu</span>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                    <PackageIcon className="h-5 w-5 text-gray-600 dark:text-gray-400 mx-auto mb-1" style={{ fontWeight: 'bold' }} />
+                    <span className="text-sm font-bold text-gray-900 dark:text-white block">{service.weight}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Berat</span>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                    <DeliveryIcon className="h-5 w-5 text-gray-600 dark:text-gray-400 mx-auto mb-1" style={{ fontWeight: 'bold' }} />
+                    <span className="text-sm font-bold text-gray-900 dark:text-white block">{service.price}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Harga</span>
+                  </div>
                 </div>
-                <h3 className="font-semibold mb-2">Selalu Tepat Waktu</h3>
-                <p className="text-sm text-muted-foreground">
-                  Komitmen kami untuk selalu mengantarkan paket Anda sesuai jadwal yang dijanjikan
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faStar} className="h-8 w-8 text-primary" />
+
+                {/* Coverage Area */}
+                <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LocationIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" style={{ fontWeight: 'bold' }} />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Area Layanan:</span>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{service.coverage}</p>
                 </div>
-                <h3 className="font-semibold mb-2">Pelayanan Terbaik</h3>
-                <p className="text-sm text-muted-foreground">
-                  Tim customer service yang responsif dan berpengalaman siap membantu 24/7
-                </p>
+
+                {/* Features */}
+                <div className="mb-6">
+                  <h4 className="font-semibold mb-3 text-sm text-gray-700 dark:text-gray-300">Keunggulan:</h4>
+                  <ul className="space-y-2">
+                    {service.features.map((feature, featureIndex) => (
+                      <li key={featureIndex} className="flex items-center gap-2 text-sm">
+                        <CheckmarkIcon className="h-4 w-4 text-green-500 flex-shrink-0" style={{ fontWeight: 'bold' }} />
+                        <span className="text-gray-600 dark:text-gray-300">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Action Button */}
+                <Button 
+                  onClick={() => openModal(service)}
+                  className="w-full bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white"
+                >
+                  Informasi Ongkir
+                </Button>
               </div>
+            )
+          })}
+        </div>
+
+        {/* Why Choose Us Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+            Mengapa Memilih BCE Express?
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ShieldIcon className="h-8 w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+              </div>
+              <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Keamanan Terjamin</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Setiap pengiriman diasuransikan dan ditangani dengan standar keamanan tertinggi
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <TimeIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+              </div>
+              <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Selalu Tepat Waktu</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Komitmen kami untuk selalu mengantarkan paket Anda sesuai jadwal yang dijanjikan
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <StarIcon className="h-8 w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+              </div>
+              <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Pelayanan Terbaik</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Tim customer service yang responsif dan berpengalaman siap membantu 24/7
+              </p>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="py-16 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Siap Mengirim Paket Anda?</h2>
-          <p className="text-xl opacity-90 mb-8">
+        {/* CTA Section */}
+        <div className="bg-gradient-to-r from-gray-800 to-gray-700 dark:from-gray-700 dark:to-gray-600 rounded-2xl shadow-xl p-6 text-center text-white">
+          <h2 className="text-2xl font-bold mb-4">Siap Mengirim Paket Anda?</h2>
+          <p className="text-lg opacity-90 mb-6">
             Pilih layanan yang sesuai dengan kebutuhan Anda dan nikmati pengalaman pengiriman terbaik
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 
               href="/" 
-              passHref 
-              className="inline-flex items-center justify-center rounded-md text-lg px-8 h-12 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors duration-200"
+              className="inline-flex items-center justify-center rounded-lg text-lg px-8 h-12 bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200 font-bold"
             >
+              <PackageIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
               Lacak Pengiriman
             </Link>
             <Link 
               href="https://wa.me/6282114097704" 
-              passHref 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-md text-lg px-8 h-12 border border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary transition-colors duration-200"
+              className="inline-flex items-center justify-center rounded-lg text-lg px-8 h-12 border-2 border-white text-white hover:bg-white hover:text-gray-800 transition-colors duration-200 font-bold"
             >
+              <ChatIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
               Hubungi Kami
             </Link>
           </div>
         </div>
-      </section>
+      </div>
 
       <Footer />
 
-      {/* Pricelist Modal */}
-      {isModalOpen && modalContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card text-card-foreground rounded-lg shadow-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">{modalContent.title}</h3>
-              <Button variant="ghost" size="icon" onClick={closeModal}>
-                <FontAwesomeIcon icon={faTimes} className="h-5 w-5" />
-                <span className="sr-only">Close modal</span>
+      {/* Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-md sm:max-w-lg dark:bg-gray-800 dark:border-gray-600">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white font-bold flex items-center gap-2">
+              <PackageIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
+              {modalContent?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+              {modalContent?.pricelist}
+            </p>
+            <div className="mt-6 flex gap-3">
+              <Button 
+                onClick={closeModal}
+                variant="outline"
+                className="flex-1"
+              >
+                Tutup
               </Button>
-            </div>
-            <div className="prose dark:prose-invert max-w-none">
-              <p>{modalContent.pricelist}</p>
-              {/* Add actual pricelist content here */}
+              <Link 
+                href="https://wa.me/6282114097704" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex-1"
+              >
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                  <PhoneIcon className="h-4 w-4 mr-2" style={{ fontWeight: 'bold' }} />
+                  Hubungi CS
+                </Button>
+              </Link>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

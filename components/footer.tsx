@@ -9,7 +9,10 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <h3 className="text-xl font-bold mb-4 flex items-center">
-              <Image src="/images/bce-logo.png" alt="BCE EXPRESS" width={150} height={50} className="h-auto" />
+              {/* Logo hitam untuk light mode */}
+              <Image src="/images/bce-logo.png" alt="BCE EXPRESS" width={150} height={50} className="h-auto block dark:hidden" />
+              {/* Logo putih untuk dark mode */}
+              <Image src="/images/bce-logo-white.png" alt="BCE EXPRESS" width={150} height={50} className="h-auto hidden dark:block" />
             </h3>
             <p className="text-gray-400 mt-4">
               Your reliable logistics partner for fast and secure deliveries across the region.
