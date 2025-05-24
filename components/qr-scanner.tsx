@@ -44,42 +44,6 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     getCurrentUser()
   }, [])
 
-  useEffect(() => {
-    // No need for browserBeep or AudioContext initialization here anymore
-    // const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    // beepRef.current = browserBeep({
-    //   frequency: 800,
-    //   context: audioContext
-    // })
-
-    return () => {
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop()
-      }
-      // if (audioContext) {
-      //   audioContext.close()
-      // }
-      if (beepTimeoutRef.current) {
-        clearTimeout(beepTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const playBeep = () => {
-    // Use Audio constructor to play sound file
-    if (!beepTimeoutRef.current) {
-      const audio = new Audio('/sounds/scan_success.mp3'); // Path to your sound file
-      audio.volume = 1; // Full volume
-      audio.play()
-        .catch(e => console.error("Error playing sound:", e)); // Catch potential errors
-
-      // Set timeout to prevent multiple beeps
-      beepTimeoutRef.current = setTimeout(() => {
-        beepTimeoutRef.current = null
-      }, 1000) // Prevent beep for 1 second
-    }
-  }
-
   const updateShipmentStatus = async (awbNumber: string) => {
     try {
       const currentDate = new Date().toISOString()
@@ -169,9 +133,6 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
           }
           
           lastScannedRef.current = decodedText
-          
-          // Play success beep
-          playBeep()
           
           if (!disableAutoUpdate) {
             // Update shipment status

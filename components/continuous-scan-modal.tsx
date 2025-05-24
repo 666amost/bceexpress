@@ -36,6 +36,18 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
   const [showScanner, setShowScanner] = useState(false)
   const { toast } = useToast()
 
+  const playScanSound = (status: 'success' | 'error' | 'duplicate') => {
+    const audio = new Audio(status === 'success' ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3');
+    audio.volume = 0.5; // Adjust volume as needed
+    audio.play().catch(e => console.error(`Error playing ${status} sound:`, e));
+  };
+
+  const playSoundByPrefixValidity = (isValid: boolean) => {
+    const audio = new Audio(isValid ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3');
+    audio.volume = 0.5; // Adjust volume as needed
+    audio.play().catch(e => console.error(`Error playing prefix validation sound:`, e));
+  };
+
   useEffect(() => {
     async function getCurrentUser() {
       const { data } = await supabaseClient.auth.getSession()
@@ -202,6 +214,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
           timestamp: new Date()
         }
         setScannedItems(prev => [newItem, ...prev])
+        playScanSound('error')
         setIsProcessing(false)
         return
       }
@@ -215,6 +228,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
           timestamp: new Date()
         }
         setScannedItems(prev => [newItem, ...prev])
+        playScanSound('duplicate')
         setIsProcessing(false)
         return
       }
@@ -231,6 +245,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
           timestamp: new Date()
         }
         setScannedItems(prev => [newItem, ...prev])
+        playScanSound('error')
         setIsProcessing(false)
         return
       }
@@ -267,6 +282,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
           timestamp: new Date()
         }
         setScannedItems(prev => [newItem, ...prev])
+        playScanSound('success')
         
         toast({
           title: "AWB Processed",
@@ -280,6 +296,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
           timestamp: new Date()
         }
         setScannedItems(prev => [newItem, ...prev])
+        playScanSound('error')
       }
     } catch (error) {
       const newItem: ScannedItem = {
@@ -289,6 +306,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
         timestamp: new Date()
       }
       setScannedItems(prev => [newItem, ...prev])
+      playScanSound('error')
     }
     
     setIsProcessing(false)
@@ -296,7 +314,8 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
 
   const handleQRScan = (result: string) => {
     if (!isProcessing) {
-      processAwb(result.trim().toUpperCase())
+      const cleanAwb = result.trim().toUpperCase();
+      processAwb(cleanAwb)
     }
   }
 

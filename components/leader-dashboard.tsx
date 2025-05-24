@@ -327,7 +327,7 @@ export function LeaderDashboard() {
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-4 justify-center sm:justify-end items-center">
               <div className="flex flex-wrap gap-1 sm:gap-2">
-                {[1, 3, 7, 14, 30].map((days) => (
+                {[1, 2, 7, 14, 30].map((days) => (
                   <Button 
                     key={days}
                     variant={dataRange === days ? "default" : "outline"}

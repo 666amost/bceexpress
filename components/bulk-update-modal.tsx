@@ -30,6 +30,12 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [showScanner, setShowScanner] = useState(false)
   const [processingStatus, setProcessingStatus] = useState<string>("")
 
+  const playScanSuccessSound = () => {
+    const audio = new Audio('/sounds/scan_success.mp3');
+    audio.volume = 0.5; // Adjust volume as needed
+    audio.play().catch(e => console.error('Error playing success sound:', e));
+  };
+
   useEffect(() => {
     // Get current user
     async function getCurrentUser() {
@@ -73,6 +79,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     if (!currentAwbs.includes(result)) {
       const newAwbList = [...currentAwbs, result]
       setAwbNumbers(newAwbList.join("\n"))
+      playScanSuccessSound();
     }
 
     // Close the scanner
