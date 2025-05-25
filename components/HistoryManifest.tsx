@@ -766,7 +766,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                     <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.isi_barang || '-'}</td>
                     <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.total}</td>
                     {mode === "pelunasan" && (
-                      <td className="px-2 py-1 flex gap-2">
+                      <td className="px-2 py-1 flex gap-2 whitespace-nowrap">
                         <button
                           className="bg-black dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600 text-xs px-2 py-1 rounded transition-colors"
                           onClick={() => handleEditAwb(m)}
@@ -783,7 +783,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                           className="bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-700 text-xs px-2 py-1 rounded transition-colors"
                           onClick={() => handleDownloadPDF(m)}
                         >
-                          Download PDF
+                          PDF
                         </button>
                         {(userRole === 'admin' || userRole === 'branch' || userRole === 'cabang') && (
                           <button
