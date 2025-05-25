@@ -37,19 +37,19 @@ export function Navbar() {
           </Link>
         </div>
         <div className="hidden md:flex space-x-6">
-          <Link href="/" className="hover:text-primary transition-colors">
+          <Link href="/" className="inline-flex items-center hover:text-primary transition-colors px-3 py-2 rounded hover:bg-black hover:text-white">
             Track Shipment
           </Link>
-          <Link href="/services" className="hover:text-primary transition-colors">
+          <Link href="/services" className="inline-flex items-center hover:text-primary transition-colors px-3 py-2 rounded hover:bg-black hover:text-white">
             Services
           </Link>
-          <Link href="#about" className="hover:text-primary transition-colors">
+          <Link href="#about" className="inline-flex items-center hover:text-primary transition-colors px-3 py-2 rounded hover:bg-black hover:text-white">
             About Us
           </Link>
-          <Link href="#contact" className="hover:text-primary transition-colors">
+          <Link href="#contact" className="inline-flex items-center hover:text-primary transition-colors px-3 py-2 rounded hover:bg-black hover:text-white">
             Contact
           </Link>
-          <Link href="/courier" className="hover:text-primary transition-colors">
+          <Link href="/courier" className="inline-flex items-center hover:text-primary transition-colors px-3 py-2 rounded hover:bg-black hover:text-white">
             Courier Login
           </Link>
           {/* Tautan Admin Dihapus di Sini */}
@@ -86,19 +86,19 @@ export function Navbar() {
                 />
               </div>
               <div className="flex flex-col space-y-4 mt-8">
-                <Link href="/" onClick={() => setIsOpen(false)}>
+                <Link href="/" onClick={() => setIsOpen(false)} className="inline-flex items-center px-4 py-2 rounded hover:bg-black hover:text-white transition-colors">
                   Track Shipment
                 </Link>
-                <Link href="/services" onClick={() => setIsOpen(false)}>
+                <Link href="/services" onClick={() => setIsOpen(false)} className="inline-flex items-center px-4 py-2 rounded hover:bg-black hover:text-white transition-colors">
                   Services
                 </Link>
-                <Link href="#about" onClick={() => setIsOpen(false)}>
+                <Link href="#about" onClick={() => setIsOpen(false)} className="inline-flex items-center px-4 py-2 rounded hover:bg-black hover:text-white transition-colors">
                   About Us
                 </Link>
-                <Link href="#contact" onClick={() => setIsOpen(false)}>
+                <Link href="#contact" onClick={() => setIsOpen(false)} className="inline-flex items-center px-4 py-2 rounded hover:bg-black hover:text-white transition-colors">
                   Contact
                 </Link>
-                <Link href="/courier" onClick={() => setIsOpen(false)}>
+                <Link href="/courier" onClick={() => setIsOpen(false)} className="inline-flex items-center px-4 py-2 rounded hover:bg-black hover:text-white transition-colors">
                   Courier Login
                 </Link>
                 {/* Tautan Admin Dihapus di Sini */}

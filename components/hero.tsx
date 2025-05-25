@@ -22,6 +22,7 @@ export function Hero() {
       if (heroRef.current) {
         gsap.to(heroRef.current, {
           opacity: 0,
+          scale: 0.95,
           duration: 0.5,
           onComplete: () => {
             router.push(`/track/${awbNumber}`)
@@ -32,7 +33,7 @@ export function Hero() {
   }
 
   return (
-    <div ref={heroRef} className="bg-background text-foreground py-16">
+    <div ref={heroRef} className="bg-background text-foreground">
       <div className="container mx-auto px-4 text-center">
         <div className="mb-8 flex justify-center">
           {/* Logo hitam untuk light mode */}
