@@ -11,6 +11,9 @@ import DailyReport from "@/components/DailyReport"
 import RecapManifest from "@/components/RecapManifest"
 import Salesreport from '@/components/Salesreport'
 import OutstandingReport from '@/components/OutstandingReport'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Oval as LoadingIcon } from 'react-loading-icons'
 
 export default function BranchPage() {
   const [selectedMenu, setSelectedMenu] = useState("transaction")
@@ -116,91 +119,112 @@ export default function BranchPage() {
   }
 
   if (!isClient) {
-    return null
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
+        <div className="text-center">
+          <LoadingIcon className="h-16 w-16 animate-spin mx-auto mb-4" style={{ color: '#4a5568', fontWeight: 'bold' }} />
+          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">Loading Branch Dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900">
       <BranchNavbar selectedMenu={selectedMenu} selectedSubMenu={selectedSubMenu} onMenuChange={handleMenuChange} />
-      <div className="pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
         {selectedMenu === "transaction" && selectedSubMenu === "input_resi" && !showAwbForm && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-blue-100 dark:bg-blue-900 p-6 rounded-lg shadow dark:shadow-gray-700">
-              <h3 className="text-lg font-bold text-blue-800 dark:text-blue-200">Total AWB</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalAWB}</p>
-            </div>
-            <div className="bg-green-100 dark:bg-green-900 p-6 rounded-lg shadow dark:shadow-gray-700">
-              <h3 className="text-lg font-bold text-green-800 dark:text-green-200">Total Agent</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalAgents}</p>
-            </div>
-            <div className="bg-yellow-100 dark:bg-yellow-900 p-6 rounded-lg shadow dark:shadow-gray-700">
-              <h3 className="text-lg font-bold text-yellow-800 dark:text-yellow-200">Total Wilayah</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalWilayah}</p>
-            </div>
+            <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold text-blue-800 dark:text-blue-200">Total AWB</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{dashboardStats.totalAWB}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold text-green-800 dark:text-green-200">Total Agent</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{dashboardStats.totalAgents}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+               <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold text-yellow-800 dark:text-yellow-200">Total Wilayah</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-black text-gray-900 dark:text-white">{dashboardStats.totalWilayah}</p>
+              </CardContent>
+            </Card>
           </div>
         )}
         
-        {selectedMenu === "transaction" && (
-          <>
-            {selectedSubMenu === "input_resi" && showAwbForm && (
-              <AwbForm 
-                onSuccess={() => setShowAwbForm(false)} 
-                onCancel={() => setShowAwbForm(false)} 
-                initialData={null}
-                isEditing={false}
-                userRole={userRole}
-                branchOrigin={branchOrigin}
-              />
-            )}
-            {selectedSubMenu === "input_resi" && !showAwbForm && (
-              <div className="flex justify-end items-center mb-4">
-                <button
-                  className="flex items-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
-                  onClick={() => setShowAwbForm(true)}
-                >
-                  <FaPlus /> Tambahkan
-                </button>
-              </div>
-            )}
-            {selectedSubMenu === "search_manifest" && userRole && (
-              <HistoryManifest mode="pelunasan" 
-                userRole={userRole}
-                branchOrigin={branchOrigin || ''}
-              />
-            )}
-            {selectedSubMenu === "pelunasan" && userRole && (
-              userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
-                <PelunasanResi 
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+          {selectedMenu === "transaction" && (
+            <>
+              {selectedSubMenu === "input_resi" && showAwbForm && (
+                <AwbForm 
+                  onSuccess={() => setShowAwbForm(false)} 
+                  onCancel={() => setShowAwbForm(false)} 
+                  initialData={null}
+                  isEditing={false}
+                  userRole={userRole}
+                  branchOrigin={branchOrigin}
+                />
+              )}
+              {selectedSubMenu === "input_resi" && !showAwbForm && (
+                <div className="flex justify-end items-center mb-4">
+                  <Button
+                    className="flex items-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+                    onClick={() => setShowAwbForm(true)}
+                  >
+                    <FaPlus /> Tambahkan
+                  </Button>
+                </div>
+              )}
+              {selectedSubMenu === "search_manifest" && userRole && (
+                <HistoryManifest mode="pelunasan" 
                   userRole={userRole}
                   branchOrigin={branchOrigin || ''}
                 />
-              ) : (
-                <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
-              )
-            )}
-          </>
-        )}
-        {selectedMenu === "report" && userRole && (
-          userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
-            <div className="py-6">
-              {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole} branchOrigin={branchOrigin || ''} />}
-              {selectedSubMenu === "recap" && <RecapManifest 
-                userRole={userRole}
-                branchOrigin={branchOrigin || ''}
-              />}
-              {selectedSubMenu === "outstanding" && <OutstandingReport 
-                userRole={userRole}
-                branchOrigin={branchOrigin || ''}
-              />}
-              {selectedSubMenu === "sale" && <Salesreport 
-                userRole={userRole}
-                branchOrigin={branchOrigin || ''}
-              />}
-            </div>
-          ) : (
-            <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
-          )
-        )}
+              )}
+              {selectedSubMenu === "pelunasan" && userRole && (
+                userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
+                  <PelunasanResi 
+                    userRole={userRole}
+                    branchOrigin={branchOrigin || ''}
+                  />
+                ) : (
+                  <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
+                )
+              )}
+            </>
+          )}
+          {selectedMenu === "report" && userRole && (
+            userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
+              <div className="py-6">
+                {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole} branchOrigin={branchOrigin || ''} />}
+                {selectedSubMenu === "recap" && <RecapManifest 
+                  userRole={userRole}
+                  branchOrigin={branchOrigin || ''}
+                />}
+                {selectedSubMenu === "outstanding" && <OutstandingReport 
+                  userRole={userRole}
+                  branchOrigin={branchOrigin || ''}
+                />}
+                {selectedSubMenu === "sale" && <Salesreport 
+                  userRole={userRole}
+                  branchOrigin={branchOrigin || ''}
+                />}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
+            )
+          )}
+        </div>
       </div>
     </div>
   )

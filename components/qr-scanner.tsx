@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Html5Qrcode, Html5QrcodeResult, TorchFeature } from "html5-qrcode"
+import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Camera } from "lucide-react"
@@ -110,7 +110,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
 
       return true
     } catch (error) {
-      console.error("Error updating shipment:", error)
+      // Silently handle update errors
       return false
     }
   }
@@ -189,14 +189,14 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
           torchFeatureRef.current = null;
         }
       } catch (err) {
-        console.error("Error checking/applying torch:", err);
+        // Silently handle torch errors
         setIsTorchAvailable(false);
         setIsTorchOn(false);
         torchFeatureRef.current = null;
       }
 
     } catch (err) {
-      console.error("Error starting scanner:", err)
+      // Silently handle scanner start errors
       toast.error("Gagal memulai kamera. Silakan coba lagi.")
     }
   }
@@ -209,7 +209,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
           await torchFeatureRef.current.apply(false);
           setIsTorchOn(false);
         } catch (err) {
-          console.error("Error turning off torch:", err);
+          // Silently handle torch turn off errors
         }
       }
 

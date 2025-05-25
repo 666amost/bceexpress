@@ -33,7 +33,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const playScanSuccessSound = () => {
     const audio = new Audio('/sounds/scan_success.mp3');
     audio.volume = 0.5; // Adjust volume as needed
-    audio.play().catch(e => console.error('Error playing success sound:', e));
+    audio.play().catch(() => {
+      // Silently handle audio play errors
+    });
   };
 
   useEffect(() => {

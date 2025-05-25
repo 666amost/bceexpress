@@ -103,7 +103,9 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const audio = new Audio('/sounds/scan_success.mp3');
       audio.volume = 1;
       audio.play()
-        .catch(e => console.error("Error playing sound:", e));
+        .catch(() => {
+          // Silently handle audio play errors
+        });
 
       beepTimeoutRef.current = setTimeout(() => {
         beepTimeoutRef.current = null
@@ -191,7 +193,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         })
       }
     } catch (err) {
-      console.error("Error fetching details:", err)
+      // Silently handle fetch errors - user will see appropriate toast messages
     }
   }
 
@@ -230,7 +232,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         }
         reader.readAsDataURL(compressedFile)
       } catch (error) {
-        console.log("Error during image compression:", error)
+        // If compression fails, use original file
         setPhoto(file)
         const reader = new FileReader()
         reader.onload = (e) => {
@@ -261,12 +263,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         },
         (error) => {
           setLocation("")
-          console.error("Geolocation error:", error)
+          // Silently handle geolocation errors
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
       )
     } else {
-      console.error("Geolocation not supported")
+      // Geolocation not supported - silently handle
     }
   }
 
@@ -281,13 +283,11 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         contentType: file.type,
       })
       if (error) {
-        console.error("Supabase storage error:", error)
         return null
       }
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
-      console.error("Upload error:", error)
       return null
     }
   }
@@ -363,7 +363,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       // If not found in either manifest, fallback to basic shipment
       return await createBasicShipment(awbNumber)
     } catch (error) {
-      console.error("Error creating shipment from manifest:", error)
       return await createBasicShipment(awbNumber)
     }
   }
@@ -391,7 +390,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         ])
 
         if (error) {
-          console.error("Error creating shipment from manifest data:", error)
           return false
         }
         return true
@@ -417,12 +415,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       ])
 
       if (error) {
-        console.error("Error creating basic shipment:", error)
         return false
       }
       return true
     } catch (error) {
-      console.error("Error creating shipment:", error)
       return false
     }
   }
@@ -435,12 +431,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         .eq("awb_number", awbNumber)
         .single()
       if (error) {
-        console.error("Error checking shipment:", error)
         return false
       }
       return !!data
     } catch (error) {
-      console.error("Error checking shipment:", error)
       return false
     }
   }
@@ -460,7 +454,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         .update({ current_status: status, updated_at: new Date().toISOString() })
         .eq("awb_number", awbNumber)
       if (updateError) {
-        console.error("Error updating shipment status:", updateError)
         return false
       }
       let updatedNotes = notes || ""
@@ -480,12 +473,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         },
       ])
       if (error) {
-        console.error("Error adding shipment history:", error)
         return false
       }
       return true
     } catch (error) {
-      console.error("Error adding shipment history:", error)
       return false
     }
   }
@@ -538,23 +529,20 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
               method: 'GET',  // Sesuaikan dengan metode di app/api/sync/route.ts
             })
             if (response.ok) {
-              console.log("Sinkronisasi ke API cabang berhasil!")
-              // Opsional: Tampilkan toast sukses jika diinginkan
+              // Sync successful - silently handle
               toast.success("Status diperbarui dan disinkronkan ke cabang.")
             } else {
-              console.error("Gagal sinkronisasi:", await response.text())
-              // Opsional: Tampilkan error toast
+              // Sync failed - show error toast
               toast.error("Update sukses, tapi sinkronisasi gagal.")
             }
           } catch (syncError) {
-            console.error("Error saat memanggil API sync:", syncError)
+            // Sync error - silently handle
           }
         }
       } else {
         setError("Failed to update shipment status. Please try again.")
       }
     } catch (error) {
-      console.error("Error updating status:", error)
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)

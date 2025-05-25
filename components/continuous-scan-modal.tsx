@@ -40,7 +40,9 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
   const playScanSound = (status: 'success' | 'error' | 'duplicate') => {
     const audio = new Audio(status === 'success' ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3');
     audio.volume = 0.5; // Adjust volume as needed
-    audio.play().catch(e => console.error(`Error playing ${status} sound:`, e));
+    audio.play().catch(() => {
+      // Silently handle audio play errors
+    });
   };
 
   useEffect(() => {

@@ -728,7 +728,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           <div className="flex flex-col w-40 min-w-[140px]">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Pengirim</label>
             <input
-              type="text"
+              type="tel"
               name="nomor_pengirim"
               value={form.nomor_pengirim}
               onChange={handleChange}
@@ -750,7 +750,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           <div className="flex flex-col w-40 min-w-[140px]">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Penerima</label>
             <input
-              type="text"
+              type="tel"
               name="nomor_penerima"
               value={form.nomor_penerima}
               onChange={handleChange}

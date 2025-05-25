@@ -56,7 +56,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       const distinctAgents = [...new Set(data.map(item => item.agent_customer).filter(Boolean))];
       setAgentList(distinctAgents);
     } catch (err) {
-      console.error("Failed to fetch agents for SalesReport:", err);
+      // Silently handle fetch error
     }
   }
 
