@@ -111,7 +111,6 @@ const MapsButton = ({ address }: { address: string }) => {
 };
 
 export function CourierDashboard() {
-  const [isLoading, setIsLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [completedCount, setCompletedCount] = useState(0)
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
@@ -126,19 +125,24 @@ export function CourierDashboard() {
   const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
 
+  const [isProfileLoading, setIsProfileLoading] = useState(true)
+  const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
+
   const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
     async function loadUserProfile() {
       try {
+        setIsProfileLoading(true)
         const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
         if (sessionError) {
-          setIsLoading(false)
+          setIsProfileLoading(false)
           return
         }
         if (!sessionData?.session?.user?.id) {
           router.push("/courier")
+          setIsProfileLoading(false)
           return
         }
 
@@ -150,14 +154,21 @@ export function CourierDashboard() {
           .single()
 
         if (userError) {
-          setIsLoading(false)
+          setIsProfileLoading(false)
           return
         }
 
         setCurrentUser(userData)
-        await loadShipmentData(userData)
+        setIsProfileLoading(false)
+        // Load shipment data after user profile is loaded
+        loadShipmentData(userData)
       } catch (err) {
-        setIsLoading(false)
+        setIsProfileLoading(false)
+        toast({
+          title: "Error",
+          description: "Failed to load user profile. Please try again.",
+          variant: "destructive",
+        })
       }
     }
 
@@ -165,7 +176,7 @@ export function CourierDashboard() {
   }, [])
 
   const loadShipmentData = async (user: any) => {
-    setIsLoading(true)
+    setIsShipmentsLoading(true)
     try {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -239,7 +250,7 @@ export function CourierDashboard() {
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsShipmentsLoading(false)
     }
   }
 
@@ -267,12 +278,12 @@ export function CourierDashboard() {
     }
   }
 
-  if (isLoading) {
+  if (isProfileLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
         <div className="text-center">
           <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse mt-2">Loading Dashboard...</p>
+          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse mt-2">Loading user profile...</p>
         </div>
       </div>
     )
@@ -355,7 +366,11 @@ export function CourierDashboard() {
             </div>
             <div className="flex-1">
               <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Completed Today</span>
-              <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400 leading-none block">{completedCount}</span>
+              {isShipmentsLoading ? (
+                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              ) : (
+                <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400 leading-none block">{completedCount}</span>
+              )}
             </div>
             {completedCount > 0 && (
               <Button
@@ -377,7 +392,11 @@ export function CourierDashboard() {
             </div>
             <div className="flex-1">
               <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending Deliveries</span>
-              <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 leading-none block">{pendingDeliveries}</span>
+              {isShipmentsLoading ? (
+                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              ) : (
+                <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 leading-none block">{pendingDeliveries}</span>
+              )}
             </div>
             {pendingDeliveries > 0 && (
               <Button
@@ -434,7 +453,16 @@ export function CourierDashboard() {
           </DialogHeader>
 
           <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {bulkShipmentAwbs.length > 0 ? (
+            {isShipmentsLoading && (bulkShipmentAwbs.length === 0) ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
+                <div className="space-y-2">
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
+              </div>
+            ) : bulkShipmentAwbs.length > 0 ? (
               <div className="space-y-3">
                 {bulkShipmentAwbs.map((shipment) => (
                   <div
@@ -493,7 +521,16 @@ export function CourierDashboard() {
           </DialogHeader>
 
           <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {pendingShipments.length > 0 ? (
+            {isShipmentsLoading && (pendingShipments.length === 0) ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
+                <div className="space-y-2">
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
+              </div>
+            ) : pendingShipments.length > 0 ? (
               <div className="space-y-3">
                 {pendingShipments.map((shipment) => (
                   <div
@@ -547,7 +584,16 @@ export function CourierDashboard() {
           </DialogHeader>
 
           <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {completedTodayShipments.length > 0 ? (
+            {isShipmentsLoading && (completedTodayShipments.length === 0) ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
+                <div className="space-y-2">
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
+              </div>
+            ) : completedTodayShipments.length > 0 ? (
               <div className="space-y-3">
                 {completedTodayShipments.map((shipment) => (
                   <div

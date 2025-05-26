@@ -304,6 +304,8 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                                   alt={`Proof of ${item.status}`}
                                   className="relative z-10 max-w-full max-h-full object-contain"
                                   onError={() => handleImageError(item.id)}
+                                  width={256}
+                                  height={192}
                                 />
                               )}
                             </div>

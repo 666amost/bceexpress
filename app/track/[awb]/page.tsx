@@ -11,7 +11,7 @@ export default async function TrackPage(props: { params: Promise<{ awb: string }
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 min-h-[calc(100vh-headerHeight-footerHeight)]">
         <Suspense fallback={<TrackingResultsSkeleton />}>
           <TrackingResults awbNumber={awb} />
         </Suspense>
