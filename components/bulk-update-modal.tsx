@@ -451,7 +451,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             status,
             location,
             notes,
-            created_at: uniqueTimestamp,
           },
         ]);
 
