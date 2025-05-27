@@ -11,10 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faQrcode, faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import {
   ChevronLeft,
-  Scan as ScanIcon,
   Map as MapIcon,
   Upload as UploadIcon,
   Close as CloseIcon,
@@ -23,7 +22,6 @@ import {
 } from '@carbon/icons-react'
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
-import { QRScanner } from "@/components/qr-scanner"
 import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
@@ -54,8 +52,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const [error, setError] = useState<string | null>(null)
   const [shipmentDetails, setShipmentDetails] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
-  const [showScanner, setShowScanner] = useState(false)
-  const [scannerError, setScannerError] = useState<string | null>(null)
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -88,15 +84,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       fetchShipmentDetails(initialAwb)
     }
   }, [initialAwb])
-
-  useEffect(() => {
-    return () => {
-      if (showScanner) {
-        setShowScanner(false)
-        setScannerError(null)
-      }
-    }
-  }, [])
 
   const playBeep = () => {
     if (!beepTimeoutRef.current) {
@@ -197,28 +184,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
   }
 
-  const handleQRScan = (result: string) => {
-    if (!result) {
-      setScannerError("Invalid QR code")
-      return
-    }
-
-    setShowScanner(false)
-    setAwbNumber(result)
-    fetchShipmentDetails(result)
-    setScannerError(null)
-    playBeep()
-    toast.success("AWB berhasil di-scan!", {
-      description: result,
-      duration: 2000,
-    })
-  }
-
-  const handleScannerClose = () => {
-    setShowScanner(false)
-    setScannerError(null)
-  }
-
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
@@ -279,15 +244,29 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const filePath = `proof-of-delivery/${fileName}`
       const arrayBuffer = await file.arrayBuffer()
       const buffer = new Uint8Array(arrayBuffer)
-      const { error } = await supabaseClient.storage.from("shipment-photos").upload(filePath, buffer, {
-        contentType: file.type,
-      })
+
+      // Add timeout for upload operation
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout')), 20000)
+      );
+
+      const uploadPromise = supabaseClient.storage
+        .from("shipment-photos")
+        .upload(filePath, buffer, {
+          contentType: file.type,
+        });
+
+      const { error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
+
       if (error) {
-        return null
+        console.error("Upload error:", error);
+        return null;
       }
+
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
+      console.error("Image upload failed:", error);
       return null
     }
   }
@@ -425,16 +404,25 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabaseClient
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout')), 10000)
+      );
+
+      const queryPromise = supabaseClient
         .from("shipments")
         .select("awb_number")
         .eq("awb_number", awbNumber)
-        .single()
+        .single();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
       if (error) {
-        return false
+        console.error("Check shipment error:", error);
+        return false;
       }
       return !!data
     } catch (error) {
+      console.error("Check shipment failed:", error);
       return false
     }
   }
@@ -449,18 +437,30 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     longitude: number | null,
   ): Promise<boolean> => {
     try {
-      const { error: updateError } = await supabaseClient
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Update timeout')), 15000)
+      );
+
+      // Update shipment status first
+      const updatePromise = supabaseClient
         .from("shipments")
         .update({ current_status: status, updated_at: new Date().toISOString() })
-        .eq("awb_number", awbNumber)
+        .eq("awb_number", awbNumber);
+
+      const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as any;
+
       if (updateError) {
-        return false
+        console.error("Update shipment error:", updateError);
+        return false;
       }
+
       let updatedNotes = notes || ""
       if (!updatedNotes.includes(currentUser || "")) {
         updatedNotes = updatedNotes ? `${updatedNotes} - Updated by ${currentUser}` : `Updated by ${currentUser}`
       }
-      const { error } = await supabaseClient.from("shipment_history").insert([
+
+      // Insert history record
+      const insertPromise = supabaseClient.from("shipment_history").insert([
         {
           awb_number: awbNumber,
           status,
@@ -471,12 +471,17 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           longitude,
           created_at: new Date().toISOString(),
         },
-      ])
-      if (error) {
-        return false
+      ]);
+
+      const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+
+      if (insertError) {
+        console.error("Insert history error:", insertError);
+        return false;
       }
       return true
     } catch (error) {
+      console.error("Add shipment history failed:", error);
       return false
     }
   }
@@ -493,10 +498,23 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
 
     try {
-      const shipmentExists = await checkShipmentExists(awbNumber)
+      // Add timeout for all operations
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Operation timeout')), 30000)
+      );
+
+      const shipmentExists = await Promise.race([
+        checkShipmentExists(awbNumber),
+        timeoutPromise
+      ]) as boolean;
+
       if (!shipmentExists) {
         // Try to create shipment from manifest first
-        const created = await createShipmentFromManifest(awbNumber)
+        const created = await Promise.race([
+          createShipmentFromManifest(awbNumber),
+          timeoutPromise
+        ]) as boolean;
+
         if (!created) {
           setError("Failed to create shipment. Please try again.")
           setIsLoading(false)
@@ -506,18 +524,30 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
       let photoUrl: string | null = null
       if (photo) {
-        photoUrl = await uploadImage(photo, awbNumber)
+        try {
+          photoUrl = await Promise.race([
+            uploadImage(photo, awbNumber),
+            timeoutPromise
+          ]) as string | null;
+        } catch (uploadError) {
+          console.error("Photo upload failed:", uploadError);
+          // Continue without photo if upload fails
+          photoUrl = null;
+        }
       }
 
-      const result = await addShipmentHistory(
-        awbNumber,
-        status,
-        location,
-        notes || null,
-        photoUrl,
-        gpsCoords?.lat || null,
-        gpsCoords?.lng || null,
-      )
+      const result = await Promise.race([
+        addShipmentHistory(
+          awbNumber,
+          status,
+          location,
+          notes || null,
+          photoUrl,
+          gpsCoords?.lat || null,
+          gpsCoords?.lng || null,
+        ),
+        timeoutPromise
+      ]) as boolean;
 
       if (result) {
         setSuccess(true)
@@ -525,9 +555,17 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         // Tambahkan logika trigger sync hanya jika status adalah "delivered"
         if (status === "delivered") {
           try {
-            const response = await fetch(`/api/sync?awb_number=${awbNumber}`, {
-              method: 'GET',  // Sesuaikan dengan metode di app/api/sync/route.ts
-            })
+            const syncTimeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Sync timeout')), 10000)
+            );
+
+            const response = await Promise.race([
+              fetch(`/api/sync?awb_number=${awbNumber}`, {
+                method: 'GET',
+              }),
+              syncTimeoutPromise
+            ]) as Response;
+
             if (response.ok) {
               // Sync successful - silently handle
               toast.success("Status diperbarui dan disinkronkan ke cabang.")
@@ -537,13 +575,19 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             }
           } catch (syncError) {
             // Sync error - silently handle
+            console.error("Sync error:", syncError);
           }
         }
       } else {
         setError("Failed to update shipment status. Please try again.")
       }
     } catch (error) {
-      setError("An unexpected error occurred. Please try again.")
+      console.error("Submit error:", error);
+      if (error instanceof Error && error.message === 'Operation timeout') {
+        setError("Operation timed out. Please check your connection and try again.")
+      } else {
+        setError("An unexpected error occurred. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -570,46 +614,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   Back to Dashboard
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (showScanner) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6">
-          <QRScanner
-            onScan={(result) => {
-              setAwbNumber(result)
-              setShowScanner(false)
-            }}
-            onClose={() => setShowScanner(false)}
-          />
-          <div className="text-center mt-4">
-            <Button variant="outline" onClick={() => setShowScanner(false)} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
-              Close Scanner
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (scannerError) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center p-4 sm:p-6">
-        <Card className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-          <CardContent className="pt-6">
-            <Alert variant="destructive">
-              <AlertDescription>{scannerError}</AlertDescription>
-            </Alert>
-             <div className="mt-6 text-center">
-               <Button variant="outline" onClick={() => setScannerError(null)} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
-                OK
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -652,16 +656,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold">AWB Number</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowScanner(true)}
-                  className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                >
-                  <FontAwesomeIcon icon={faQrcode} className="w-4 h-4 mr-1" />
-                  <span>Scan QR</span>
-                </Button>
               </div>
               <Input
                 id="courier-awb"

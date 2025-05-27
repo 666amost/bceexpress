@@ -12,7 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Ensure the URL is properly formatted
 const formattedUrl = supabaseUrl.startsWith('https://') ? supabaseUrl : `https://${supabaseUrl}`
 
-// Create Supabase client with proper configuration
+// Create Supabase client with optimized configuration for high concurrency
 export const supabaseClient = createClient<Database>(formattedUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -25,8 +25,121 @@ export const supabaseClient = createClient<Database>(formattedUrl, supabaseAnonK
     headers: {
       'X-Client-Info': 'bcexpress-web'
     }
+  },
+  db: {
+    schema: 'public'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10 // Limit realtime events for better performance
+    }
   }
 })
+
+// Simplified connection management to avoid multiple GoTrueClient instances
+class ConnectionPool {
+  private static instance: ConnectionPool
+  private requestCount = 0
+
+  private constructor() {
+    // No need to create multiple clients, just use the main client
+  }
+
+  public static getInstance(): ConnectionPool {
+    if (!ConnectionPool.instance) {
+      ConnectionPool.instance = new ConnectionPool()
+    }
+    return ConnectionPool.instance
+  }
+
+  public async getClient() {
+    // Always return the main client to avoid multiple instances
+    // Add minimal delay for load balancing only when needed
+    this.requestCount++
+    if (this.requestCount % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 20)) // 20ms delay every 10th request
+    }
+    
+    return supabaseClient
+  }
+}
+
+// Get pooled client for high concurrency operations with fallback
+export const getPooledClient = async () => {
+  try {
+    return await ConnectionPool.getInstance().getClient()
+  } catch (error) {
+    console.warn('Failed to get pooled client, falling back to main client:', error)
+    return supabaseClient
+  }
+}
+
+// Alternative function to get authenticated client
+export const getAuthenticatedClient = async () => {
+  try {
+    // First try to get session from main client
+    const { data: session, error } = await supabaseClient.auth.getSession()
+    
+    if (error || !session.session) {
+      throw new Error('No valid session found')
+    }
+    
+    // Return main client if session is valid
+    return supabaseClient
+  } catch (error) {
+    console.error('Authentication failed:', error)
+    throw error
+  }
+}
+
+// Retry wrapper for database operations
+export const withRetry = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> => {
+  let lastError: Error
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+      
+      if (attempt === maxRetries) {
+        throw lastError
+      }
+
+      // Exponential backoff with jitter
+      const backoffDelay = delay * Math.pow(2, attempt - 1) + Math.random() * 1000
+      await new Promise(resolve => setTimeout(resolve, backoffDelay))
+    }
+  }
+
+  throw lastError!
+}
+
+// Add this after the supabaseClient definition
+export async function getCachedSession() {
+  if (typeof window !== 'undefined') {
+    const cachedSession = localStorage.getItem('cachedSession');
+    if (cachedSession) {
+      const parsedSession = JSON.parse(cachedSession);
+      if (parsedSession.expiry > Date.now()) {
+        return parsedSession.session;
+      } else {
+        localStorage.removeItem('cachedSession');
+      }
+    }
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session) {
+      const expiryTime = Date.now() + 5 * 60 * 1000;  // Cache for 5 minutes
+      localStorage.setItem('cachedSession', JSON.stringify({ session: data.session, expiry: expiryTime }));
+    }
+    return data.session;
+  }
+  return null;
+}
 
 // Create a separate client for server-side operations
 export const supabaseServerClient = createClient(formattedUrl, supabaseAnonKey, {

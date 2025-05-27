@@ -24,7 +24,8 @@ import {
   Map as MapIcon,
   Chat as ChatIcon,
   Scan as ScanIcon,
-  Box as BoxIcon
+  Box as BoxIcon,
+  InProgress as InProgressIcon
 } from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
@@ -127,9 +128,24 @@ export function CourierDashboard() {
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
+  const [refreshTimeout, setRefreshTimeout] = useState<NodeJS.Timeout | null>(null)
 
   const router = useRouter()
   const { toast } = useToast()
+
+  // Debounced refresh function to prevent multiple simultaneous refreshes
+  const debouncedRefresh = (user: any) => {
+    if (refreshTimeout) {
+      clearTimeout(refreshTimeout)
+    }
+    
+    const timeout = setTimeout(() => {
+      loadShipmentData(user)
+      setRefreshTimeout(null)
+    }, 1000) // Wait 1 second before refreshing
+    
+    setRefreshTimeout(timeout)
+  }
 
   useEffect(() => {
     async function loadUserProfile() {
@@ -173,6 +189,13 @@ export function CourierDashboard() {
     }
 
     loadUserProfile()
+
+    // Cleanup function
+    return () => {
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout)
+      }
+    }
   }, [])
 
   const loadShipmentData = async (user: any) => {
@@ -188,69 +211,118 @@ export function CourierDashboard() {
       const courierId = user?.id
       const courierName = user?.name || user?.email?.split("@")[0] || ""
 
-      // Get today's bulk shipments with only necessary fields
-      const { data: bulkShipmentsData, error: bulkShipmentsError } = await supabaseClient
+      // Add timeout to all database queries
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 15000)
+      );
+
+      // Get today's bulk shipments with only necessary fields - with timeout
+      const bulkShipmentsPromise = supabaseClient
         .from("shipments")
         .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, updated_at")
         .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
         .order("updated_at", { ascending: false })
+        .limit(50); // Limit results to improve performance
 
-      if (bulkShipmentsError) {
-        throw new Error("Failed to load bulk shipments. Please try again.")
-      } else {
-        setTotalBulkShipments(bulkShipmentsData?.length || 0)
-        setBulkShipmentAwbs(bulkShipmentsData || [])
-      }
-
-      // Get pending deliveries with only necessary fields
-      const { data: pendingData, error: pendingError } = await supabaseClient
+      // Get pending deliveries with only necessary fields - with timeout
+      const pendingPromise = supabaseClient
         .from("shipments")
         .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, created_at")
         .eq("courier_id", courierId)
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
         .order("created_at", { ascending: false })
+        .limit(50); // Limit results to improve performance
 
-      if (pendingError) {
-        throw new Error("Failed to load pending deliveries. Please try again.")
-      } else {
-        setPendingDeliveries(pendingData?.length || 0)
-        setPendingShipments(pendingData || [])
-      }
-
-      // Get completed today with only necessary fields
-      const { data: completedTodayData, error: completedTodayError } = await supabaseClient
+      // Get completed today with only necessary fields - with timeout
+      const completedTodayPromise = supabaseClient
         .from("shipment_history")
         .select("awb_number, status, created_at, location")
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
         .order("created_at", { ascending: false })
+        .limit(100); // Limit results to improve performance
 
-      if (completedTodayError) {
-        throw new Error("Failed to load completed shipments. Please try again.")
-      } else {
-        setCompletedCount(completedTodayData?.length || 0)
-        setCompletedTodayShipments(completedTodayData || [])
-        if (completedTodayData && completedTodayData.length > 0) {
-          const sortedData = [...completedTodayData].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-          )
-          setLastCompletedAwb(sortedData[0].awb_number)
+      // Execute all queries in parallel with timeout
+      const [bulkShipmentsResult, pendingResult, completedTodayResult] = await Promise.allSettled([
+        Promise.race([bulkShipmentsPromise, timeoutPromise]),
+        Promise.race([pendingPromise, timeoutPromise]),
+        Promise.race([completedTodayPromise, timeoutPromise])
+      ]);
+
+      // Handle bulk shipments result
+      if (bulkShipmentsResult.status === 'fulfilled') {
+        const { data: bulkShipmentsData, error: bulkShipmentsError } = bulkShipmentsResult.value as any;
+        if (bulkShipmentsError) {
+          console.error("Error loading bulk shipments:", bulkShipmentsError);
+          setTotalBulkShipments(0);
+          setBulkShipmentAwbs([]);
         } else {
-          setLastCompletedAwb("")
+          setTotalBulkShipments(bulkShipmentsData?.length || 0);
+          setBulkShipmentAwbs(bulkShipmentsData || []);
         }
+      } else {
+        console.error("Bulk shipments query failed:", bulkShipmentsResult.reason);
+        setTotalBulkShipments(0);
+        setBulkShipmentAwbs([]);
       }
+
+      // Handle pending deliveries result
+      if (pendingResult.status === 'fulfilled') {
+        const { data: pendingData, error: pendingError } = pendingResult.value as any;
+        if (pendingError) {
+          console.error("Error loading pending deliveries:", pendingError);
+          setPendingDeliveries(0);
+          setPendingShipments([]);
+        } else {
+          setPendingDeliveries(pendingData?.length || 0);
+          setPendingShipments(pendingData || []);
+        }
+      } else {
+        console.error("Pending deliveries query failed:", pendingResult.reason);
+        setPendingDeliveries(0);
+        setPendingShipments([]);
+      }
+
+      // Handle completed today result
+      if (completedTodayResult.status === 'fulfilled') {
+        const { data: completedTodayData, error: completedTodayError } = completedTodayResult.value as any;
+        if (completedTodayError) {
+          console.error("Error loading completed shipments:", completedTodayError);
+          setCompletedCount(0);
+          setCompletedTodayShipments([]);
+          setLastCompletedAwb("");
+        } else {
+          setCompletedCount(completedTodayData?.length || 0);
+          setCompletedTodayShipments(completedTodayData || []);
+          if (completedTodayData && completedTodayData.length > 0) {
+            const sortedData = [...completedTodayData].sort(
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+            );
+            setLastCompletedAwb(sortedData[0].awb_number);
+          } else {
+            setLastCompletedAwb("");
+          }
+        }
+      } else {
+        console.error("Completed shipments query failed:", completedTodayResult.reason);
+        setCompletedCount(0);
+        setCompletedTodayShipments([]);
+        setLastCompletedAwb("");
+      }
+
     } catch (error) {
+      console.error("Error in loadShipmentData:", error);
       toast({
         title: "Error",
         description: "Failed to load shipment data. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsShipmentsLoading(false)
+      setIsShipmentsLoading(false);
     }
   }
 
@@ -260,13 +332,13 @@ export function CourierDashboard() {
       description: `${count} shipments have been updated to "Out For Delivery" status.`,
     })
     if (currentUser) {
-      loadShipmentData(currentUser)
+      debouncedRefresh(currentUser)
     }
   }
 
   const handleContinuousScanSuccess = () => {
     if (currentUser) {
-      loadShipmentData(currentUser)
+      debouncedRefresh(currentUser)
     }
   }
 
@@ -282,7 +354,7 @@ export function CourierDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
         <div className="text-center">
-          <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin text-primary" />
+          <InProgressIcon className="h-8 w-8 animate-spin text-primary" />
           <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse mt-2">Loading user profile...</p>
         </div>
       </div>
