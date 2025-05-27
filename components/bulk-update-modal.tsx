@@ -30,6 +30,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [showScanner, setShowScanner] = useState(false)
   const [processingStatus, setProcessingStatus] = useState<string>("")
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const [modalKey, setModalKey] = useState<string>(Date.now().toString())
 
   const playScanSuccessSound = () => {
     const audio = new Audio('/sounds/scan_success.mp3');
@@ -69,10 +71,39 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   // Reset state when modal is opened
   useEffect(() => {
     if (isOpen) {
+      // Force reset all states when modal opens
       setError(null)
       setProcessingStatus("")
+      setIsLoading(false)
+      setShowScanner(false)
+      setAbortController(null)
+      
+      // Generate new modal key to force re-render
+      setModalKey(Date.now().toString())
+      
+      console.log("Modal opened - all states reset with new key")
     }
   }, [isOpen])
+
+  // Cleanup effect to reset all states when component unmounts or modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Cancel any ongoing operations
+      if (abortController) {
+        console.log("Aborting ongoing operation...")
+        abortController.abort()
+      }
+      
+      // Force reset all states when modal is closed
+      setIsLoading(false)
+      setError(null)
+      setProcessingStatus("")
+      setShowScanner(false)
+      setAbortController(null)
+      
+      console.log("Modal closed - all states reset and operations cancelled")
+    }
+  }, [isOpen, abortController])
 
   const handleQRScan = (result: string) => {
     // Add the scanned AWB to the list
@@ -411,7 +442,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     }
   }
 
-  // Optimized history insertion with batch support
+  // Optimized history insertion with conflict handling
   const addShipmentHistoryOptimized = async (awb: string, status: string, location: string, notes: string) => {
     try {
       const client = await getAuthenticatedClient();
@@ -420,34 +451,79 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         setTimeout(() => reject(new Error('Timeout')), 2000) // Fast timeout for history
       );
 
-      await withRetry(async () => {
+      // Add unique timestamp to prevent conflicts
+      const uniqueTimestamp = new Date().toISOString() + '_' + Math.random().toString(36).substr(2, 9);
+
+      const result = await withRetry(async () => {
         const insertPromise = client.from("shipment_history").insert([
           {
             awb_number: awb,
             status,
             location,
             notes,
-            created_at: new Date().toISOString(),
+            created_at: uniqueTimestamp,
           },
         ]);
 
         return await Promise.race([insertPromise, timeoutPromise]);
       }, 1, 300); // 1 retry with 300ms base delay
 
+      // Handle 409 conflict error gracefully
+      if (result.error && result.error.code === '23505') {
+        console.warn(`Duplicate history entry for AWB ${awb}, skipping...`);
+        return { success: true, message: "History entry already exists" }
+      }
+
       return { success: true, message: "Added to shipment history" }
-    } catch (err) {
+    } catch (err: any) {
+      // Handle 409 conflict errors gracefully
+      if (err?.message?.includes('409') || err?.code === '23505') {
+        console.warn(`Conflict error for AWB ${awb} history, continuing...`);
+        return { success: true, message: "History entry conflict resolved" }
+      }
+      
+      console.error(`History insertion failed for AWB ${awb}:`, err);
       return { success: false, message: `Error: ${err}` }
     }
   }
 
   const handleSubmit = async () => {
+    // Prevent multiple simultaneous submissions
+    if (isLoading) {
+      console.log("Already processing, ignoring duplicate submission")
+      return
+    }
+    
+    // Cancel any previous operation
+    if (abortController) {
+      console.log("Cancelling previous operation...")
+      abortController.abort()
+    }
+    
+    // Create new abort controller for this operation
+    const newAbortController = new AbortController()
+    setAbortController(newAbortController)
+    
     setIsLoading(true)
     setError("")
     setProcessingStatus("Memulai proses...")
     
     console.log("Starting bulk update process...")
 
+    // Add overall timeout protection (5 minutes max)
+    const overallTimeout = setTimeout(() => {
+      newAbortController.abort()
+      setError("Proses timeout. Silakan coba lagi dengan batch yang lebih kecil.")
+      setIsLoading(false)
+      setProcessingStatus("")
+    }, 300000) // 5 minutes
+
     try {
+      // Check if operation was aborted
+      if (newAbortController.signal.aborted) {
+        throw new Error('Operation aborted')
+      }
+
       const awbList = awbNumbers
         .split(/[\n,\s]+/)
         .map((awb) => awb.trim())
@@ -455,7 +531,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
       if (awbList.length === 0) {
         setError("Please enter at least one AWB number")
-        setIsLoading(false)
         return
       }
 
@@ -470,8 +545,12 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       } catch (authError) {
         console.error("Authentication failed:", authError)
         setError("Session tidak valid. Silakan login ulang.")
-        setIsLoading(false)
         return
+      }
+
+      // Check if operation was aborted
+      if (newAbortController.signal.aborted) {
+        throw new Error('Operation aborted')
       }
 
       // Get current user session
@@ -481,7 +560,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       if (sessionError || !session?.session?.user?.id) {
         console.error("Session error:", sessionError)
         setError("Session tidak ditemukan. Silakan login ulang.")
-        setIsLoading(false)
         return
       }
 
@@ -492,10 +570,29 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       let totalSuccessCount = 0
       const location = "Sorting Center"
       const status = "out_for_delivery"
-      const batchSize = 5 // Increased batch size for faster processing (30 kurir × 5 = 150 concurrent operations max)
+      
+      // Detect mobile device and adjust batch size accordingly
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      const isLowEndDevice = /Android.*Mobile|webOS|BlackBerry|IEMobile/i.test(navigator.userAgent)
+      
+      // Use smaller batch size for mobile devices, especially low-end ones
+      const batchSize = isLowEndDevice ? 2 : (isMobile ? 3 : 5)
+      
+      console.log("Device detection:", { 
+        userAgent: navigator.userAgent, 
+        isMobile, 
+        isLowEndDevice, 
+        batchSize,
+        totalAWBs: awbList.length 
+      })
 
       // Process AWBs in batches
       for (let i = 0; i < awbList.length; i += batchSize) {
+        // Check if operation was aborted before each batch
+        if (newAbortController.signal.aborted) {
+          throw new Error('Operation aborted')
+        }
+        
         const batch = awbList.slice(i, i + batchSize)
         const batchNumber = Math.floor(i / batchSize) + 1
         const totalBatches = Math.ceil(awbList.length / batchSize)
@@ -514,9 +611,16 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
         // Add shorter delay between batches for faster processing
         if (i + batchSize < awbList.length) {
-          const delay = Math.random() * 300 + 200; // 200-500ms random delay
+          // Longer delay for mobile devices to prevent overwhelming
+          const baseDelay = isLowEndDevice ? 800 : (isMobile ? 500 : 300)
+          const delay = Math.random() * baseDelay + baseDelay; // Double the base delay with randomization
           await new Promise(resolve => setTimeout(resolve, delay))
         }
+      }
+
+      // Check if operation was aborted before final steps
+      if (newAbortController.signal.aborted) {
+        throw new Error('Operation aborted')
       }
 
       // Show final status
@@ -534,6 +638,12 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     } catch (error: any) {
       console.error("Bulk update error:", error)
       
+      // Don't show error if operation was intentionally aborted
+      if (error?.message === 'Operation aborted') {
+        console.log("Operation was aborted by user or timeout")
+        return
+      }
+      
       // Handle specific error types
       if (error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
         setError("Session expired. Silakan login ulang.")
@@ -542,8 +652,14 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       } else {
         setError(`Terjadi kesalahan: ${error?.message || 'Unknown error'}. Silakan coba lagi.`)
       }
+    } finally {
+      // Clear the timeout
+      clearTimeout(overallTimeout)
       
+      // Always reset loading state regardless of success or error
       setIsLoading(false)
+      setProcessingStatus("")
+      setAbortController(null)
     }
   }
 
@@ -551,12 +667,23 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isLoading) {
-          onClose()
+        if (!open) {
+          if (isLoading) {
+            // Prevent closing modal during processing unless explicitly cancelled
+            const shouldClose = confirm("Proses sedang berjalan. Apakah Anda yakin ingin membatalkan?")
+            if (shouldClose && abortController) {
+              abortController.abort()
+              setIsLoading(false)
+              setProcessingStatus("")
+              onClose()
+            }
+          } else {
+            onClose()
+          }
         }
       }}
     >
-      <DialogContent className={`sm:max-w-md p-6 ${showScanner ? "" : "bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700"}`}>
+      <DialogContent key={modalKey} className={`sm:max-w-md p-6 ${showScanner ? "" : "bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700"}`}>
         {showScanner ? (
           <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
         ) : (
@@ -610,10 +737,31 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 </div>
               )}
               <div className="flex justify-end space-x-2 w-full">
-                <Button variant="outline" onClick={onClose} disabled={isLoading} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
-                  Cancel
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    if (isLoading && abortController) {
+                      // Cancel the ongoing operation
+                      abortController.abort()
+                      setIsLoading(false)
+                      setProcessingStatus("Dibatalkan oleh user")
+                      setTimeout(() => {
+                        setProcessingStatus("")
+                        onClose()
+                      }, 1000)
+                    } else {
+                      onClose()
+                    }
+                  }} 
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+                >
+                  {isLoading ? "Cancel Operation" : "Cancel"}
                 </Button>
-                <Button onClick={handleSubmit} disabled={isLoading} className="bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white">
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={isLoading || awbNumbers.trim().length === 0} 
+                  className="bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   {isLoading ? (
                     <>
                       <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" /> Processing...
