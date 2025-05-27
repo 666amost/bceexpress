@@ -259,14 +259,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
       if (error) {
-        console.error("Upload error:", error);
         return null;
       }
 
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
-      console.error("Image upload failed:", error);
       return null
     }
   }
@@ -417,12 +415,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
-        console.error("Check shipment error:", error);
         return false;
       }
       return !!data
     } catch (error) {
-      console.error("Check shipment failed:", error);
       return false
     }
   }
@@ -450,7 +446,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as any;
 
       if (updateError) {
-        console.error("Update shipment error:", updateError);
         return false;
       }
 
@@ -476,12 +471,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (insertError) {
-        console.error("Insert history error:", insertError);
         return false;
       }
       return true
     } catch (error) {
-      console.error("Add shipment history failed:", error);
       return false
     }
   }
@@ -530,7 +523,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             timeoutPromise
           ]) as string | null;
         } catch (uploadError) {
-          console.error("Photo upload failed:", uploadError);
           // Continue without photo if upload fails
           photoUrl = null;
         }
@@ -575,14 +567,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             }
           } catch (syncError) {
             // Sync error - silently handle
-            console.error("Sync error:", syncError);
           }
         }
       } else {
         setError("Failed to update shipment status. Please try again.")
       }
     } catch (error) {
-      console.error("Submit error:", error);
       if (error instanceof Error && error.message === 'Operation timeout') {
         setError("Operation timed out. Please check your connection and try again.")
       } else {

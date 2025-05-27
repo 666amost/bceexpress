@@ -69,7 +69,7 @@ export const getPooledClient = async () => {
   try {
     return await ConnectionPool.getInstance().getClient()
   } catch (error) {
-    console.warn('Failed to get pooled client, falling back to main client:', error)
+
     return supabaseClient
   }
 }
@@ -87,7 +87,7 @@ export const getAuthenticatedClient = async () => {
     // Return main client if session is valid
     return supabaseClient
   } catch (error) {
-    console.error('Authentication failed:', error)
+
     throw error
   }
 }

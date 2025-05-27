@@ -68,7 +68,6 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
         const { data: manifestData, error } = await query as { data: RecentAwbItem[] | null, error: any };
         
         if (error) {
-          console.error('Error fetching dashboard stats:', error);
           toast({
             title: "Gagal memuat data dashboard.",
             description: error.message || "Terjadi kesalahan saat mengambil data.",
@@ -213,7 +212,6 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           setDashboardStats({ totalAWB: 0, totalAgents: 0, totalWilayah: 0, totalAWBToday: 0, totalAWBThisWeek: 0, recentAWBs: [], awbPerKotaChartData: null, awbPerAgentChartData: null, awbPerDayChartData: null, awbPerViaChartData: null });
         }
       } catch (error: any) {
-        console.error('Error fetching dashboard stats:', error);
         toast({
           title: "Gagal memuat data dashboard.",
           description: error.message || "Terjadi kesalahan saat mengambil data.",

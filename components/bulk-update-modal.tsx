@@ -81,7 +81,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       // Generate new modal key to force re-render
       setModalKey(Date.now().toString())
       
-      console.log("Modal opened - all states reset with new key")
+
     }
   }, [isOpen])
 
@@ -90,7 +90,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     if (!isOpen) {
       // Cancel any ongoing operations
       if (abortController) {
-        console.log("Aborting ongoing operation...")
         abortController.abort()
       }
       
@@ -100,8 +99,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setProcessingStatus("")
       setShowScanner(false)
       setAbortController(null)
-      
-      console.log("Modal closed - all states reset and operations cancelled")
     }
   }, [isOpen, abortController])
 
@@ -168,7 +165,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       return null
     } catch (err) {
       // Return null on timeout or error to continue with auto-generated data
-      console.warn(`Manifest check failed for AWB ${awb}:`, err)
       return null
     }
   }
@@ -345,12 +341,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
           return { awb, success: true }
         } catch (err: any) {
-          console.error(`Failed to process AWB ${awb}:`, err);
-          
-          // Don't throw timeout errors, just log them
-          if (err?.message?.includes('Timeout')) {
-            console.warn(`Timeout processing AWB ${awb}, continuing...`)
-          }
           
           return { awb, success: false, error: err }
         }
@@ -469,8 +459,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       }, 1, 300); // 1 retry with 300ms base delay
 
       // Handle 409 conflict error gracefully
-      if (result.error && result.error.code === '23505') {
-        console.warn(`Duplicate history entry for AWB ${awb}, skipping...`);
+      if (result && typeof result === 'object' && 'error' in result && result.error && typeof result.error === 'object' && 'code' in result.error && result.error.code === '23505') {
         return { success: true, message: "History entry already exists" }
       }
 
@@ -478,11 +467,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     } catch (err: any) {
       // Handle 409 conflict errors gracefully
       if (err?.message?.includes('409') || err?.code === '23505') {
-        console.warn(`Conflict error for AWB ${awb} history, continuing...`);
         return { success: true, message: "History entry conflict resolved" }
       }
-      
-      console.error(`History insertion failed for AWB ${awb}:`, err);
       return { success: false, message: `Error: ${err}` }
     }
   }
@@ -490,13 +476,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const handleSubmit = async () => {
     // Prevent multiple simultaneous submissions
     if (isLoading) {
-      console.log("Already processing, ignoring duplicate submission")
       return
     }
     
     // Cancel any previous operation
     if (abortController) {
-      console.log("Cancelling previous operation...")
       abortController.abort()
     }
     
@@ -507,8 +491,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     setIsLoading(true)
     setError("")
     setProcessingStatus("Memulai proses...")
-    
-    console.log("Starting bulk update process...")
 
     // Add overall timeout protection (5 minutes max)
     const overallTimeout = setTimeout(() => {
@@ -536,14 +518,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
       // Verify authentication before processing
       setProcessingStatus("Memverifikasi autentikasi...")
-      console.log("Verifying authentication...")
       
       try {
         // Use authenticated client to ensure session is valid
         const authClient = await getAuthenticatedClient()
-        console.log("Authentication successful, client ready")
       } catch (authError) {
-        console.error("Authentication failed:", authError)
         setError("Session tidak valid. Silakan login ulang.")
         return
       }
@@ -555,17 +534,14 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
       // Get current user session
       const { data: session, error: sessionError } = await supabaseClient.auth.getSession()
-      console.log("Session data:", { hasSession: !!session?.session, hasUser: !!session?.session?.user, sessionError })
 
       if (sessionError || !session?.session?.user?.id) {
-        console.error("Session error:", sessionError)
         setError("Session tidak ditemukan. Silakan login ulang.")
         return
       }
 
       const courierId = session.session.user.id
       const courierName = currentUser?.name || session.session.user.email?.split("@")[0] || "courier"
-      console.log("Processing with courier:", { courierId, courierName })
 
       let totalSuccessCount = 0
       const location = "Sorting Center"
@@ -577,14 +553,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       
       // Use smaller batch size for mobile devices, especially low-end ones
       const batchSize = isLowEndDevice ? 2 : (isMobile ? 3 : 5)
-      
-      console.log("Device detection:", { 
-        userAgent: navigator.userAgent, 
-        isMobile, 
-        isLowEndDevice, 
-        batchSize,
-        totalAWBs: awbList.length 
-      })
 
       // Process AWBs in batches
       for (let i = 0; i < awbList.length; i += batchSize) {
@@ -602,10 +570,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         try {
           const batchSuccessCount = await processBatch(batch, courierId, courierName, location, status)
           totalSuccessCount += batchSuccessCount
-          console.log(`Batch ${batchNumber} completed: ${batchSuccessCount}/${batch.length} successful`)
         } catch (err) {
           // Continue with next batch even if this one fails
-          console.error(`Batch ${batchNumber} failed:`, err)
           setProcessingStatus(`Batch ${batchNumber} gagal, melanjutkan ke batch berikutnya...`)
         }
 
@@ -636,11 +602,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setAwbNumbers("")
       onClose()
     } catch (error: any) {
-      console.error("Bulk update error:", error)
-      
       // Don't show error if operation was intentionally aborted
       if (error?.message === 'Operation aborted') {
-        console.log("Operation was aborted by user or timeout")
         return
       }
       

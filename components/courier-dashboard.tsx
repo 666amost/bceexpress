@@ -257,7 +257,6 @@ export function CourierDashboard() {
       if (bulkShipmentsResult.status === 'fulfilled') {
         const { data: bulkShipmentsData, error: bulkShipmentsError } = bulkShipmentsResult.value as any;
         if (bulkShipmentsError) {
-          console.error("Error loading bulk shipments:", bulkShipmentsError);
           setTotalBulkShipments(0);
           setBulkShipmentAwbs([]);
         } else {
@@ -265,7 +264,6 @@ export function CourierDashboard() {
           setBulkShipmentAwbs(bulkShipmentsData || []);
         }
       } else {
-        console.error("Bulk shipments query failed:", bulkShipmentsResult.reason);
         setTotalBulkShipments(0);
         setBulkShipmentAwbs([]);
       }
@@ -274,7 +272,6 @@ export function CourierDashboard() {
       if (pendingResult.status === 'fulfilled') {
         const { data: pendingData, error: pendingError } = pendingResult.value as any;
         if (pendingError) {
-          console.error("Error loading pending deliveries:", pendingError);
           setPendingDeliveries(0);
           setPendingShipments([]);
         } else {
@@ -282,7 +279,6 @@ export function CourierDashboard() {
           setPendingShipments(pendingData || []);
         }
       } else {
-        console.error("Pending deliveries query failed:", pendingResult.reason);
         setPendingDeliveries(0);
         setPendingShipments([]);
       }
@@ -291,7 +287,6 @@ export function CourierDashboard() {
       if (completedTodayResult.status === 'fulfilled') {
         const { data: completedTodayData, error: completedTodayError } = completedTodayResult.value as any;
         if (completedTodayError) {
-          console.error("Error loading completed shipments:", completedTodayError);
           setCompletedCount(0);
           setCompletedTodayShipments([]);
           setLastCompletedAwb("");
@@ -308,14 +303,12 @@ export function CourierDashboard() {
           }
         }
       } else {
-        console.error("Completed shipments query failed:", completedTodayResult.reason);
         setCompletedCount(0);
         setCompletedTodayShipments([]);
         setLastCompletedAwb("");
       }
 
     } catch (error) {
-      console.error("Error in loadShipmentData:", error);
       toast({
         title: "Error",
         description: "Failed to load shipment data. Please try again.",

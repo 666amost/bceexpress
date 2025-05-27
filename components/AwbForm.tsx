@@ -617,7 +617,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 value={form.awb_no}
                 onChange={handleChange}
                 required
-                className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 flex-grow px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-0"
+                className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 flex-grow px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-w-0"
                 style={{ minWidth: 0 }}
               />
               <button
@@ -639,7 +639,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.awb_date}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-4">
@@ -649,7 +649,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.kirim_via}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
               {currentKirimVia.map((opt) => (
@@ -666,7 +666,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.kota_tujuan}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
               {currentKotaTujuan.map((opt) => (
@@ -684,7 +684,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               onChange={handleChange}
               required
               disabled={!form.kota_tujuan}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
             >
               <option value="">Pilih</option>
               {wilayahOptions.map((opt) => (
@@ -701,7 +701,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.agent_customer}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
               {currentAgentList.map((opt) => (
@@ -722,7 +722,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.nama_pengirim}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
@@ -733,7 +733,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.nomor_pengirim}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
@@ -744,7 +744,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.nama_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-40 min-w-[140px]">
@@ -755,7 +755,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.nomor_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           {/* FIELD ALAMAT PENERIMA FULL WIDTH */}
@@ -767,7 +767,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.alamat_penerima}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[120px] md:min-h-[80px]"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-h-[120px] md:min-h-[80px]"
             />
           </div>
           <div className="flex flex-col w-24 min-w-[70px]">
@@ -779,7 +779,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               onChange={handleChange}
               min={1}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           {/* Moved Isi Barang field here */}
@@ -789,7 +789,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               name="isi_barang"
               value={form.isi_barang}
               onChange={handleChange}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[32px]"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-h-[32px]"
               placeholder="Contoh: Pakaian, Elektronik, Makanan"
             />
           </div>
@@ -806,7 +806,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               min={1}
               step={0.1}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
@@ -816,7 +816,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               name="harga_per_kg"
               value={form.harga_per_kg}
               onChange={handleChange}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
@@ -836,7 +836,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               name="biaya_admin"
               value={form.biaya_admin}
               onChange={handleChange}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
@@ -846,7 +846,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               name="biaya_packaging"
               value={form.biaya_packaging}
               onChange={handleChange}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-28">
@@ -856,7 +856,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               name="biaya_transit"
               value={form.biaya_transit}
               onChange={handleChange}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
           <div className="flex flex-col w-full md:w-32 md:ml-auto">
@@ -876,7 +876,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               value={form.metode_pembayaran}
               onChange={handleChange}
               required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
               {currentMetodePembayaran.map((opt) => (
