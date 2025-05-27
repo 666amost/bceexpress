@@ -23,9 +23,10 @@ import {
   View as ViewIcon,
   Map as MapIcon,
   Chat as ChatIcon,
-  Scan as ScanIcon,
   Box as BoxIcon,
-  InProgress as InProgressIcon
+  InProgress as InProgressIcon,
+  Barcode as BarcodeIcon,
+  Scan as ScanIcon
 } from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
@@ -483,7 +484,7 @@ export function CourierDashboard() {
           className="w-full bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white h-auto py-4 text-base sm:text-lg shadow-lg"
           onClick={() => setIsContinuousScanOpen(true)}
         >
-          <ScanIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
+          <span className="bg-white p-1 rounded-md mr-2 flex items-center justify-center"><BarcodeIcon className="h-5 w-5 text-gray-700" style={{ fontWeight: 'bold' }} /></span>
           Continuous Scan
         </Button>
         <Button

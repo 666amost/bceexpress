@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Camera, X } from "lucide-react"
+import { X } from "lucide-react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCamera } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 import { useToast } from "@/hooks/use-toast"
@@ -314,11 +316,11 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
+            <FontAwesomeIcon icon={faCamera} className="h-5 w-5" />
             Continuous AWB Scanner
           </DialogTitle>
           <DialogDescription>
-            Scan AWB numbers continuously. Each valid scan will be automatically processed and added to today's assignments.
+            Scan Resi Otomatis. Resi akan diproses dan ditambahkan ke daftar hari ini. ( jangan lupa STOP CAMERA untuk menghentikan proses)
           </DialogDescription>
         </DialogHeader>
 
@@ -337,7 +339,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
             
             {!showScanner && (
               <div className="border rounded-lg p-8 text-center">
-                <Camera className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <FontAwesomeIcon icon={faCamera} className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground mb-4">Scanner is paused</p>
                 <Button onClick={() => setShowScanner(true)}>
                   Resume Scanning

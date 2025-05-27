@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
-import { QRScanner } from "./qr-scanner"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -28,7 +27,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [showScanner, setShowScanner] = useState(false)
   const [processingStatus, setProcessingStatus] = useState<string>("")
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
@@ -75,7 +73,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setError(null)
       setProcessingStatus("")
       setIsLoading(false)
-      setShowScanner(false)
       setAbortController(null)
       
       // Generate new modal key to force re-render
@@ -97,25 +94,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setIsLoading(false)
       setError(null)
       setProcessingStatus("")
-      setShowScanner(false)
       setAbortController(null)
     }
   }, [isOpen, abortController])
-
-  const handleQRScan = (result: string) => {
-    // Add the scanned AWB to the list
-    const currentAwbs = awbNumbers.trim() ? awbNumbers.split(/[\n,\s]+/) : []
-
-    // Check if the AWB is already in the list
-    if (!currentAwbs.includes(result)) {
-      const newAwbList = [...currentAwbs, result]
-      setAwbNumbers(newAwbList.join("\n"))
-      playScanSuccessSound();
-    }
-
-    // Close the scanner
-    setShowScanner(false)
-  }
 
   // Function to check if AWB exists in manifest (both central and branch) with timeout
   const checkManifestAwb = async (awb: string) => {
@@ -645,15 +626,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         }
       }}
     >
-      <DialogContent key={modalKey} className={`sm:max-w-md p-6 ${showScanner ? "" : "bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700"}`}>
-        {showScanner ? (
-          <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
-        ) : (
-          <>
-            <DialogHeader className="mb-4">
-              <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white">Bulk Update AWB Numbers</DialogTitle>
+      <DialogContent key={modalKey} className={`sm:max-w-md p-6 ${"bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700"}`}>
+          <DialogHeader className="mb-4">
+              <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white">Bulk Update Manual</DialogTitle>
               <DialogDescription className="text-gray-600 dark:text-gray-400">
-                Enter multiple AWB numbers (one per line or separated by commas) to update their status to{" "}
+                Masukkan nomor resi satu per baris atau dipisahkan dengan koma untuk mengupdate status ke{" "}
                 <b className="text-blue-600 dark:text-blue-400">Out For Delivery</b>
               </DialogDescription>
             </DialogHeader>
@@ -663,26 +640,17 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label htmlFor="awb-numbers" className="text-gray-700 dark:text-gray-300 font-semibold">AWB Numbers</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowScanner(true)}
-                    className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                  >
-                    <FontAwesomeIcon icon={faCamera} className="h-4 w-4" />
-                    <span>Scan QR</span>
-                  </Button>
                 </div>
                 <Textarea
                   id="awb-numbers"
-                  placeholder="Enter AWB numbers here..."
+                  placeholder="Masukkan nomor resi di sini..."
                   rows={6}
                   value={awbNumbers}
                   onChange={(e) => setAwbNumbers(e.target.value)}
                   className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-muted-foreground">
-                  contoh: BCE123456789, BCE987654321, BE0423056087 hati-hati dijalan
+                  contoh: BCE556786, 556744, Hanya untuk resi manual
                 </p>
                 {currentUser && (
                   <p className="text-xs text-blue-600 dark:text-blue-400">
@@ -734,8 +702,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 </Button>
               </div>
             </DialogFooter>
-          </>
-        )}
       </DialogContent>
     </Dialog>
   )
