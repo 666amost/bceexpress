@@ -96,7 +96,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         .from("manifest")
         .select("*")
         .eq("awb_no", awb)
-        .single()
+        .maybeSingle()
 
       if (!centralError && centralData) {
         return { ...centralData, manifest_source: "central" }
@@ -107,7 +107,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         .from("manifest_cabang")
         .select("*")
         .eq("awb_no", awb)
-        .single()
+        .maybeSingle()
 
       if (!branchError && branchData) {
         return { ...branchData, manifest_source: "cabang" }
@@ -250,13 +250,17 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
         try {
           // Check if shipment exists
-          const { data: existingShipment } = await supabaseClient
+          console.log(`[BulkUpdate] Checking if shipment exists for AWB: ${awb}`);
+          const { data: existingShipment, error: existingError } = await supabaseClient
             .from("shipments")
             .select("awb_number")
             .eq("awb_number", awb)
-            .single()
+            .maybeSingle();
 
-          // If shipment doesn't exist, try to create it from manifest
+          if (existingError) {
+            console.error(`[BulkUpdate] Error checking existing shipment for AWB ${awb}:`, existingError);
+          }
+
           if (!existingShipment) {
             // Check if AWB exists in manifest
             const manifestData = await checkManifestAwb(awb)
