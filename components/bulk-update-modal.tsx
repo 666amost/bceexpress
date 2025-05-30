@@ -627,6 +627,21 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               )}
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
                 <Button 
+                  onClick={handleSubmit} 
+                  disabled={isLoading || awbNumbers.trim().length === 0} 
+                  className="w-full sm:flex-1 bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base py-2 sm:py-3 min-w-0 order-1 sm:order-2"
+                  ref={submitButtonRef}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center min-w-0">
+                      <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin flex-shrink-0" /> 
+                      <span className="truncate">Processing...</span>
+                    </div>
+                  ) : (
+                    <span className="truncate">Update For Delivery</span>
+                  )}
+                </Button>
+                <Button 
                   variant="outline" 
                   onClick={() => {
                     if (isLoading && abortController) {
@@ -642,24 +657,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                       onClose()
                     }
                   }} 
-                  className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm sm:text-base py-2 sm:py-3 min-w-0"
+                  className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm sm:text-base py-2 sm:py-3 min-w-0 order-2 sm:order-1"
                 >
                   <span className="truncate">{isLoading ? "Batal" : "Cancel"}</span>
-                </Button>
-                <Button 
-                  onClick={handleSubmit} 
-                  disabled={isLoading || awbNumbers.trim().length === 0} 
-                  className="w-full sm:flex-1 bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base py-2 sm:py-3 min-w-0"
-                  ref={submitButtonRef}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center justify-center min-w-0">
-                      <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin flex-shrink-0" /> 
-                      <span className="truncate">Processing...</span>
-                    </div>
-                  ) : (
-                    <span className="truncate">Update For Delivery</span>
-                  )}
                 </Button>
               </div>
             </DialogFooter>
