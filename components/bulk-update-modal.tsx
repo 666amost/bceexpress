@@ -328,19 +328,14 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       result.status === 'fulfilled' && result.value.success
     ).length;
 
-    // Log results for debugging
-    const failedResults = results.filter(result => 
-      result.status === 'fulfilled' && !result.value.success
-    );
+    // Log results for debugging - only check fulfilled promises that failed
+    const failedResults = results
+      .filter((result): result is PromiseFulfilledResult<any> => 
+        result.status === 'fulfilled' && !result.value.success
+      );
     
     if (failedResults.length > 0) {
-      console.warn('Failed AWB operations:', failedResults.map(r => (r as PromiseFulfilledResult<any>).value));
-    }
-
-    // Also log any rejected promises
-    const rejectedResults = results.filter(result => result.status === 'rejected');
-    if (rejectedResults.length > 0) {
-      console.error('Rejected AWB operations:', rejectedResults.map(r => (r as PromiseRejectedResult).reason));
+      console.warn('Failed AWB operations:', failedResults.map(r => r.value));
     }
 
     return successCount;
