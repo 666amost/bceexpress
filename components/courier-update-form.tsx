@@ -102,12 +102,22 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const fetchShipmentDetails = async (awb: string) => {
     try {
+      // Add timeout for all database operations
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 8000)
+      );
+
       // First check if the shipment already exists
-      const { data: shipmentData, error: shipmentError } = await supabaseClient
+      const shipmentPromise = supabaseClient
         .from("shipments")
         .select("*")
         .eq("awb_number", awb)
-        .single()
+        .maybeSingle();
+
+      const { data: shipmentData, error: shipmentError } = await Promise.race([
+        shipmentPromise,
+        timeoutPromise
+      ]) as any;
 
       if (!shipmentError && shipmentData) {
         setShipmentDetails(shipmentData)
@@ -115,11 +125,16 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
 
       // If shipment doesn't exist, check if it exists in manifest (central)
-      const { data: manifestData, error: manifestError } = await supabaseClient
+      const manifestPromise = supabaseClient
         .from("manifest")
         .select("*")
         .eq("awb_no", awb)
-        .single()
+        .maybeSingle();
+
+      const { data: manifestData, error: manifestError } = await Promise.race([
+        manifestPromise,
+        timeoutPromise
+      ]) as any;
 
       if (!manifestError && manifestData) {
         // If found in central manifest, show the data
@@ -144,11 +159,16 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
 
       // If not found in central manifest, check manifest_cabang (branch)
-      const { data: manifestCabangData, error: manifestCabangError } = await supabaseClient
+      const manifestCabangPromise = supabaseClient
         .from("manifest_cabang")
         .select("*")
         .eq("awb_no", awb)
-        .single()
+        .maybeSingle();
+
+      const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
+        manifestCabangPromise,
+        timeoutPromise
+      ]) as any;
 
       if (!manifestCabangError && manifestCabangData) {
         // If found in branch manifest, show the data
@@ -181,6 +201,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
     } catch (err) {
       // Silently handle fetch errors - user will see appropriate toast messages
+      console.warn("Error fetching shipment details:", err);
     }
   }
 
@@ -245,9 +266,9 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const arrayBuffer = await file.arrayBuffer()
       const buffer = new Uint8Array(arrayBuffer)
 
-      // Add timeout for upload operation
+      // Shorter timeout for upload operation
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout')), 20000)
+        setTimeout(() => reject(new Error('Upload timeout')), 15000)
       );
 
       const uploadPromise = supabaseClient.storage
@@ -259,28 +280,40 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
       if (error) {
+        console.warn("Upload error:", error);
         return null;
       }
 
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
+      console.warn("Upload failed:", error);
       return null
     }
   }
 
   const createShipmentFromManifest = async (awbNumber: string): Promise<boolean> => {
     try {
+      // Add timeout for manifest operations
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Manifest timeout')), 8000)
+      );
+
       // First try to create from central manifest
-      const { data: manifestData, error: manifestError } = await supabaseClient
+      const centralManifestPromise = supabaseClient
         .from("manifest")
         .select("*")
         .eq("awb_no", awbNumber)
-        .single()
+        .maybeSingle();
+
+      const { data: manifestData, error: manifestError } = await Promise.race([
+        centralManifestPromise,
+        timeoutPromise
+      ]) as any;
 
       if (!manifestError && manifestData) {
-        // Create shipment from central manifest
-        const { error: insertError } = await supabaseClient.from("shipments").insert([
+        // Create shipment from central manifest with upsert for safety
+        const insertPromise = supabaseClient.from("shipments").upsert([
           {
             awb_number: awbNumber,
             sender_name: manifestData.nama_pengirim || "Auto Generated",
@@ -296,7 +329,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
-        ])
+        ], { 
+          onConflict: 'awb_number',
+          ignoreDuplicates: false 
+        });
+
+        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
         if (!insertError) {
           toast.success("Shipment dibuat dari manifest pusat")
@@ -305,15 +343,20 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
 
       // If not found in central manifest, try branch manifest
-      const { data: manifestCabangData, error: manifestCabangError } = await supabaseClient
+      const branchManifestPromise = supabaseClient
         .from("manifest_cabang")
         .select("*")
         .eq("awb_no", awbNumber)
-        .single()
+        .maybeSingle();
+
+      const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
+        branchManifestPromise,
+        timeoutPromise
+      ]) as any;
 
       if (!manifestCabangError && manifestCabangData) {
-        // Create shipment from branch manifest
-        const { error: insertError } = await supabaseClient.from("shipments").insert([
+        // Create shipment from branch manifest with upsert for safety
+        const insertPromise = supabaseClient.from("shipments").upsert([
           {
             awb_number: awbNumber,
             sender_name: manifestCabangData.nama_pengirim || "Auto Generated",
@@ -329,7 +372,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
-        ])
+        ], { 
+          onConflict: 'awb_number',
+          ignoreDuplicates: false 
+        });
+
+        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
         if (!insertError) {
           toast.success("Shipment dibuat dari manifest cabang")
@@ -340,15 +388,21 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       // If not found in either manifest, fallback to basic shipment
       return await createBasicShipment(awbNumber)
     } catch (error) {
+      console.warn("Error creating shipment from manifest:", error);
       return await createBasicShipment(awbNumber)
     }
   }
 
   const createBasicShipment = async (awbNumber: string): Promise<boolean> => {
     try {
+      // Add timeout for basic shipment creation
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Create timeout')), 10000)
+      );
+
       // If shipmentDetails exists and has from_manifest flag, use that data
       if (shipmentDetails && shipmentDetails.from_manifest) {
-        const { error } = await supabaseClient.from("shipments").insert([
+        const insertPromise = supabaseClient.from("shipments").upsert([
           {
             awb_number: awbNumber,
             sender_name: shipmentDetails.sender_name || "Auto Generated",
@@ -364,16 +418,22 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
-        ])
+        ], { 
+          onConflict: 'awb_number',
+          ignoreDuplicates: false 
+        });
+
+        const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
         if (error) {
+          console.warn("Error creating shipment with manifest data:", error);
           return false
         }
         return true
       }
 
       // Fallback to basic auto-generated shipment
-      const { error } = await supabaseClient.from("shipments").insert([
+      const insertPromise = supabaseClient.from("shipments").upsert([
         {
           awb_number: awbNumber,
           sender_name: "Auto Generated",
@@ -389,13 +449,20 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
-      ])
+      ], { 
+        onConflict: 'awb_number',
+        ignoreDuplicates: false 
+      });
+
+      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (error) {
+        console.warn("Error creating basic shipment:", error);
         return false
       }
       return true
     } catch (error) {
+      console.warn("Error in createBasicShipment:", error);
       return false
     }
   }
@@ -403,22 +470,24 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
     try {
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 10000)
+        setTimeout(() => reject(new Error('Query timeout')), 8000)
       );
 
       const queryPromise = supabaseClient
         .from("shipments")
         .select("awb_number")
         .eq("awb_number", awbNumber)
-        .single();
+        .maybeSingle();
 
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
+        console.warn("Error checking shipment exists:", error);
         return false;
       }
       return !!data
     } catch (error) {
+      console.warn("Error in checkShipmentExists:", error);
       return false
     }
   }
@@ -434,10 +503,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   ): Promise<boolean> => {
     try {
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Update timeout')), 15000)
+        setTimeout(() => reject(new Error('Update timeout')), 12000)
       );
 
-      // Update shipment status first
+      // Update shipment status first with upsert for safety
       const updatePromise = supabaseClient
         .from("shipments")
         .update({ current_status: status, updated_at: new Date().toISOString() })
@@ -446,6 +515,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as any;
 
       if (updateError) {
+        console.warn("Error updating shipment:", updateError);
         return false;
       }
 
@@ -454,7 +524,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         updatedNotes = updatedNotes ? `${updatedNotes} - Updated by ${currentUser}` : `Updated by ${currentUser}`
       }
 
-      // Insert history record
+      // Insert history record with conflict handling
       const insertPromise = supabaseClient.from("shipment_history").insert([
         {
           awb_number: awbNumber,
@@ -471,10 +541,16 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (insertError) {
+        console.warn("Error inserting history:", insertError);
+        // Don't fail if it's just a duplicate entry
+        if (insertError.code === '23505') {
+          return true; // Duplicate entry, but operation was successful
+        }
         return false;
       }
       return true
     } catch (error) {
+      console.warn("Error in addShipmentHistory:", error);
       return false
     }
   }
@@ -491,9 +567,9 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
 
     try {
-      // Add timeout for all operations
+      // Shorter timeout for mobile users
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Operation timeout')), 30000)
+        setTimeout(() => reject(new Error('Operation timeout')), 25000)
       );
 
       const shipmentExists = await Promise.race([
@@ -509,7 +585,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         ]) as boolean;
 
         if (!created) {
-          setError("Failed to create shipment. Please try again.")
+          setError("Gagal membuat shipment. Silakan coba lagi.")
           setIsLoading(false)
           return
         }
@@ -524,7 +600,9 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           ]) as string | null;
         } catch (uploadError) {
           // Continue without photo if upload fails
+          console.warn("Photo upload failed:", uploadError);
           photoUrl = null;
+          toast.warning("Foto gagal diupload, tapi update status tetap dilanjutkan");
         }
       }
 
@@ -543,12 +621,13 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
       if (result) {
         setSuccess(true)
+        playBeep()
 
         // Tambahkan logika trigger sync hanya jika status adalah "delivered"
         if (status === "delivered") {
           try {
             const syncTimeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Sync timeout')), 10000)
+              setTimeout(() => reject(new Error('Sync timeout')), 8000)
             );
 
             const response = await Promise.race([
@@ -567,16 +646,18 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             }
           } catch (syncError) {
             // Sync error - silently handle
+            console.warn("Sync error:", syncError);
           }
         }
       } else {
-        setError("Failed to update shipment status. Please try again.")
+        setError("Gagal mengupdate status shipment. Silakan coba lagi.")
       }
     } catch (error) {
+      console.warn("Submit error:", error);
       if (error instanceof Error && error.message === 'Operation timeout') {
-        setError("Operation timed out. Please check your connection and try again.")
+        setError("Operasi timeout. Periksa koneksi internet dan coba lagi.")
       } else {
-        setError("An unexpected error occurred. Please try again.")
+        setError("Terjadi kesalahan. Silakan coba lagi.")
       }
     } finally {
       setIsLoading(false)
@@ -612,40 +693,40 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-4 sm:p-6">
-      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <CardContent className="pt-6">
-          <div className="mb-6">
-            <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-2 sm:p-4 md:p-6">
+      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+        <CardContent className="p-4 sm:p-6">
+          <div className="mb-4 sm:mb-6">
+            <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm">
               <ChevronLeft className="w-4 h-4 mr-2" /> Back to Dashboard
             </Button>
           </div>
 
           {shipmentDetails && (
-            <div className="mb-6 p-4 bg-muted/50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Shipment Details</h3>
-              <p className="text-sm text-gray-700 dark:text-gray-300">Receiver: <span className="font-medium">{shipmentDetails.receiver_name}</span></p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">Phone: <span className="font-medium">{shipmentDetails.receiver_phone || "N/A"}</span></p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">Address: <span className="font-medium">{shipmentDetails.receiver_address}</span></p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-muted/50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white text-sm sm:text-base">Shipment Details</h3>
+              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Receiver: <span className="font-medium">{shipmentDetails.receiver_name}</span></p>
+              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Phone: <span className="font-medium">{shipmentDetails.receiver_phone || "N/A"}</span></p>
+              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Address: <span className="font-medium">{shipmentDetails.receiver_address}</span></p>
+              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 mt-1">
                 Current Status: <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}</span>
               </p>
               {shipmentDetails.from_manifest && (
-                <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-1">Data loaded from manifest ({shipmentDetails.manifest_source})</p>
+                <p className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-medium mt-1">Data loaded from manifest ({shipmentDetails.manifest_source})</p>
               )}
             </div>
           )}
 
           {error && (
-            <Alert variant="destructive" className="mb-6 border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
-              <AlertDescription className="text-red-700 dark:text-red-300">{error}</AlertDescription>
+            <Alert variant="destructive" className="mb-4 sm:mb-6 border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+              <AlertDescription className="text-red-700 dark:text-red-300 text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold">AWB Number</Label>
+                <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">AWB Number</Label>
               </div>
               <Input
                 id="courier-awb"
@@ -658,14 +739,14 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   }
                 }}
                 required
-                className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11"
               />
             </div>
 
             <div>
-              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-semibold">Status</Label>
+              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Status</Label>
               <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)}>
-                <SelectTrigger id="shipment-status" className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                <SelectTrigger id="shipment-status" className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 h-10 sm:h-11 text-sm sm:text-base">
                   <SelectValue placeholder="Select Status" className="text-gray-400 dark:text-gray-600" />
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
@@ -676,10 +757,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold">Current Location</Label>
-                 <Button type="button" onClick={getCurrentLocation} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
-                  <FontAwesomeIcon icon={faMapPin} className="w-4 h-4 mr-1" />
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-1.5 gap-2">
+                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Current Location</Label>
+                 <Button type="button" onClick={getCurrentLocation} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm h-8 sm:h-9 px-3">
+                  <FontAwesomeIcon icon={faMapPin} className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span>Get GPS</span>
                 </Button>
               </div>
@@ -688,7 +769,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                 placeholder="Enter location or use GPS"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11"
                 required={status === "delivered"} // Require location only for 'delivered' status
               />
               {gpsCoords && (
@@ -699,8 +780,8 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <Label className="text-gray-700 dark:text-gray-300 font-semibold">Proof of Delivery</Label>
-              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center bg-gray-50 dark:bg-gray-800">
+              <Label className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Proof of Delivery</Label>
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 sm:p-6 text-center bg-gray-50 dark:bg-gray-800">
                 <input
                   type="file"
                   id="delivery-photo"
@@ -711,28 +792,28 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                 />
 
                 {photoPreview ? (
-                  <div className="mb-4">
+                  <div className="mb-3 sm:mb-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={photoPreview || "/placeholder.svg"}
                       alt="Preview"
-                      className="mx-auto photo-preview max-h-60 rounded-lg shadow-md"
+                      className="mx-auto photo-preview max-h-48 sm:max-h-60 rounded-lg shadow-md"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={removePhoto}
-                      className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
                     >
                       <CloseIcon className="h-4 w-4 mr-1" /> Remove Photo
                     </Button>
                   </div>
                 ) : (
                   <div>
-                    <CameraIcon className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-3">Upload photo proof of delivery (Optional)</p>
-                    <Button type="button" onClick={() => fileInputRef.current?.click()} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
+                    <CameraIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2 sm:mb-3" />
+                    <p className="text-gray-600 dark:text-gray-400 mb-2 sm:mb-3 text-sm sm:text-base">Upload photo proof of delivery (Optional)</p>
+                    <Button type="button" onClick={() => fileInputRef.current?.click()} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm sm:text-base h-8 sm:h-10">
                       <UploadIcon className="w-4 h-4 mr-2" /> Select Photo
                     </Button>
                   </div>
@@ -741,14 +822,14 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </div>
 
             <div>
-              <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-semibold">Notes (Optional)</Label>
+              <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Notes (Optional)</Label>
               <Textarea
                 id="notes"
                 rows={3}
                 placeholder="Add any additional notes about this update"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base resize-none"
               />
               {currentUser && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -757,9 +838,9 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
               )}
             </div>
 
-            <Button type="submit" className="w-full font-bold py-3 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600" disabled={isLoading || (status === 'delivered' && !location)}>
+            <Button type="submit" className="w-full font-bold py-3 sm:py-4 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600 text-sm sm:text-base" disabled={isLoading || (status === 'delivered' && !location)}>
               {isLoading ? (
-                 <><span className="animate-spin"><FontAwesomeIcon icon={faSpinner} className="h-5 w-5 mr-2" /></span> Updating...</>
+                 <><span className="animate-spin"><FontAwesomeIcon icon={faSpinner} className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /></span> Updating...</>
               ) : (
                 "Update Status"
               )}
