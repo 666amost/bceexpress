@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,6 +31,10 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [processingStatus, setProcessingStatus] = useState<string>("")
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+  
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
 
   const playScanSuccessSound = () => {
     const audio = new Audio('/sounds/scan_success.mp3');
@@ -39,6 +43,56 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       // Silently handle audio play errors
     });
   };
+
+  // Handle mobile keyboard detection
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        const viewport = window.visualViewport;
+        if (viewport) {
+          const keyboardHeight = window.innerHeight - viewport.height;
+          setIsKeyboardOpen(keyboardHeight > 150); // Threshold for keyboard detection
+        }
+      }
+    };
+
+    const handleVisualViewportChange = () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const keyboardHeight = window.innerHeight - window.visualViewport.height;
+        setIsKeyboardOpen(keyboardHeight > 150);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      // Modern browsers with Visual Viewport API
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+      }
+      
+      // Fallback for older browsers
+      window.addEventListener('resize', handleResize);
+      
+      return () => {
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
+        }
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, []);
+
+  // Auto-scroll to submit button when keyboard opens and textarea is focused
+  useEffect(() => {
+    if (isKeyboardOpen && textareaRef.current === document.activeElement) {
+      setTimeout(() => {
+        submitButtonRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'nearest',
+          inline: 'nearest'
+        });
+      }, 300); // Delay to allow keyboard animation
+    }
+  }, [isKeyboardOpen]);
 
   useEffect(() => {
     // Get current user
@@ -75,6 +129,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setProcessingStatus("")
       setIsLoading(false)
       setAbortController(null)
+      setIsKeyboardOpen(false)
       
       // Generate new modal key to force re-render
       setModalKey(Date.now().toString())
@@ -96,6 +151,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setError(null)
       setProcessingStatus("")
       setAbortController(null)
+      setIsKeyboardOpen(false)
     }
   }, [isOpen, abortController])
 
@@ -235,7 +291,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               await Promise.race([shipmentOperation, operationTimeout]);
               shipmentSuccess = true;
             } catch (shipmentError) {
-              console.warn(`Shipment creation failed for ${awb}:`, shipmentError);
               // Try one more time with basic data
               try {
                 const retryOperation = client
@@ -247,7 +302,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 await Promise.race([retryOperation, operationTimeout]);
                 shipmentSuccess = true;
               } catch (retryError) {
-                console.error(`Shipment retry failed for ${awb}:`, retryError);
+                // Shipment retry failed - continue to next step
               }
             }
           } else {
@@ -265,7 +320,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               await Promise.race([updateOperation, operationTimeout]);
               shipmentSuccess = true;
             } catch (updateError) {
-              console.warn(`Shipment update failed for ${awb}:`, updateError);
+              // Shipment update failed - continue to next step
             }
           }
 
@@ -285,7 +340,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               await Promise.race([historyOperation, operationTimeout]);
               historySuccess = true;
             } catch (historyError) {
-              console.warn(`History insert failed for ${awb}:`, historyError);
               
               // Retry history insert with different timestamp to avoid conflicts
               try {
@@ -303,7 +357,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 await Promise.race([retryHistoryOperation, operationTimeout]);
                 historySuccess = true;
               } catch (retryHistoryError) {
-                console.error(`History retry failed for ${awb}:`, retryHistoryError);
+                // History retry failed - operation incomplete
               }
             }
           }
@@ -317,7 +371,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
         } catch (err: any) {
           // Log error but don't fail the entire batch
-          console.warn(`Failed to process AWB ${awb}:`, err);
           return { awb, success: false, error: err.message };
         }
       })
@@ -328,15 +381,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       result.status === 'fulfilled' && result.value.success
     ).length;
 
-    // Log results for debugging - only check fulfilled promises that failed
+    // Track failed results for debugging (without console logging)
     const failedResults = results
       .filter((result): result is PromiseFulfilledResult<any> => 
         result.status === 'fulfilled' && !result.value.success
       );
-    
-    if (failedResults.length > 0) {
-      console.warn('Failed AWB operations:', failedResults.map(r => r.value));
-    }
 
     return successCount;
   }
@@ -465,26 +514,62 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   }
 
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          if (isLoading) {
-            // Prevent closing modal during processing unless explicitly cancelled
-            const shouldClose = confirm("Proses sedang berjalan. Apakah Anda yakin ingin membatalkan?")
-            if (shouldClose && abortController) {
-              abortController.abort()
-              setIsLoading(false)
-              setProcessingStatus("")
-              onClose()
-            }
-          } else {
-            onClose()
+    <>
+      {/* Mobile viewport fix for keyboard handling */}
+      <style jsx global>{`
+        @media (max-width: 640px) {
+          .mobile-keyboard-open {
+            position: fixed !important;
+            top: 10px !important;
+            bottom: auto !important;
+            max-height: 60vh !important;
+            transform: none !important;
+          }
+          
+          .mobile-keyboard-open .dialog-content {
+            max-height: 60vh !important;
+            overflow-y: auto !important;
+          }
+          
+          .mobile-keyboard-footer {
+            position: sticky !important;
+            bottom: 0 !important;
+            background: white !important;
+            border-top: 1px solid #e5e7eb !important;
+            margin-top: auto !important;
+            z-index: 10 !important;
+          }
+          
+          .dark .mobile-keyboard-footer {
+            background: #111827 !important;
+            border-top-color: #374151 !important;
           }
         }
-      }}
-    >
-      <DialogContent key={modalKey} className="w-[95vw] max-w-[420px] max-h-[90vh] p-4 sm:p-6 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 mx-auto overflow-hidden">
+      `}</style>
+      
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isLoading) {
+              // Prevent closing modal during processing unless explicitly cancelled
+              const shouldClose = confirm("Proses sedang berjalan. Apakah Anda yakin ingin membatalkan?")
+              if (shouldClose && abortController) {
+                abortController.abort()
+                setIsLoading(false)
+                setProcessingStatus("")
+                onClose()
+              }
+            } else {
+              onClose()
+            }
+          }
+        }}
+      >
+        <DialogContent 
+          key={modalKey} 
+          className={`w-[95vw] max-w-[420px] ${isKeyboardOpen ? 'max-h-[60vh] mobile-keyboard-open' : 'max-h-[90vh]'} p-4 sm:p-6 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 mx-auto overflow-hidden dialog-content`}
+        >
           <DialogHeader className="mb-3 sm:mb-4">
               <DialogTitle className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white break-words">Bulk Update Manual</DialogTitle>
               <DialogDescription className="text-sm sm:text-base text-gray-600 dark:text-gray-400 break-words">
@@ -495,7 +580,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 sm:space-y-4 py-2 sm:py-4 overflow-hidden">
+            <div className={`space-y-3 sm:space-y-4 py-2 sm:py-4 overflow-hidden ${isKeyboardOpen ? 'max-h-[25vh] overflow-y-auto' : ''}`}>
               {error && <p className="text-sm text-red-500 px-1 break-words">{error}</p>}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -504,10 +589,22 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 <Textarea
                   id="awb-numbers"
                   placeholder="Masukkan nomor resi di sini..."
-                  rows={5}
+                  rows={isKeyboardOpen ? 3 : 5}
                   value={awbNumbers}
                   onChange={(e) => setAwbNumbers(e.target.value)}
                   className="text-sm sm:text-base font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] resize-none w-full"
+                  ref={textareaRef}
+                  onFocus={() => {
+                    // Small delay to ensure keyboard is open before scrolling
+                    setTimeout(() => {
+                      if (isKeyboardOpen) {
+                        submitButtonRef.current?.scrollIntoView({ 
+                          behavior: 'smooth', 
+                          block: 'nearest' 
+                        });
+                      }
+                    }, 500);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground px-1 break-words">
                   contoh: BCE556786, 556744, Hanya untuk resi manual
@@ -520,7 +617,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               </div>
             </div>
 
-            <DialogFooter className="flex flex-col space-y-3 mt-3 sm:mt-4">
+            <DialogFooter className={`flex flex-col space-y-3 mt-3 sm:mt-4 ${isKeyboardOpen ? 'sticky bottom-0 bg-white dark:bg-gray-900 pt-3 border-t border-gray-200 dark:border-gray-700 mobile-keyboard-footer' : ''}`}>
               {processingStatus && (
                 <div className="w-full text-center text-sm text-blue-600 dark:text-blue-400 mb-2 px-2 break-words max-w-full overflow-hidden">
                   <div className="truncate max-w-full" title={processingStatus}>
@@ -553,6 +650,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                   onClick={handleSubmit} 
                   disabled={isLoading || awbNumbers.trim().length === 0} 
                   className="w-full sm:flex-1 bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base py-2 sm:py-3 min-w-0"
+                  ref={submitButtonRef}
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center min-w-0">
@@ -565,7 +663,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 </Button>
               </div>
             </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

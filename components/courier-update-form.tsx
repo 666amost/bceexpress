@@ -201,7 +201,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
     } catch (err) {
       // Silently handle fetch errors - user will see appropriate toast messages
-      console.warn("Error fetching shipment details:", err);
     }
   }
 
@@ -280,14 +279,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
       if (error) {
-        console.warn("Upload error:", error);
         return null;
       }
 
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
-      console.warn("Upload failed:", error);
       return null
     }
   }
@@ -388,7 +385,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       // If not found in either manifest, fallback to basic shipment
       return await createBasicShipment(awbNumber)
     } catch (error) {
-      console.warn("Error creating shipment from manifest:", error);
       return await createBasicShipment(awbNumber)
     }
   }
@@ -426,7 +422,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
         if (error) {
-          console.warn("Error creating shipment with manifest data:", error);
           return false
         }
         return true
@@ -457,12 +452,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (error) {
-        console.warn("Error creating basic shipment:", error);
         return false
       }
       return true
     } catch (error) {
-      console.warn("Error in createBasicShipment:", error);
       return false
     }
   }
@@ -482,12 +475,10 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
-        console.warn("Error checking shipment exists:", error);
         return false;
       }
       return !!data
     } catch (error) {
-      console.warn("Error in checkShipmentExists:", error);
       return false
     }
   }
@@ -515,7 +506,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as any;
 
       if (updateError) {
-        console.warn("Error updating shipment:", updateError);
         return false;
       }
 
@@ -541,7 +531,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (insertError) {
-        console.warn("Error inserting history:", insertError);
         // Don't fail if it's just a duplicate entry
         if (insertError.code === '23505') {
           return true; // Duplicate entry, but operation was successful
@@ -550,7 +539,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       }
       return true
     } catch (error) {
-      console.warn("Error in addShipmentHistory:", error);
       return false
     }
   }
@@ -600,7 +588,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           ]) as string | null;
         } catch (uploadError) {
           // Continue without photo if upload fails
-          console.warn("Photo upload failed:", uploadError);
           photoUrl = null;
           toast.warning("Foto gagal diupload, tapi update status tetap dilanjutkan");
         }
@@ -646,14 +633,12 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             }
           } catch (syncError) {
             // Sync error - silently handle
-            console.warn("Sync error:", syncError);
           }
         }
       } else {
         setError("Gagal mengupdate status shipment. Silakan coba lagi.")
       }
     } catch (error) {
-      console.warn("Submit error:", error);
       if (error instanceof Error && error.message === 'Operation timeout') {
         setError("Operasi timeout. Periksa koneksi internet dan coba lagi.")
       } else {
