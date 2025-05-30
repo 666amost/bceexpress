@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
+import { toast } from "sonner"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -148,37 +149,39 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     }
   }
 
-  // Ultra-fast parallel processing for maximum speed
+  // Ultra-fast parallel processing with better error handling
   const processAwbsParallel = async (awbList: string[], courierId: string, courierName: string) => {
     const location = "Sorting Center"
     const status = "out_for_delivery"
     const timestamp = new Date().toISOString()
     
-    // Process all AWBs in parallel for maximum speed
+    // Process all AWBs in parallel but with better error handling
     const results = await Promise.allSettled(
       awbList.map(async (awb, index) => {
         try {
-          // Stagger requests slightly to avoid overwhelming database
-          await new Promise(resolve => setTimeout(resolve, index * 10)); // 10ms stagger
+          // Stagger requests to avoid overwhelming database
+          await new Promise(resolve => setTimeout(resolve, index * 50)); // Increased to 50ms stagger
           
           const client = await getPooledClient();
           
-          // Fast timeout for all operations
-          const fastTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 800) // 800ms max per AWB
+          // Longer timeout for more reliable operations
+          const operationTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 2000) // Increased to 2 seconds
           );
 
-          // Check if shipment exists (super fast)
+          // Check if shipment exists
           const existingCheck = client
             .from("shipments")
             .select("awb_number")
             .eq("awb_number", awb)
             .maybeSingle();
 
-          const { data: existingShipment } = await Promise.race([existingCheck, fastTimeout]) as any;
+          const { data: existingShipment } = await Promise.race([existingCheck, operationTimeout]) as any;
 
-          let shipmentOperation;
+          let shipmentSuccess = false;
+          let historySuccess = false;
           
+          // Step 1: Handle shipment creation/update
           if (!existingShipment) {
             // Quick manifest check in parallel
             const manifestPromise = checkManifestAwb(awb);
@@ -204,7 +207,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             // Wait for manifest check (with timeout)
             const manifestData = await Promise.race([
               manifestPromise,
-              new Promise(resolve => setTimeout(() => resolve(null), 300)) // 300ms timeout for manifest
+              new Promise(resolve => setTimeout(() => resolve(null), 500)) // Increased timeout for manifest
             ]);
 
             // Use manifest data if available, otherwise use basic data
@@ -220,43 +223,98 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
               dimensions: manifestData.dimensi || "10x10x10",
             } : basicShipmentData;
 
-            // Create shipment with upsert for safety
-            shipmentOperation = client
-              .from("shipments")
-              .upsert([shipmentData], { 
-                onConflict: 'awb_number',
-                ignoreDuplicates: false 
-              });
+            // Create shipment with retry
+            try {
+              const shipmentOperation = client
+                .from("shipments")
+                .upsert([shipmentData], { 
+                  onConflict: 'awb_number',
+                  ignoreDuplicates: false 
+                });
+
+              await Promise.race([shipmentOperation, operationTimeout]);
+              shipmentSuccess = true;
+            } catch (shipmentError) {
+              console.warn(`Shipment creation failed for ${awb}:`, shipmentError);
+              // Try one more time with basic data
+              try {
+                const retryOperation = client
+                  .from("shipments")
+                  .upsert([basicShipmentData], { 
+                    onConflict: 'awb_number',
+                    ignoreDuplicates: false 
+                  });
+                await Promise.race([retryOperation, operationTimeout]);
+                shipmentSuccess = true;
+              } catch (retryError) {
+                console.error(`Shipment retry failed for ${awb}:`, retryError);
+              }
+            }
           } else {
             // Update existing shipment
-            shipmentOperation = client
-              .from("shipments")
-              .update({
-                current_status: status,
-                updated_at: timestamp,
-                courier_id: courierId,
-              })
-              .eq("awb_number", awb);
+            try {
+              const updateOperation = client
+                .from("shipments")
+                .update({
+                  current_status: status,
+                  updated_at: timestamp,
+                  courier_id: courierId,
+                })
+                .eq("awb_number", awb);
+
+              await Promise.race([updateOperation, operationTimeout]);
+              shipmentSuccess = true;
+            } catch (updateError) {
+              console.warn(`Shipment update failed for ${awb}:`, updateError);
+            }
           }
 
-          // Execute shipment operation and history insert in parallel
-          const historyOperation = client
-            .from("shipment_history")
-            .insert([{
-              awb_number: awb,
-              status,
-              location,
-              notes: `Bulk update - Out for Delivery by ${courierName}`,
-              created_at: timestamp,
-            }]);
+          // Step 2: Insert history record (only if shipment operation succeeded)
+          if (shipmentSuccess) {
+            try {
+              const historyOperation = client
+                .from("shipment_history")
+                .insert([{
+                  awb_number: awb,
+                  status,
+                  location,
+                  notes: `Bulk update - Out for Delivery by ${courierName}`,
+                  created_at: timestamp,
+                }]);
 
-          // Execute both operations in parallel with timeout
-          await Promise.race([
-            Promise.all([shipmentOperation, historyOperation]),
-            fastTimeout
-          ]);
+              await Promise.race([historyOperation, operationTimeout]);
+              historySuccess = true;
+            } catch (historyError) {
+              console.warn(`History insert failed for ${awb}:`, historyError);
+              
+              // Retry history insert with different timestamp to avoid conflicts
+              try {
+                const retryTimestamp = new Date(Date.now() + index).toISOString();
+                const retryHistoryOperation = client
+                  .from("shipment_history")
+                  .insert([{
+                    awb_number: awb,
+                    status,
+                    location,
+                    notes: `Bulk update - Out for Delivery by ${courierName}`,
+                    created_at: retryTimestamp,
+                  }]);
 
-          return { awb, success: true };
+                await Promise.race([retryHistoryOperation, operationTimeout]);
+                historySuccess = true;
+              } catch (retryHistoryError) {
+                console.error(`History retry failed for ${awb}:`, retryHistoryError);
+              }
+            }
+          }
+
+          // Only consider success if both operations succeeded
+          if (shipmentSuccess && historySuccess) {
+            return { awb, success: true, shipmentSuccess, historySuccess };
+          } else {
+            return { awb, success: false, shipmentSuccess, historySuccess, error: 'Incomplete operation' };
+          }
+
         } catch (err: any) {
           // Log error but don't fail the entire batch
           console.warn(`Failed to process AWB ${awb}:`, err);
@@ -265,10 +323,19 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       })
     );
 
-    // Count successful operations
+    // Count successful operations (both shipment and history must succeed)
     const successCount = results.filter(result => 
       result.status === 'fulfilled' && result.value.success
     ).length;
+
+    // Log results for debugging
+    const failedResults = results.filter(result => 
+      result.status === 'fulfilled' && !result.value.success
+    );
+    
+    if (failedResults.length > 0) {
+      console.warn('Failed AWB operations:', failedResults.map(r => r.value));
+    }
 
     return successCount;
   }
@@ -346,10 +413,24 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setProcessingStatus(`Selesai! ${successCount}/${awbList.length} berhasil`)
       
       // Brief pause to show result
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Increased to show result longer
 
       // Play success sound
       playScanSuccessSound()
+
+      // Show detailed results if there were failures
+      if (successCount < awbList.length) {
+        const failedCount = awbList.length - successCount;
+        toast.warning(`${successCount} berhasil, ${failedCount} gagal`, {
+          description: "Periksa console untuk detail error",
+          duration: 5000,
+        });
+      } else {
+        toast.success(`Semua ${successCount} resi berhasil diproses!`, {
+          description: "Shipment dan history tersimpan",
+          duration: 3000,
+        });
+      }
 
       // Notify parent component about success and close modal
       onSuccess(successCount)
