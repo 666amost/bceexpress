@@ -334,7 +334,13 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     );
     
     if (failedResults.length > 0) {
-      console.warn('Failed AWB operations:', failedResults.map(r => r.value));
+      console.warn('Failed AWB operations:', failedResults.map(r => (r as PromiseFulfilledResult<any>).value));
+    }
+
+    // Also log any rejected promises
+    const rejectedResults = results.filter(result => result.status === 'rejected');
+    if (rejectedResults.length > 0) {
+      console.error('Rejected AWB operations:', rejectedResults.map(r => (r as PromiseRejectedResult).reason));
     }
 
     return successCount;
