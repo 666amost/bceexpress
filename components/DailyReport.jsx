@@ -6,7 +6,8 @@ import * as XLSX from 'xlsx'
 
 export default function DailyReport({ userRole, branchOrigin }) {
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
-  const [selectedDate, setSelectedDate] = useState("")  // State untuk filter tanggal
+  const [selectedDateFrom, setSelectedDateFrom] = useState("") // State baru untuk filter tanggal Dari
+  const [selectedDateTo, setSelectedDateTo] = useState("") // State baru untuk filter tanggal Sampai
   const [selectedKirimVia, setSelectedKirimVia] = useState("")  // State untuk filter kirim via
   const [selectedAgentCustomer, setSelectedAgentCustomer] = useState("")  // State untuk filter Agent/Customer
   const [selectedKotaTujuan, setSelectedKotaTujuan] = useState("")  // State baru untuk filter kota tujuan
@@ -71,12 +72,12 @@ export default function DailyReport({ userRole, branchOrigin }) {
       };
   const wilayahOptions = useMemo(() => kotaWilayah[selectedKotaTujuan] || [], [selectedKotaTujuan, kotaWilayah]);
 
-  // Fetch data berdasarkan filter yang dipilih, termasuk kota tujuan
+  // Fetch data berdasarkan filter yang dipilih, termasuk kota tujuan dan rentang tanggal
   useEffect(() => {
-    if (selectedDate || selectedKirimVia || selectedAgentCustomer || selectedKotaTujuan || selectedWilayah) {
+    if (selectedDateFrom || selectedDateTo || selectedKirimVia || selectedAgentCustomer || selectedKotaTujuan || selectedWilayah) {
       fetchDailyReport()
     }
-  }, [selectedDate, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah])  // Tambahkan selectedKotaTujuan ke dependencies
+  }, [selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah])  // Tambahkan selectedDateFrom dan selectedDateTo ke dependencies
 
   async function fetchDailyReport() {
     setLoading(true)
@@ -98,9 +99,22 @@ export default function DailyReport({ userRole, branchOrigin }) {
           .order("awb_date", { ascending: false })
       }
       
-      if (selectedDate) {
-        query = query.eq("awb_date", selectedDate)
+      // Apply date range filter
+      if (selectedDateFrom && selectedDateTo) {
+        // Filter between two dates (inclusive)
+        query = query
+          .gte("awb_date", selectedDateFrom)
+          .lte("awb_date", selectedDateTo);
+      } else if (selectedDateFrom) {
+        // Filter from a specific date onwards
+        query = query.gte("awb_date", selectedDateFrom);
+      } else if (selectedDateTo) {
+        // Filter up to a specific date
+        query = query.lte("awb_date", selectedDateTo);
       }
+      // Note: If neither selectedDateFrom nor selectedDateTo is set, no date filter is applied,
+      // fetching all data (sorted by date desc) which matches other filters.
+      
       if (selectedKirimVia) {
         query = query.eq("kirim_via", selectedKirimVia)
       }
@@ -248,11 +262,20 @@ export default function DailyReport({ userRole, branchOrigin }) {
       <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-4">Daily Report</h2>
       
       <div className="mb-4 flex flex-wrap items-center gap-2 no-print">
-        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Date:</label>
+        {/* Date Range Filter */}
+        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Date From:</label>
         <input
           type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          value={selectedDateFrom}
+          onChange={(e) => setSelectedDateFrom(e.target.value)}
+          className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+        />
+
+        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Date To:</label>
+        <input
+          type="date"
+          value={selectedDateTo}
+          onChange={(e) => setSelectedDateTo(e.target.value)}
           className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
         />
         

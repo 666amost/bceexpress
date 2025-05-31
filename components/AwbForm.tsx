@@ -67,7 +67,8 @@ const agentList = [
   "HENDRY LIMIA",
   "JESS DOT",
   "SEPIRING RASA BASO",
-  "CHRISTINE PADEMANGAN"
+  "CHRISTINE PADEMANGAN",
+  "Amertha / Holai Resto"
 ]
 
 const metodePembayaran = ["cash", "transfer", "cod"]

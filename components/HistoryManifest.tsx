@@ -39,7 +39,8 @@ const agentList = [
   'HENDRY LIMIA',
   'JESS DOT',
   'SEPIRING RASA BASO',
-  'CHRISTINE PADEMANGAN'
+  'CHRISTINE PADEMANGAN',
+  'Amertha / Holai Resto'
 ];
 
 const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"];
