@@ -68,26 +68,33 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
           .select(`
             awb_no,
             awb_date,
-            kota_tujuan,
+            wilayah,
             nama_pengirim,
             nama_penerima,
             total,
+            berat_kg,
+            biaya_admin,
+            biaya_packaging,
+            biaya_transit,
             agent_customer
           `)
           .eq("buktimembayar", false)
           .eq('origin_branch', branchOrigin)
           .order("awb_date", { ascending: false })
       } else {
-        // Central users query central table without any filtering
         query = supabaseClient
           .from("manifest")
           .select(`
             awb_no,
             awb_date,
-            kota_tujuan,
+            wilayah,
             nama_pengirim,
             nama_penerima,
             total,
+            berat_kg,
+            biaya_admin,
+            biaya_packaging,
+            biaya_transit,
             agent_customer
           `)
           .eq("buktimembayar", false)
@@ -110,35 +117,20 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
 
       if (error) throw error
 
-      // Process the data to include payment information
-      const processedData = await Promise.all(
-        data.map(async (item) => {
-          // Get total paid amount from pelunasan table - use appropriate table based on user role
-          const pelunasanTable = userRole === 'cabang' ? "pelunasan_cabang" : "pelunasan"
-          let pelunasanQuery = supabaseClient
-            .from(pelunasanTable)
-            .select("final_amount")
-            .eq("awb_no", item.awb_no)
-            
-          // For branch users, also filter pelunasan by origin_branch
-          if (userRole === 'cabang') {
-            pelunasanQuery = pelunasanQuery.eq('origin_branch', branchOrigin)
-          }
-          
-          const { data: paymentData, error: paymentError } = await pelunasanQuery
-
-          if (paymentError) throw paymentError
-
-          const totalPaid = paymentData.reduce((sum, payment) => sum + (payment.final_amount || 0), 0)
-          const remainingDebt = (item.total || 0) - totalPaid
+      // Process data with correct Total Ongkir calculation
+      const processedData = data.map(item => {
+        const totalOngkir = (item.total || 0) + (item.biaya_admin || 0) + (item.biaya_packaging || 0) + (item.biaya_transit || 0)
 
           return {
             ...item,
-            total_paid: totalPaid,
-            remaining_debt: remainingDebt
-          }
-        })
-      )
+          ongkir: item.total,
+          kg: item.berat_kg || 0,
+          adm: item.biaya_admin || 0,
+          packing: item.biaya_packaging || 0,
+          transit: item.biaya_transit || 0,
+          tot_ongkir: totalOngkir
+        }
+      })
 
       setOutstandingData(processedData)
     } catch (err) {
@@ -157,23 +149,29 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
     const headers = [
       'No AWB',
       'Tanggal', 
-      'Kota Tujuan',
+      'Wilayah',
       'Pengirim',
       'Penerima',
-      'Total Ongkir',
-      'Total Dibayar',
-      'Sisa Piutang'
+      'Ongkir',
+      'Kg',
+      'Adm',
+      'Packing',
+      'Transit',
+      'Total Ongkir'
     ]
 
     const formattedData = outstandingData.map(item => ({
       'No AWB': item.awb_no,
       'Tanggal': item.awb_date,
-      'Kota Tujuan': item.kota_tujuan,
+      'Wilayah': item.wilayah,
       'Pengirim': item.nama_pengirim,
       'Penerima': item.nama_penerima,
-      'Total Ongkir': item.total || 0,
-      'Total Dibayar': item.total_paid || 0,
-      'Sisa Piutang': item.remaining_debt || 0
+      'Ongkir': item.ongkir || 0,
+      'Kg': item.kg || 0,
+      'Adm': item.adm || 0,
+      'Packing': item.packing || 0,
+      'Transit': item.transit || 0,
+      'Total Ongkir': item.tot_ongkir || 0
     }))
 
     // Create date range string if filters are applied
@@ -196,14 +194,16 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       dateRange = dateRange ? `${dateRange} - ${selectedAgent}` : selectedAgent
     }
 
+    const reportTitle = selectedAgent ? `Outstanding Report ${selectedAgent}` : 'Outstanding Report';
+
     createStyledExcelWithHTML({
-      title: 'Outstanding Report',
+      title: reportTitle,
       headers,
       data: formattedData,
-      fileName: `outstanding_report_${new Date().toISOString().split('T')[0]}.xls`,
+      fileName: `outstanding_report_${selectedAgent ? selectedAgent + '_' : ''}${new Date().toISOString().split('T')[0]}.xls`,
       currency: 'Rp',
-      currencyColumns: [5, 6, 7], // Total Ongkir, Total Dibayar, Sisa Piutang
-      numberColumns: [],
+      currencyColumns: [5, 7, 8, 9, 10], // Ongkir, Adm, Packing, Transit, Total Ongkir
+      numberColumns: [6], // Kg
       dateRange: dateRange
     })
   }
@@ -215,48 +215,431 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
         <head>
           <title>Outstanding Report</title>
           <style>
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid black; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
+            @page {
+              margin: 20mm;
+              size: A4;
+            }
+            
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+              font-size: 10px;
+              line-height: 1.5;
+              color: #1f2937;
+              background: #ffffff;
+              font-weight: 400;
+            }
+            
+            .document-header {
+              border-bottom: 2px solid #e5e7eb;
+              padding-bottom: 24px;
+              margin-bottom: 32px;
+            }
+            
+            .header-top {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              margin-bottom: 16px;
+            }
+            
+            .company-info {
+              /* Ensure children stack vertically */
+              display: block;
+            }
+            
+            .company-name {
+              display: block; /* Ensure block display for vertical stacking */
+              font-size: 28px;
+              font-weight: 700;
+              color: #1e40af;
+              letter-spacing: -0.5px;
+              margin-bottom: 2px; /* Adjust margin below name */
+            }
+            
+            .company-tagline {
+              display: block; /* Ensure block display for vertical stacking */
+              font-size: 11px;
+              color: #6b7280;
+              font-weight: 500;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-top: 0; /* Ensure no top margin */
+            }
+            
+            .document-meta {
+              text-align: right;
+              color: #4b5563;
+              font-size: 9px;
+              line-height: 1.4;
+            }
+            
+            .report-title-section {
+              text-align: center;
+              margin: 24px 0;
+            }
+            
+            .report-title {
+              font-size: 22px;
+              font-weight: 600;
+              color: #111827;
+              margin-bottom: 8px;
+              letter-spacing: -0.3px;
+            }
+            
+            .report-subtitle {
+              font-size: 12px;
+              color: #6b7280;
+              font-weight: 500;
+            }
+            
+            .report-parameters {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              padding: 16px 20px;
+              margin-bottom: 28px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            
+            .param-group {
+              display: flex;
+              gap: 24px;
+            }
+            
+            .param-item {
+              font-size: 10px;
+            }
+            
+            .param-label {
+              color: #6b7280;
+              font-weight: 500;
+              margin-right: 6px;
+            }
+            
+            .param-value {
+              color: #1f2937;
+              font-weight: 600;
+            }
+            
+            .data-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 32px;
+              background: #ffffff;
+              border: 1px solid #e5e7eb;
+            }
+            
+            .data-table thead th {
+              background: #1e40af;
+              color: #ffffff;
+              font-weight: 600;
+              padding: 14px 10px;
+              text-align: left;
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: 0.8px;
+              border-bottom: 1px solid #1d4ed8;
+            }
+            
+            .data-table thead th.text-right {
+              text-align: right;
+            }
+            
+            .data-table tbody td {
+              padding: 12px 10px;
+              border-bottom: 1px solid #f3f4f6;
+              font-size: 9px;
+              color: #374151;
+            }
+            
+            .data-table tbody tr:nth-child(even) {
+              background: #f9fafb;
+            }
+            
+            .data-table tbody tr:hover {
+              background: #f3f4f6;
+            }
+            
+            .text-right {
+              text-align: right;
+            }
+            
+            .text-center {
+              text-align: center;
+            }
+            
+            .font-medium {
+              font-weight: 500;
+            }
+            
+            .font-semibold {
+              font-weight: 600;
+            }
+            
+            .awb-number {
+              font-weight: 600;
+              color: #1e40af;
+            }
+            
+            .currency {
+              font-weight: 500;
+              color: #374151;
+            }
+            
+            .total-currency {
+              font-weight: 600;
+              color: #1e40af;
+            }
+            
+            .summary-section {
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border: 1px solid #cbd5e1;
+              padding: 24px;
+              margin-top: 32px;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            
+            .summary-title {
+              font-size: 14px;
+              font-weight: 600;
+              color: #1e40af;
+              margin-bottom: 20px;
+              text-align: center;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 16px;
+              margin-bottom: 20px;
+            }
+            
+            .summary-item {
+              background: #ffffff;
+              padding: 16px;
+              border: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            
+            .summary-label {
+              font-size: 9px;
+              color: #6b7280;
+              font-weight: 500;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 6px;
+            }
+            
+            .summary-value {
+              font-size: 12px;
+              font-weight: 600;
+              color: #1f2937;
+            }
+            
+            .grand-total-section {
+              background: #1e40af;
+              color: #ffffff;
+              padding: 20px;
+              text-align: center;
+              margin-top: 16px;
+            }
+            
+            .grand-total-label {
+              font-size: 11px;
+              font-weight: 500;
+              margin-bottom: 6px;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #bfdbfe;
+            }
+            
+            .grand-total-value {
+              font-size: 18px;
+              font-weight: 700;
+              color: #ffffff;
+            }
+            
+            .document-footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 8px;
+              color: #9ca3af;
+            }
+            
+            .footer-left {
+              font-weight: 500;
+            }
+            
+            .footer-right {
+              text-align: right;
+            }
+            
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              
+              .no-print {
+                display: none !important;
+              }
+              
+              .summary-section {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
           </style>
         </head>
         <body>
-          <h2>Outstanding Report</h2>
-          <table>
+          <div class="document-header">
+            <div class="header-top">
+              <div class="company-info">
+                <div class="company-name">BCE EXPRESS</div>
+                <div class="company-tagline">BETTER CARGO EXPERIENCE</div>
+              </div>
+              <div class="document-meta">
+                <div><strong>Document ID:</strong> OUT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
+                <div><strong>Generated:</strong> ${new Date().toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })} at ${new Date().toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
+              </div>
+            </div>
+            
+            <div class="report-title-section">
+              <div class="report-title">OUTSTANDING REPORT${selectedAgent ? ` - ${selectedAgent}` : ''}</div>
+              <div class="report-subtitle">Pending Pembayaran</div>
+            </div>
+          </div>
+          
+          <div class="report-parameters">
+            <div class="param-group">
+              <div class="param-item">
+                <span class="param-label">REPORTING PERIOD:</span>
+                <span class="param-value">${startDate && endDate ? `${new Date(startDate).toLocaleDateString('en-GB')} - ${new Date(endDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</span>
+              </div>
+              ${selectedAgent ? `
+              <div class="param-item">
+                <span class="param-label">AGENT:</span>
+                <span class="param-value">${selectedAgent}</span>
+              </div>
+              ` : ''}
+            </div>
+            <div class="param-item">
+              <span class="param-label">TOTAL RECORDS:</span>
+              <span class="param-value">${outstandingData.length}</span>
+            </div>
+          </div>
+          
+          <table class="data-table">
             <thead>
               <tr>
-                <th>No</th>
-                <th>No AWB</th>
-                <th>Tanggal</th>
-                <th>Kota Tujuan</th>
-                <th>Pengirim</th>
-                <th>Penerima</th>
-                <th>Total Ongkir</th>
-                <th>Total Dibayar</th>
-                <th>Sisa Piutang</th>
+                <th style="width: 4%;">#</th>
+                <th style="width: 12%;">AWB NUMBER</th>
+                <th style="width: 9%;">DATE</th>
+                <th style="width: 11%;">DESTINATION</th>
+                <th style="width: 16%;">SENDER</th>
+                <th style="width: 16%;">RECIPIENT</th>
+                <th class="text-right" style="width: 8%;">BASE RATE</th>
+                <th class="text-right" style="width: 5%;">WEIGHT</th>
+                <th class="text-right" style="width: 6%;">ADMIN</th>
+                <th class="text-right" style="width: 6%;">PACK</th>
+                <th class="text-right" style="width: 6%;">TRANSIT</th>
+                <th class="text-right" style="width: 11%;">TOTAL AMOUNT</th>
               </tr>
             </thead>
             <tbody>
               ${outstandingData.map((item, index) => `
                 <tr>
-                  <td>${index + 1}</td>
-                  <td>${item.awb_no}</td>
-                  <td>${item.awb_date}</td>
-                  <td>${item.kota_tujuan}</td>
+                  <td class="text-center font-medium">${index + 1}</td>
+                  <td class="awb-number">${item.awb_no}</td>
+                  <td class="font-medium">${new Date(item.awb_date).toLocaleDateString('en-GB')}</td>
+                  <td class="font-medium">${item.wilayah}</td>
                   <td>${item.nama_pengirim}</td>
                   <td>${item.nama_penerima}</td>
-                  <td>Rp. ${item.total}</td>
-                  <td>Rp. ${item.total_paid}</td>
-                  <td>Rp. ${item.remaining_debt}</td>
+                  <td class="text-right currency">${(item.ongkir || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right font-medium">${(item.kg || 0).toLocaleString('id-ID')} kg</td>
+                  <td class="text-right currency">${(item.adm || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.packing || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.transit || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right total-currency">${(item.tot_ongkir || 0).toLocaleString('id-ID')}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-          <div style="margin-top: 20px; padding: 10px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px;">
-            <h3 style="font-weight: bold; margin-bottom: 10px;">Total:</h3>
-            <p>Total Ongkir: Rp. ${outstandingData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Dibayar: Rp. ${outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Sisa Piutang: Rp. ${outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0).toLocaleString('en-US')}</p>
+          
+          <div class="summary-section">
+            <div class="summary-title">SUMMARY</div>
+            
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Total Weight</div>
+                <div class="summary-value">${(outstandingData.reduce((sum, item) => sum + (item.kg || 0), 0)).toLocaleString('id-ID')} kg</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Admin Fees</div>
+                <div class="summary-value">Rp ${(outstandingData.reduce((sum, item) => sum + (item.adm || 0), 0)).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Packaging</div>
+                <div class="summary-value">Rp ${(outstandingData.reduce((sum, item) => sum + (item.packing || 0), 0)).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Transit Costs</div>
+                <div class="summary-value">Rp ${(outstandingData.reduce((sum, item) => sum + (item.transit || 0), 0)).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Base Shipping</div>
+                <div class="summary-value">Rp ${(outstandingData.reduce((sum, item) => sum + (item.ongkir || 0), 0)).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Total Shipments</div>
+                <div class="summary-value">${outstandingData.length} AWB</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Avg. per AWB</div>
+                <div class="summary-value">Rp ${outstandingData.length > 0 ? Math.round((outstandingData.reduce((sum, item) => sum + (item.tot_ongkir || 0), 0)) / outstandingData.length).toLocaleString('id-ID') : '0'}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Processing Date</div>
+                <div class="summary-value">${new Date().toLocaleDateString('en-GB')}</div>
+              </div>
+            </div>
+            
+            <div class="grand-total-section">
+              <div class="grand-total-label">TOTAL OUTSTANDING</div>
+              <div class="grand-total-value">Rp ${(outstandingData.reduce((sum, item) => sum + (item.tot_ongkir || 0), 0)).toLocaleString('id-ID')}</div>
+            </div>
+          </div>
+          
+          <div class="document-footer">
+            <div class="footer-left">
+              <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
+              <div>This report contains business information</div>
+            </div>
+            <div class="footer-right">
+              <div>Page 1 of 1</div>
+              <div>Generated by BCE Management System v2.0</div>
+            </div>
           </div>
         </body>
       </html>
@@ -337,26 +720,29 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">No</th>
-                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">No AWB</th>
-                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Tanggal</th>
-                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Kota Tujuan</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Awb</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Tgl</th>
+                <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Wilayah</th>
                 <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Pengirim</th>
                 <th className="px-4 py-2 text-left border border-gray-300 dark:border-gray-600 dark:text-gray-200">Penerima</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Ongkir</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Kg</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Adm</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Packing</th>
+                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Transit</th>
                 <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Total Ongkir</th>
-                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Total Dibayar</th>
-                <th className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-200">Sisa Piutang</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
+                  <td colSpan="12" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
                     Loading...
                   </td>
                 </tr>
               ) : outstandingData.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
+                  <td colSpan="12" className="px-4 py-2 text-center border border-gray-300 dark:border-gray-600 dark:text-gray-300">
                     No outstanding data found
                   </td>
                 </tr>
@@ -366,12 +752,15 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{index + 1}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.awb_no}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.awb_date}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.kota_tujuan}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.wilayah}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.nama_pengirim}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300">{item.nama_penerima}</td>
-                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {item.total}</td>
-                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {item.total_paid}</td>
-                    <td className="px-4 py-2 text-right font-bold border border-gray-300 dark:border-gray-600 dark:text-green-400">Rp. {item.remaining_debt}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {(item.ongkir || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">{(item.kg || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {(item.adm || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {(item.packing || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-right border border-gray-300 dark:border-gray-600 dark:text-gray-300">Rp. {(item.transit || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-right font-bold border border-gray-300 dark:border-gray-600 dark:text-green-400">Rp. {(item.tot_ongkir || 0).toLocaleString('en-US')}</td>
                   </tr>
                 ))
               )}
@@ -381,9 +770,11 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
         {outstandingData.length > 0 && (
           <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-200">
             <h3 className="text-sm font-semibold">Total:</h3>
-            <p>Total Ongkir: Rp. {outstandingData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Dibayar: Rp. {outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Sisa Piutang: Rp. {outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Kg: {outstandingData.reduce((sum, item) => sum + (item.kg || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Adm: Rp. {outstandingData.reduce((sum, item) => sum + (item.adm || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Packing: Rp. {outstandingData.reduce((sum, item) => sum + (item.packing || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Transit: Rp. {outstandingData.reduce((sum, item) => sum + (item.transit || 0), 0).toLocaleString('en-US')}</p>
+            <p>Grand Total Ongkir: Rp. {outstandingData.reduce((sum, item) => sum + (item.tot_ongkir || 0), 0).toLocaleString('en-US')}</p>
           </div>
         )}
       </div>

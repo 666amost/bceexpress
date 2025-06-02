@@ -172,7 +172,74 @@ export default function RecapManifest({ userRole, branchOrigin }) {
   };
 
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
+      return
+    }
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Recap Manifest</title>
+          <style>
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th, td { border: 1px solid black; padding: 4px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .totals-section { margin-top: 10px; padding: 8px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px; font-size: 10px; }
+            .totals-section h3 { font-weight: bold; margin-bottom: 5px; }
+            .totals-section p { margin: 2px 0; }
+          </style>
+        </head>
+        <body>
+          <h2>Recap Manifest</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Tgl</th>
+                <th>Total AWB</th>
+                <th>Total Coli</th>
+                <th>Kg</th>
+                <th class="text-right">Cash</th>
+                <th class="text-right">Transfer</th>
+                <th class="text-right">COD</th>
+                <th class="text-right">Total Pembayaran</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.date}</td>
+                  <td>${item.totalAWB || 0}</td>
+                  <td>${item.totalColi || 0}</td>
+                  <td>${item.totalKg || 0}</td>
+                  <td class="text-right">Rp. ${(item.cash || 0).toLocaleString('en-US')}</td>
+                  <td class="text-right">Rp. ${(item.transfer || 0).toLocaleString('en-US')}</td>
+                  <td class="text-right">Rp. ${(item.cod || 0).toLocaleString('en-US')}</td>
+                  <td class="text-right font-bold">Rp. ${((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)).toLocaleString('en-US')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="totals-section">
+            <h3>Total:</h3>
+            <p>Total AWB: ${data.reduce((sum, item) => sum + (item.totalAWB || 0), 0)}</p>
+            <p>Total Coli: ${data.reduce((sum, item) => sum + (item.totalColi || 0), 0)}</p>
+            <p>Total Kg: ${data.reduce((sum, item) => sum + (item.totalKg || 0), 0)}</p>
+            <p>Total Cash: Rp. ${data.reduce((sum, item) => sum + (item.cash || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Transfer: Rp. ${data.reduce((sum, item) => sum + (item.transfer || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total COD: Rp. ${data.reduce((sum, item) => sum + (item.cod || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Pembayaran: Rp. ${data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('en-US')}</p>
+          </div>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.print()
   };
 
   return (

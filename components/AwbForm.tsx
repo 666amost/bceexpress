@@ -388,7 +388,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 isi_barang: "",
               });
             } catch (error) {
-              console.error('Error generating PDF:', error);
+              // console.error('Error generating PDF:', error);
               alert('Gagal membuat PDF. Silakan coba lagi.');
             }
           }

@@ -243,7 +243,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Dashboard Stats Cards Container (Left Column) */}
         <div className="lg:col-span-1 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
+          <Card className="aspect-square bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
             <CardHeader className="pb-1 sm:pb-2">
               <CardTitle className="text-base sm:text-lg font-bold text-blue-800 dark:text-blue-200 flex items-center justify-center gap-1 sm:gap-2"><FaBox /> Total AWB</CardTitle>
             </CardHeader>
@@ -251,7 +251,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
               <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white min-h-[40px] flex items-center justify-center">{dashboardStats.totalAWB}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
+          <Card className="aspect-square bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
             <CardHeader className="pb-1 sm:pb-2">
               <CardTitle className="text-base sm:text-lg font-bold text-green-800 dark:text-green-200 flex items-center justify-center gap-1 sm:gap-2"><FaUser /> Total Agent</CardTitle>
             </CardHeader>
@@ -259,7 +259,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
               <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{dashboardStats.totalAgents}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
+          <Card className="aspect-square bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
              <CardHeader className="pb-1 sm:pb-2">
               <CardTitle className="text-base sm:text-lg font-bold text-yellow-800 dark:text-yellow-200 flex items-center justify-center gap-1 sm:gap-2"><FaMapMarkerAlt /> Total Wilayah</CardTitle>
             </CardHeader>
@@ -267,7 +267,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
               <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white min-h-[40px] flex items-center justify-center">{dashboardStats.totalWilayah}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
+          <Card className="aspect-square bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
             <CardHeader className="pb-1 sm:pb-2">
               <CardTitle className="text-base sm:text-lg font-bold text-orange-800 dark:text-orange-200 flex items-center justify-center gap-1 sm:gap-2"><FaCalendarWeek /> AWB Periodik</CardTitle>
             </CardHeader>

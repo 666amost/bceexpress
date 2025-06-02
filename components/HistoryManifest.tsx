@@ -736,7 +736,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
             
           setPrintData(null);
         } catch (error) {
-          console.error('Error generating PDF:', error);
+          // console.error('Error generating PDF:', error);
           alert('Gagal membuat PDF. Silakan coba lagi.');
           setPrintData(null);
         }

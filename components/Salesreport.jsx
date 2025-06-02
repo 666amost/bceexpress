@@ -196,7 +196,78 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   };
 
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
+      return
+    }
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Sales Report</title>
+          <style>
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th, td { border: 1px solid black; padding: 4px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .totals-section { margin-top: 10px; padding: 8px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px; font-size: 10px; }
+            .totals-section h3 { font-weight: bold; margin-bottom: 5px; }
+            .totals-section p { margin: 2px 0; }
+          </style>
+        </head>
+        <body>
+          <h2>Sales Report</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>AWB (awb_no)</th>
+                <th>Tgl AWB</th>
+                <th>Tujuan</th>
+                <th>Via Pengiriman</th>
+                <th>Pengirim</th>
+                <th>Penerima</th>
+                <th class="text-right">Kg</th>
+                <th class="text-right">Harga (Ongkir)</th>
+                <th class="text-right">Admin</th>
+                <th class="text-right">Packaging</th>
+                <th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredData.map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.awb_no}</td>
+                  <td>${item.awb_date}</td>
+                  <td>${item.kota_tujuan}</td>
+                  <td>${item.kirim_via}</td>
+                  <td>${item.nama_pengirim}</td>
+                  <td>${item.nama_penerima}</td>
+                  <td class="text-right">${item.berat_kg}</td>
+                  <td class="text-right">${item.harga_per_kg}</td>
+                  <td class="text-right">${item.biaya_admin}</td>
+                  <td class="text-right">${item.biaya_packaging}</td>
+                  <td class="text-right font-bold">${item.total}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="totals-section">
+            <h3>Total:</h3>
+            <p>Total Kg: ${filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Harga (Ongkir): Rp. ${filteredData.reduce((sum, item) => sum + (item.harga_per_kg || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Admin: Rp. ${filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Packaging: Rp. ${filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Keseluruhan: Rp. ${filteredData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+          </div>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.print()
   };
 
   return (

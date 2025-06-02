@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
-import { FaDownload } from 'react-icons/fa'
+import { FaDownload, FaPrint } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
 interface PaymentHistoryType {
@@ -346,6 +346,73 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   // Now compute groupedHistory after the function is defined
   const groupedHistory = groupPaymentHistoryByDate(filteredPaymentHistory);
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
+      return
+    }
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Payment History</title>
+          <style>
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th, td { border: 1px solid black; padding: 4px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .totals-section { margin-top: 10px; padding: 8px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px; font-size: 10px; }
+            .totals-section h3 { font-weight: bold; margin-bottom: 5px; }
+            .totals-section p { margin: 2px 0; }
+          </style>
+        </head>
+        <body>
+          <h2>Payment History</h2>
+          ${groupedHistory.map((group) => {
+            const formattedDate = formatDateToInvoice(group.date);
+            const totalSTTB = group.items.length;
+            const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
+            
+            return `
+              <h3>${formattedDate} - Total STTB: ${totalSTTB} | Total Payment: Rp. ${totalPayment.toLocaleString('en-US')}</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>No Bukti</th>
+                    <th>Pengirim</th>
+                    <th>Penerima</th>
+                    <th>Agent/Customer</th>
+                    <th class="text-right">Original Amount</th>
+                    <th class="text-right">Discount</th>
+                    <th class="text-right">Final Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${group.items.map((row) => `
+                    <tr>
+                      <td>${row.awb_no}</td>
+                      <td>${row.nama_pengirim}</td>
+                      <td>${row.nama_penerima}</td>
+                      <td>${row.agent_customer}</td>
+                      <td class="text-right">Rp. ${row.original_amount}</td>
+                      <td class="text-right">Rp. ${row.discount}</td>
+                      <td class="text-right font-bold">Rp. ${row.final_amount}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <br>
+            `;
+          }).join('')}
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.print()
+  }
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
@@ -417,6 +484,12 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
                           className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 mr-2 flex items-center gap-2 transition-colors"
                         >
                           <FaDownload /> Download XLSX for {group.date}
+                        </button>
+                        <button
+                          onClick={handlePrint}
+                          className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800 flex items-center gap-2 transition-colors"
+                        >
+                          <FaPrint /> Print
                         </button>
                       </div>
                       <div className="overflow-x-auto transition-all duration-300 ease-in-out">

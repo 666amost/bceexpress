@@ -217,7 +217,80 @@ export default function DailyReport({ userRole, branchOrigin }) {
 
   // Tambahkan fungsi handlePrint di dalam komponen, misalnya setelah fungsi downloadXLSX
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
+      return
+    }
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Daily Report</title>
+          <style>
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th, td { border: 1px solid black; padding: 4px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .totals-section { margin-top: 10px; padding: 8px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px; font-size: 10px; }
+            .totals-section h3 { font-weight: bold; margin-bottom: 5px; }
+            .totals-section p { margin: 2px 0; }
+          </style>
+        </head>
+        <body>
+          <h2>Daily Report</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>AWB (No Resi)</th>
+                <th>Pengirim</th>
+                <th>Penerima</th>
+                <th>Coli</th>
+                <th>Kg</th>
+                <th class="text-right">Harga(Ongkir)</th>
+                <th class="text-right">Admin</th>
+                <th class="text-right">Packaging</th>
+                <th class="text-right">Cash</th>
+                <th class="text-right">Transfer</th>
+                <th class="text-right">COD</th>
+                <th>Wilayah</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.awb_no}</td>
+                  <td>${item.nama_pengirim}</td>
+                  <td>${item.nama_penerima}</td>
+                  <td>${item.coli}</td>
+                  <td>${item.berat_kg}</td>
+                  <td class="text-right">${item.harga_per_kg || item.ongkir}</td>
+                  <td class="text-right">${item.biaya_admin || item.admin || 0}</td>
+                  <td class="text-right">${item.biaya_packaging || 0}</td>
+                  <td class="text-right">${item.metode_pembayaran === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                  <td class="text-right">${item.metode_pembayaran === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                  <td class="text-right">${item.metode_pembayaran === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                  <td>${item.wilayah}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="totals-section">
+            <h3>Total Keseluruhan:</h3>
+            <p>Total Admin: Rp. ${data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Cash: Rp. ${data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Transfer: Rp. ${data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total COD: Rp. ${data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Semua: Rp. ${data.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+          </div>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.print()
   };
 
   return (
@@ -368,6 +441,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
           {data.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Total Keseluruhan:</h3>
+              <p className="text-gray-800 dark:text-gray-200">Total Admin: Rp. {data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
