@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabaseClient } from '../lib/auth';  // Ganti impor ini
-import * as XLSX from 'xlsx';  // Tambahkan import ini di bagian atas file
+import { createStyledExcelWithHTML } from '../lib/excel-utils';
 
 const agentListTanjungPandan = [
   "COD",
@@ -74,6 +74,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
 
   const fetchData = async () => {
     setLoading(true);
+    setError("");
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
       let query;
@@ -82,13 +83,13 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           .from('manifest_cabang')
           .select('*')
           .eq('origin_branch', branchOrigin)
-          .order('awb_date', { ascending: true })
+          .order('awb_date', { ascending: false })
       } else {
         // Central users query central table without any filtering
         query = supabaseClient
           .from('manifest')
           .select('*')
-          .order('awb_date', { ascending: true })
+          .order('awb_date', { ascending: false })
       }
       
       const { data: manifestData, error } = await query
@@ -128,34 +129,70 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       return;
     }
 
-    const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
-    const dataHeaders = ['No', 'AWB (awb_no)', 'Tgl AWB', 'Tujuan', 'Via Pengiriman', 'Pengirim', 'Penerima', 'Kg', 'Harga (Ongkir)', 'Admin', 'Packaging', 'Total'].map(header => header.toUpperCase());
-    const dataRows = filteredData.map((item, index) => [
-      index + 1,
-      item.awb_no,
-      item.awb_date,
-      item.kota_tujuan,
-      item.kirim_via,
-      item.nama_pengirim,
-      item.nama_penerima,
-      item.berat_kg,
-      item.harga_per_kg,
-      item.biaya_admin,
-      item.biaya_packaging,
-      item.total
-    ]);
+    const headers = [
+      'AWB (awb_no)',
+      'Tgl AWB',
+      'Tujuan',
+      'Via Pengiriman',
+      'Pengirim',
+      'Penerima',
+      'Kg',
+      'Harga (Ongkir)',
+      'Admin',
+      'Packaging',
+      'Total'
+    ]
 
-    const allRows = [['Report dibuat pada: ' + today], dataHeaders, ...dataRows];
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `sales_report_${today.replace(/\//g, '-')}.xlsx`);
-    link.click();
+    const formattedData = filteredData.map(item => ({
+      'AWB (awb_no)': item.awb_no,
+      'Tgl AWB': item.awb_date,
+      'Tujuan': item.kota_tujuan,
+      'Via Pengiriman': item.kirim_via,
+      'Pengirim': item.nama_pengirim,
+      'Penerima': item.nama_penerima,
+      'Kg': item.berat_kg,
+      'Harga (Ongkir)': item.harga_per_kg,
+      'Admin': item.biaya_admin,
+      'Packaging': item.biaya_packaging,
+      'Total': item.total
+    }))
+
+    const today = new Date().toLocaleDateString('id-ID', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+
+    // Create date range string if filters are applied
+    let dateRange = ''
+    if (fromDate || toDate) {
+      if (fromDate && toDate) {
+        // Convert YYYY-MM-DD to DD-MM-YYYY format
+        const fromFormatted = fromDate.split('-').reverse().join('-')
+        const toFormatted = toDate.split('-').reverse().join('-')
+        dateRange = `${fromFormatted} s/d ${toFormatted}`
+      } else if (fromDate) {
+        const fromFormatted = fromDate.split('-').reverse().join('-')
+        dateRange = `Dari ${fromFormatted}`
+      } else if (toDate) {
+        const toFormatted = toDate.split('-').reverse().join('-')
+        dateRange = `Sampai ${toFormatted}`
+      }
+    }
+    if (agent) {
+      dateRange = dateRange ? `${dateRange} - ${agent}` : agent
+    }
+
+    createStyledExcelWithHTML({
+      title: 'Sales Report',
+      headers,
+      data: formattedData,
+      fileName: `sales_report_${today.replace(/\s+/g, '_')}.xls`,
+      currency: 'Rp',
+      currencyColumns: [7, 8, 9, 10], // Harga, Admin, Packaging, Total
+      numberColumns: [6], // Kg
+      dateRange: dateRange
+    })
   };
 
   const handlePrint = () => {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
-import XLSX from "xlsx"
 import { FaDownload, FaPrint } from 'react-icons/fa'
+import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
 const kirimViaOptions = ["udara", "darat"]  // Diambil dari AwbForm.jsx
 const kotaTujuanOptions = ["bangka", "kalimantan barat", "belitung", "bali"]  // Diambil dari AwbForm.jsx dan HistoryManifest.jsx
@@ -78,6 +78,8 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             return acc;
           }, {});
           const processedData = Object.entries(groupedData).map(([date, totals]) => ({ date, ...totals }));
+          // Sort by date descending for consistency
+          processedData.sort((a, b) => new Date(b.date) - new Date(a.date));
           setData(processedData);
         } else {
           setData([]);
@@ -105,32 +107,68 @@ export default function RecapManifest({ userRole, branchOrigin }) {
       alert("No data to download");
       return;
     }
-    const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
-    const dataHeaders = ['No', 'Tgl', 'Total AWB', 'Total Coli', 'Kg', 'Cash', 'Transfer', 'COD', 'Total Pembayaran'].map(header => header.toUpperCase());
-    const dataRows = data.map((item, index) => [
-      index + 1,
-      item.date,
-      item.totalAWB,
-      item.totalColi,
-      item.totalKg,
-      item.cash,
-      item.transfer,
-      item.cod,
-      item.totalAWB + item.cash + item.transfer + item.cod
-    ]);
-    const totalsRow = ['Total Keseluruhan', '', data.reduce((sum, item) => sum + item.totalAWB, 0), data.reduce((sum, item) => sum + item.totalColi, 0), data.reduce((sum, item) => sum + item.totalKg, 0), data.reduce((sum, item) => sum + item.cash, 0), data.reduce((sum, item) => sum + item.transfer, 0), data.reduce((sum, item) => sum + item.cod, 0), data.reduce((sum, item) => sum + (item.totalAWB + item.cash + item.transfer + item.cod), 0)];
-    const allRows = [['Report dibuat pada: ' + today], dataHeaders, ...dataRows, totalsRow];
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Recap Manifest');
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `recap_manifest_${today.replace(/\//g, '-')}.xlsx`);
-    link.click();
-    URL.revokeObjectURL(url);
+
+    const headers = [
+      'Tgl',
+      'Total AWB',
+      'Total Coli',
+      'Kg',
+      'Cash',
+      'Transfer',
+      'COD',
+      'Total Pembayaran'
+    ]
+
+    const formattedData = data.map(item => ({
+      'Tgl': item.date,
+      'Total AWB': item.totalAWB,
+      'Total Coli': item.totalColi,
+      'Kg': item.totalKg,
+      'Cash': item.cash,
+      'Transfer': item.transfer,
+      'COD': item.cod,
+      'Total Pembayaran': item.cash + item.transfer + item.cod
+    }))
+
+    // Create date range string if filters are applied
+    let dateRange = ''
+    const filters = []
+    
+    if (fromDate || toDate) {
+      if (fromDate && toDate) {
+        // Convert YYYY-MM-DD to DD-MM-YYYY format
+        const fromFormatted = fromDate.split('-').reverse().join('-')
+        const toFormatted = toDate.split('-').reverse().join('-')
+        filters.push(`${fromFormatted} s/d ${toFormatted}`)
+      } else if (fromDate) {
+        const fromFormatted = fromDate.split('-').reverse().join('-')
+        filters.push(`Dari ${fromFormatted}`)
+      } else if (toDate) {
+        const toFormatted = toDate.split('-').reverse().join('-')
+        filters.push(`Sampai ${toFormatted}`)
+      }
+    }
+    
+    if (selectedKirimVia) {
+      filters.push(`Via: ${selectedKirimVia.toUpperCase()}`)
+    }
+    
+    if (selectedTujuan) {
+      filters.push(`Tujuan: ${selectedTujuan.toUpperCase()}`)
+    }
+    
+    dateRange = filters.join(' - ')
+
+    createStyledExcelWithHTML({
+      title: 'Recap Manifest',
+      headers,
+      data: formattedData,
+      fileName: `recap_manifest_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xls`,
+      currency: 'Rp',
+      currencyColumns: [4, 5, 6, 7], // Cash, Transfer, COD, Total Pembayaran
+      numberColumns: [1, 2, 3], // Total AWB, Total Coli, Kg
+      dateRange: dateRange
+    })
   };
 
   const handlePrint = () => {
@@ -245,13 +283,13 @@ export default function RecapManifest({ userRole, branchOrigin }) {
                   <tr key={item.date || index} className="even:bg-gray-50 dark:even:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{index + 1}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.date}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalAWB}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalColi}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalKg}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.cash}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.transfer}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.cod}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalAWB + item.cash + item.transfer + item.cod}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalAWB || 0}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalColi || 0}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.totalKg || 0}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.cash || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.transfer || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.cod || 0).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Rp. {((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)).toLocaleString('en-US')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -262,13 +300,13 @@ export default function RecapManifest({ userRole, branchOrigin }) {
           {data.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800 flex flex-row flex-wrap items-center gap-4">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Total:</h3>
-              <p className="text-gray-800 dark:text-gray-200">Total AWB: {data.reduce((sum, item) => sum + item.totalAWB, 0)}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Coli: {data.reduce((sum, item) => sum + item.totalColi, 0)}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Kg: {data.reduce((sum, item) => sum + item.totalKg, 0)}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.reduce((sum, item) => sum + item.cash, 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.reduce((sum, item) => sum + item.transfer, 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.reduce((sum, item) => sum + item.cod, 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Pembayaran: Rp. {data.reduce((sum, item) => sum + (item.totalAWB + item.cash + item.transfer + item.cod), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total AWB: {data.reduce((sum, item) => sum + (item.totalAWB || 0), 0)}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Coli: {data.reduce((sum, item) => sum + (item.totalColi || 0), 0)}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Kg: {data.reduce((sum, item) => sum + (item.totalKg || 0), 0)}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.reduce((sum, item) => sum + (item.cash || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.reduce((sum, item) => sum + (item.transfer || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.reduce((sum, item) => sum + (item.cod || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Pembayaran: Rp. {data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('en-US')}</p>
             </div>
           )}
         </>

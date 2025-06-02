@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
-import * as XLSX from 'xlsx'
 import { FaDownload, FaPrint } from 'react-icons/fa'
+import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
 const agentListTanjungPandan = [
   "COD",
@@ -76,6 +76,7 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
           `)
           .eq("buktimembayar", false)
           .eq('origin_branch', branchOrigin)
+          .order("awb_date", { ascending: false })
       } else {
         // Central users query central table without any filtering
         query = supabaseClient
@@ -90,6 +91,7 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
             agent_customer
           `)
           .eq("buktimembayar", false)
+          .order("awb_date", { ascending: false })
       }
 
       if (selectedAgent) {
@@ -151,32 +153,59 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       alert("No data to download");
       return;
     }
-    const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
-    const dataHeaders = ['No', 'No AWB', 'Tanggal', 'Kota Tujuan', 'Pengirim', 'Penerima', 'Total Ongkir', 'Total Dibayar', 'Sisa Piutang'].map(header => header.toUpperCase());
-    const dataRows = outstandingData.map((item, index) => [
-      index + 1,
-      item.awb_no,
-      item.awb_date,
-      item.kota_tujuan,
-      item.nama_pengirim,
-      item.nama_penerima,
-      item.total || 0,
-      item.total_paid || 0,
-      item.remaining_debt || 0
-    ]);
 
-    const totalOngkirSum = outstandingData.reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalDibayarSum = outstandingData.reduce((sum, item) => sum + (item.total_paid || 0), 0);
-    const totalSisaPiutangSum = outstandingData.reduce((sum, item) => sum + (item.remaining_debt || 0), 0);
+    const headers = [
+      'No AWB',
+      'Tanggal', 
+      'Kota Tujuan',
+      'Pengirim',
+      'Penerima',
+      'Total Ongkir',
+      'Total Dibayar',
+      'Sisa Piutang'
+    ]
 
-    const totalsRow = ['Total Keseluruhan', '', '', '', '', '', totalOngkirSum, totalDibayarSum, totalSisaPiutangSum];
+    const formattedData = outstandingData.map(item => ({
+      'No AWB': item.awb_no,
+      'Tanggal': item.awb_date,
+      'Kota Tujuan': item.kota_tujuan,
+      'Pengirim': item.nama_pengirim,
+      'Penerima': item.nama_penerima,
+      'Total Ongkir': item.total || 0,
+      'Total Dibayar': item.total_paid || 0,
+      'Sisa Piutang': item.remaining_debt || 0
+    }))
 
-    const allRows = [['Report dibuat pada: ' + today], dataHeaders, ...dataRows, totalsRow];
+    // Create date range string if filters are applied
+    let dateRange = ''
+    if (startDate || endDate) {
+      if (startDate && endDate) {
+        // Convert YYYY-MM-DD to DD-MM-YYYY format
+        const fromFormatted = startDate.split('-').reverse().join('-')
+        const toFormatted = endDate.split('-').reverse().join('-')
+        dateRange = `${fromFormatted} s/d ${toFormatted}`
+      } else if (startDate) {
+        const fromFormatted = startDate.split('-').reverse().join('-')
+        dateRange = `Dari ${fromFormatted}`
+      } else if (endDate) {
+        const toFormatted = endDate.split('-').reverse().join('-')
+        dateRange = `Sampai ${toFormatted}`
+      }
+    }
+    if (selectedAgent) {
+      dateRange = dateRange ? `${dateRange} - ${selectedAgent}` : selectedAgent
+    }
 
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Outstanding Report")
-    XLSX.writeFile(workbook, `outstanding_report_${new Date().toISOString().split('T')[0]}.xlsx`)
+    createStyledExcelWithHTML({
+      title: 'Outstanding Report',
+      headers,
+      data: formattedData,
+      fileName: `outstanding_report_${new Date().toISOString().split('T')[0]}.xls`,
+      currency: 'Rp',
+      currencyColumns: [5, 6, 7], // Total Ongkir, Total Dibayar, Sisa Piutang
+      numberColumns: [],
+      dateRange: dateRange
+    })
   }
 
   const handlePrint = () => {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
-import * as XLSX from 'xlsx'
 import { FaDownload } from 'react-icons/fa'
+import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
 interface PaymentHistoryType {
   id?: string;
@@ -260,70 +260,43 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     return unpaidData.filter((row) => row.selected).reduce((sum, row) => sum + Number(row.discountedTotal || 0), 0)
   }
 
-  // Replace the downloadCSV function with this new one
-  const downloadXLSXForDate = (date, items) => {
+  // Enhanced downloadXLSXForDate function with guaranteed styling
+  const downloadXLSXForDate = (date: string, items: any[]) => {
     if (items.length === 0) return;
     
-    const worksheet = XLSX.utils.json_to_sheet(
-      items.map((item, index) => ({
-        'No': index + 1,
-        'No Bukti': item.awb_no,
-        'Tgl Bayar': item.payment_date,
-        'Pengirim': item.nama_pengirim,
-        'Penerima': item.nama_penerima,
-        'Agent/Customer': item.agent_customer,
-        'Original Amount': item.original_amount,
-        'Discount': item.discount,
-        'Final Amount': item.final_amount
-      }))
-    );
-    
-    // Set column widths based on headers
-    worksheet['!cols'] = [
-      { wch: 5 },  // No
-      { wch: 15 }, // No Bukti
-      { wch: 12 }, // Tgl Bayar
-      { wch: 15 }, // Pengirim
-      { wch: 15 }, // Penerima
-      { wch: 15 }, // Agent/Customer
-      { wch: 15 }, // Original Amount
-      { wch: 12 }, // Discount
-      { wch: 15 }  // Final Amount
-    ];
-    
-    // Add borders and styles
-    if (worksheet['!ref']) {
-      const range = XLSX.utils.decode_range(worksheet['!ref']);
-      for (let rowNum = range.s.r; rowNum <= range.e.r; rowNum++) {
-        for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: colNum });
-          if (!worksheet[cellAddress]) continue;
-          
-          worksheet[cellAddress].s = {
-            border: {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" }
-            }
-          };
-          
-          if (rowNum === range.s.r) {  // Header row
-            worksheet[cellAddress].s.font = { bold: true };
-          }
-          
-          // Format numbers for amount columns (e.g., columns 6-8, assuming 0-based index)
-          if (colNum >= 6 && colNum <= 8 && typeof worksheet[cellAddress].v === 'number') {
-            worksheet[cellAddress].z = '#,##0.00';  // Format as number with commas
-          }
-        }
-      }
-    }
-    
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Invoice');
-    const filename = `INV/${date.replace(/-/g, '/')}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+    // Headers sesuai dengan tabel yang ditampilkan di Payment History
+    const headers = [
+      'No Bukti',
+      'Pengirim',
+      'Penerima', 
+      'Agent/Customer',
+      'Original Amount',
+      'Discount',
+      'Final Amount'
+    ]
+
+    // Data mapping sesuai dengan PaymentHistoryType
+    const formattedData = items.map(item => ({
+      'No Bukti': item.awb_no || '',
+      'Pengirim': item.nama_pengirim || '',
+      'Penerima': item.nama_penerima || '',
+      'Agent/Customer': item.agent_customer || '',
+      'Original Amount': item.original_amount || 0,
+      'Discount': item.discount || 0,
+      'Final Amount': item.final_amount || 0
+    }))
+
+    // Use HTML approach for guaranteed styling with date range
+    createStyledExcelWithHTML({
+      title: 'Payment History', // Sesuai dengan judul tabel
+      headers,
+      data: formattedData,
+      fileName: `payment_history_${date}.xls`,
+      currency: 'Rp',
+      currencyColumns: [4, 5, 6], // Original Amount, Discount, Final Amount
+      numberColumns: [], // No number columns in this case
+      dateRange: date // Add date range for proper title
+    })
   };
 
   // Function to toggle expansion

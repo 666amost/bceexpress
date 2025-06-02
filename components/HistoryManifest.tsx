@@ -59,6 +59,29 @@ const agentListTanjungPandan = [
   'CASH'
 ];
 
+const kotaTujuanPusat = ["bangka", "kalimantan barat", "belitung", "bali"];
+const kirimViaPusat = ["udara", "darat"];
+const metodePembayaranPusat = ["cash", "transfer", "cod"];
+const kotaWilayahPusat = {
+  bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
+  "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
+  belitung: ["Tj Pandan"],
+  bali: ["Denpasar"],
+};
+
+// Data spesifik untuk cabang Tanjung Pandan (origin_branch = 'tanjung_pandan')
+const kotaWilayahTanjungPandan = {
+  jakarta: ["JKT"], // Simplified wilayah for Jakarta area
+  tangerang: ["TGT"],
+  bekasi: ["BKS"],
+  depok: ["DPK"],
+  bogor: ["BGR"],
+};
+
+const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"]; // Same as pusat for now
+const kirimViaTanjungPandan = ["udara", "darat"]; // Same as pusat for now
+const kotaTujuanTanjungPandan = Object.keys(kotaWilayahTanjungPandan);
+
 interface ManifestData {
   id?: string;
   awb_no: string;
@@ -101,6 +124,10 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   const printFrameRef = useRef<HTMLDivElement>(null)
 
   const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
+  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
+  const currentKotaTujuan = userRole === 'cabang' ? kotaTujuanTanjungPandan : kotaTujuanPusat;
+  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimViaPusat;
+  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
   useEffect(() => {
     if (selectedItem) {
@@ -185,25 +212,37 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         width: 100%;
         height: 100%;
         border: 1px solid #000;
-        padding: 0mm 3mm 3mm 3mm; 
+        padding: 0mm 3mm 3mm 3mm;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
       }
 
       .top-header-container {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         width: 100%;
         padding-bottom: 0mm;
       }
 
-      .top-header-logo {
-        display: flex;
-        justify-content: flex-start;
-        width: 100%;
-        padding-bottom: 0mm;
+      .top-header-left {
+        flex: 0 0 auto;
+      }
+
+      .top-header-center {
+        flex: 1;
+        text-align: center;
+      }
+
+      .top-header-right {
+        flex: 0 0 auto;
+      }
+
+      .cod-text {
+        font-size: 14px;
+        font-weight: bold;
       }
 
       .header-logo {
@@ -213,14 +252,41 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         box-sizing: border-box;
       }
 
+      .barcode-container {
+        display: flex;
+        align-items: center;
+        margin-top: -2mm;
+        margin-bottom: 1mm;
+        flex-shrink: 0;
+        gap: 2mm;
+      }
+
+      .agent-code-box {
+        border: 2px solid #000;
+        padding: 2mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20mm;
+        height: 20mm;
+        flex-shrink: 0;
+        background-color: #000;
+      }
+
+      .agent-abbr-left {
+        font-size: 20px;
+        font-weight: bold;
+        text-align: center;
+        color: #fff;
+      }
+
       .barcode-section {
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin-top: -4mm;
-        margin-bottom: 1mm;
         border: 2px solid #000;
         padding: 1mm;
+        flex: 1;
       }
 
       .barcode-section svg {
@@ -242,12 +308,18 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         margin-bottom: 1mm;
         font-size: 12px;
         padding-left: 2mm;
+        flex-shrink: 0;
+      }
+
+      .total-bold {
+        font-weight: bold;
       }
 
       .content-section {
         display: flex;
         flex: 1;
-        margin-bottom: 1mm;
+        margin-bottom: 0mm;
+        overflow: hidden;
       }
 
       .address-box {
@@ -258,8 +330,16 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
-        font-size: 11px;  /* Enlarge font size */
-        font-weight: bold;  /* Make text bold */
+        font-size: 11px;
+        font-weight: bold;
+        height: 40mm;
+        overflow-y: auto;
+        ::-webkit-scrollbar {
+          display: none;
+        }
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+        flex-shrink: 0;
       }
 
       .address-box .sender-info > div,
@@ -279,12 +359,15 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
 
       .logo-qr {
         width: 30mm;
-        height: auto;
+        height: 45mm;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
-        padding-top: 7mm;
+        padding-top: 1mm;
+        flex-shrink: 0;
+        min-height: 35mm;
+        overflow: visible;
       }
 
       .qr-code {
@@ -294,9 +377,19 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         box-sizing: border-box;
       }
 
+      .payment-method-code {
+        font-size: 15px;
+        font-weight: bold;
+        width: 100%;
+        text-align: center;
+        margin-top: 1mm;
+        display: block;
+      }
+
       .footer-container {
         width: 100%;
         margin-top: auto;
+        flex-shrink: 0;
       }
 
       .dotted-line {
@@ -329,26 +422,12 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
       }
 
       .airport-code {
-        font-size: 20px;  /* Matches logo prominence */
+        font-size: 20px;
         font-weight: bold;
-        margin-top: 4mm;
         text-align: right;
         margin-right: 2mm;
-        width: 20mm;  /* Set to match logo width */
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
+        margin-top: -3mm;
       }
-
-      .agent-abbr {
-          font-size: 15px;
-          font-weight: bold;
-          width: 100%;
-          text-align: center;
-          margin-top: 0mm;
-          position: relative;
-          top: 2mm;
-        }
 
       @media print {
         @page {
@@ -381,6 +460,118 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
         .print-only,
         .print-only * {
           visibility: visible !important;
+        }
+
+        .shipping-label {
+           width: 100%;
+           height: 100%;
+           box-sizing: border-box;
+           display: flex;
+           flex-direction: column;
+           overflow: hidden;
+        }
+
+        .top-header-container, .barcode-container, .shipping-details, .footer-container {
+            flex-shrink: 0;
+        }
+
+        .content-section {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        .address-box {
+            flex: 1;
+            padding: 1mm;
+            margin-right: 3mm;
+            overflow-y: auto;
+            font-size: 11px;
+            font-weight: bold;
+            border: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .logo-qr {
+            width: 30mm;
+            height: 45mm;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 1mm;
+            min-height: 35mm;
+            overflow: visible;
+        }
+
+        .address-box .sender-info > div,
+        .address-box .recipient-info > div {
+          border-bottom: 1px dotted #999;
+          padding-bottom: 0.6mm;
+          margin-bottom: 0mm;
+          line-height: 1.4;
+        }
+        .address-box .recipient-info > div:last-child {
+          border-bottom: none;
+        }
+
+        .address-box .sender-info {
+          margin-bottom: 2mm;
+        }
+
+        .barcode-container {
+          display: flex;
+          align-items: center;
+          margin-top: -2mm;
+          margin-bottom: 1mm;
+          flex-shrink: 0;
+          gap: 2mm;
+        }
+
+        .agent-code-box {
+          border: 2px solid #000;
+          padding: 2mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 20mm;
+          height: 20mm;
+          flex-shrink: 0;
+          background-color: #000;
+        }
+
+        .agent-abbr-left {
+          font-size: 20px;
+          font-weight: bold;
+          text-align: center;
+          color: #fff;
+        }
+
+        .barcode-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          border: 2px solid #000;
+          padding: 1mm;
+          flex: 1;
+        }
+
+        .payment-method-code {
+          font-size: 15px;
+          font-weight: bold;
+          width: 100%;
+          text-align: center;
+          margin-top: 0mm;
+          position: relative;
+          top: 1mm;
+        }
+
+        .total-bold {
+          font-weight: bold;
         }
       }
       /* === END: CSS disinkronkan dari PrintLayout.jsx === */
@@ -472,25 +663,89 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
 
   const handleDownloadPDF = async (row) => {
     setPrintData(row);
+    
     setTimeout(async () => {
       const element = printFrameRef.current;
       if (element) {
-        const html2pdf = await import('html2pdf.js');
-        html2pdf.default()
-          .set({
+        try {
+          // Tambahkan CSS khusus untuk PDF yang menaikkan posisi payment method code
+          const pdfSpecificStyle = document.createElement('style');
+          pdfSpecificStyle.innerHTML = `
+            .payment-method-code {
+              font-size: 20px !important;
+              font-weight: bold !important;
+              width: 100% !important;
+              text-align: center !important;
+              margin-top: -1mm !important;
+              display: block !important;
+              position: relative !important;
+              top: -1mm !important;
+            }
+            .logo-qr {
+              padding-top: 0mm !important;
+            }
+            /* CSS untuk menaikkan detail pengiriman */
+            .shipping-details {
+              margin-top: -2mm !important;
+            }
+            /* CSS untuk menaikkan teks agent di dalam kotaknya */
+            .agent-code-box .agent-abbr-left {
+              position: relative !important;
+              top: -3mm !important; /* Sesuaikan nilai ini jika perlu */
+            }
+          `;
+          element.appendChild(pdfSpecificStyle);
+
+          // Import html2pdf
+          const html2pdf = await import('html2pdf.js');
+          
+          // Konfigurasi untuk PDF yang lebih baik
+          const options = {
             filename: row.awb_no + '.pdf',
             margin: 0,
-            jsPDF: { unit: 'mm', format: [100, 100], orientation: 'portrait' }
-          })
-          .from(element)
-          .save();
-        setPrintData(null);
+            image: { 
+              type: 'jpeg', 
+              quality: 1.0 
+            },
+            html2canvas: { 
+              scale: 4,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: '#ffffff',
+              width: 378, // 100mm * 3.78 (96 DPI to mm conversion * scale)
+              height: 378,
+              scrollX: 0,
+              scrollY: 0
+            },
+            jsPDF: { 
+              unit: 'mm', 
+              format: [100, 100], 
+              orientation: 'portrait',
+              compress: true
+            }
+          };
+          
+          // Generate PDF langsung dari element yang sudah ter-render
+          await html2pdf.default()
+            .set(options)
+            .from(element)
+            .save();
+
+          // Hapus style khusus PDF setelah selesai
+          element.removeChild(pdfSpecificStyle);
+            
+          setPrintData(null);
+        } catch (error) {
+          console.error('Error generating PDF:', error);
+          alert('Gagal membuat PDF. Silakan coba lagi.');
+          setPrintData(null);
+        }
       }
-    }, 100);
+    }, 600); // Tunggu lebih lama untuk memastikan rendering selesai
   };
 
   if (showEditForm && selectedItem) {
-    const wilayahOptions = kotaWilayah[selectedItem.kota_tujuan] || [];
+    const wilayahOptions = currentKotaWilayah[selectedItem.kota_tujuan] || [];
 
     return (
       <div className="mt-6">
@@ -529,7 +784,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
               >
                 <option value="">Pilih</option>
-                {kirimVia.map((opt) => (
+                {currentKirimVia.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt.toUpperCase()}
                   </option>
@@ -545,7 +800,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
               >
                 <option value="">Pilih</option>
-                {kotaTujuan.map((opt) => (
+                {currentKotaTujuan.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt.replace(/\b\w/g, (l) => l.toUpperCase())}
                   </option>
@@ -621,7 +876,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
               >
                 <option value="">Pilih</option>
-                {metodePembayaran.map((opt) => (
+                {currentMetodePembayaran.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt.toUpperCase()}
                   </option>

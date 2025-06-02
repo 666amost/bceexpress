@@ -109,17 +109,54 @@ export default function PrintLayout({ data }) {
 
   const generateAbbreviation = (agentName) => {
     const words = agentName.trim().split(/\s+/);
-    let abbr = words.map(word => word[0].toUpperCase()).join('');
-    if (abbr.length > 3) {
-      abbr = abbr.slice(0, 3);
-    } else if (abbr.length < 3) {
-      const firstWord = words[0].toUpperCase();
-      while (abbr.length < 3 && firstWord.length > abbr.length) {
-        abbr += firstWord[abbr.length];
-      }
-      abbr = abbr.slice(0, 3);
+    
+    // Jika hanya 1 kata dan 4 karakter atau kurang, gunakan apa adanya
+    if (words.length === 1 && words[0].length <= 4) {
+      return words[0].toUpperCase();
     }
-    return abbr;
+    
+    // Jika nama total (tanpa spasi) 4 karakter atau kurang, gunakan apa adanya
+    const nameWithoutSpaces = agentName.replace(/\s+/g, '');
+    if (nameWithoutSpaces.length <= 4) {
+      return nameWithoutSpaces.toUpperCase();
+    }
+    
+    // Jika lebih dari 4 karakter, buat singkatan unik 4 karakter
+    // Ambil huruf pertama dari setiap kata
+    let abbr = words.map(word => word[0].toUpperCase()).join('');
+    
+    // Jika hasil kurang dari 4 karakter, tambahkan huruf dari kata pertama
+    if (abbr.length < 4) {
+      const firstWord = words[0].toUpperCase();
+      let index = 1; // Mulai dari huruf kedua kata pertama
+      while (abbr.length < 4 && index < firstWord.length) {
+        abbr += firstWord[index];
+        index++;
+      }
+    }
+    
+    // Jika masih kurang dari 4, tambahkan huruf dari kata kedua
+    if (abbr.length < 4 && words.length > 1) {
+      const secondWord = words[1].toUpperCase();
+      let index = 1; // Mulai dari huruf kedua kata kedua
+      while (abbr.length < 4 && index < secondWord.length) {
+        abbr += secondWord[index];
+        index++;
+      }
+    }
+    
+    // Pastikan maksimal 4 karakter
+    return abbr.slice(0, 4);
+  };
+
+  // Fungsi untuk mengkonversi metode pembayaran ke format singkat
+  const getPaymentMethodCode = (method) => {
+    if (!method) return '';
+    const methodUpper = method.toUpperCase();
+    if (methodUpper === 'CASH') return 'CASH';
+    if (methodUpper === 'TRANSFER') return 'TRF';
+    if (methodUpper === 'COD') return 'COD';
+    return methodUpper;
   };
 
   if (!data) return null
@@ -138,17 +175,26 @@ export default function PrintLayout({ data }) {
           </div>
         </div>
 
-        <div className="barcode-section">
-          <svg ref={barcodeRef}></svg>
-          <div className="awb-number">{data.awb_no}</div>
+        <div className="barcode-container">
+          <div className="agent-code-box">
+            {data.agent_customer && (
+              <div className="agent-abbr-left">
+                {generateAbbreviation(data.agent_customer)}
+              </div>
+            )}
+          </div>
+          <div className="barcode-section">
+            <svg ref={barcodeRef}></svg>
+            <div className="awb-number">{data.awb_no}</div>
+          </div>
         </div>
 
         <div className="shipping-details">
           <div>coli : {data.coli || 1}</div>
           <div>berat : {data.berat_kg || 1} kg</div>
-          <div>total : {formatCurrency(data.total || 0)}</div>
-          <div>Metode: {data.metode_pembayaran?.toUpperCase()}</div>
-          <div> {data.awb_date}</div>
+          <div>biaya lain: {formatCurrency((Number(data.biaya_admin) || 0) + (Number(data.biaya_packaging) || 0) + (Number(data.biaya_transit) || 0))}</div>
+          <div className="total-bold">total : {formatCurrency(data.total || 0)}</div>
+          <div>{data.awb_date}</div>
         </div>
 
         <div className="content-section">
@@ -169,10 +215,9 @@ export default function PrintLayout({ data }) {
             {qrCodeDataUrl && (
               <>
                 <img src={qrCodeDataUrl} alt="QR Code" className="qr-code" />
-                <div className="agent-abbr text-center text-xs mt-5">
-                  {data.agent_customer && (
-                    <span>{generateAbbreviation(data.agent_customer)}</span>
-                  )}
+                {/* Metode pembayaran dipindah ke posisi agent */}
+                <div className="payment-method-code">
+                  {getPaymentMethodCode(data.metode_pembayaran)}
                 </div>
               </>
             )}
@@ -251,15 +296,41 @@ export default function PrintLayout({ data }) {
           box-sizing: border-box;
         }
 
+        .barcode-container {
+          display: flex;
+          align-items: center;
+          margin-top: -2mm;
+          margin-bottom: 1mm;
+          flex-shrink: 0;
+          gap: 2mm;
+        }
+
+        .agent-code-box {
+          border: 2px solid #000;
+          padding: 2mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 20mm;
+          height: 20mm;
+          flex-shrink: 0;
+          background-color: #000;
+        }
+
+        .agent-abbr-left {
+          font-size: 20px;
+          font-weight: bold;
+          text-align: center;
+          color: #fff;
+        }
+
         .barcode-section {
           display: flex;
           flex-direction: column;
           align-items: center;
-          margin-top: -4mm;
-          margin-bottom: 1mm;
           border: 2px solid #000;
           padding: 1mm;
-          flex-shrink: 0;
+          flex: 1;
         }
 
         .barcode-section svg {
@@ -282,6 +353,10 @@ export default function PrintLayout({ data }) {
           font-size: 12px;
           padding-left: 2mm;
           flex-shrink: 0;
+        }
+
+        .total-bold {
+          font-weight: bold;
         }
 
         .content-section {
@@ -328,13 +403,15 @@ export default function PrintLayout({ data }) {
 
         .logo-qr {
           width: 30mm;
-          height: auto;
+          height: 45mm;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: flex-start;
-          padding-top: 3mm;
+          padding-top: 1mm;
           flex-shrink: 0;
+          min-height: 35mm;
+          overflow: visible;
         }
 
         .qr-code {
@@ -342,6 +419,15 @@ export default function PrintLayout({ data }) {
           height: 30mm !important;
           display: block !important;
           box-sizing: border-box;
+        }
+
+        .payment-method-code {
+          font-size: 15px;
+          font-weight: bold;
+          width: 100%;
+          text-align: center;
+          margin-top: 1mm;
+          display: block;
         }
 
         .footer-container {
@@ -387,29 +473,16 @@ export default function PrintLayout({ data }) {
           margin-top: -3mm;
         }
 
-        .agent-abbr {
-          font-size: 15px;
-          font-weight: bold;
-          width: 100%;
-          text-align: center;
-          margin-top: 0mm;
-          position: relative;
-          top: 0mm;
-        }
-
         @media print {
           @page {
             size: 100mm 100mm;
             margin: 0;
           }
 
-          body * {
-            visibility: hidden;
-          }
-
-          .print-only,
-          .print-only * {
-            visibility: visible;
+          body {
+            margin: 0;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
 
           .print-only {
@@ -418,8 +491,19 @@ export default function PrintLayout({ data }) {
             top: 0;
             width: 100mm;
             height: 100mm;
-            box-sizing: border-box;
-            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            background-color: #fff !important;
+          }
+
+          body > *:not(.print-only) {
+            display: none !important;
+            visibility: hidden !important;
+          }
+
+          .print-only,
+          .print-only * {
+            visibility: visible !important;
           }
 
           .shipping-label {
@@ -431,7 +515,7 @@ export default function PrintLayout({ data }) {
              overflow: hidden;
           }
 
-          .top-header-container, .barcode-section, .shipping-details, .footer-container {
+          .top-header-container, .barcode-container, .shipping-details, .footer-container {
               flex-shrink: 0;
           }
 
@@ -457,14 +541,15 @@ export default function PrintLayout({ data }) {
 
           .logo-qr {
               width: 30mm;
-              height: auto;
+              height: 45mm;
               flex-shrink: 0;
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: flex-start;
-              padding-top: 3mm;
-              overflow: hidden;
+              padding-top: 1mm;
+              min-height: 35mm;
+              overflow: visible;
           }
 
           .address-box .sender-info > div,
@@ -480,6 +565,48 @@ export default function PrintLayout({ data }) {
 
           .address-box .sender-info {
             margin-bottom: 2mm;
+          }
+
+          .barcode-container {
+            display: flex;
+            align-items: center;
+            margin-top: -2mm;
+            margin-bottom: 1mm;
+            flex-shrink: 0;
+            gap: 2mm;
+          }
+
+          .agent-code-box {
+            border: 2px solid #000;
+            padding: 2mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20mm;
+            height: 20mm;
+            flex-shrink: 0;
+            background-color: #000;
+          }
+
+          .agent-abbr-left {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            color: #fff;
+          }
+
+          .payment-method-code {
+          font-size: 15px;
+          font-weight: bold;
+          width: 100%;
+          text-align: center;
+          margin-top: 0mm;
+          position: relative;
+          top: 1mm;
+          }
+
+          .total-bold {
+            font-weight: bold;
           }
         }
       `}</style>

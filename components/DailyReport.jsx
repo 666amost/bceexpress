@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { supabaseClient } from "../lib/auth"
-import * as XLSX from 'xlsx'
+import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
 export default function DailyReport({ userRole, branchOrigin }) {
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
@@ -142,114 +142,77 @@ export default function DailyReport({ userRole, branchOrigin }) {
     }
   }
 
-  // Fungsi untuk download XLSX berdasarkan data yang sudah difilter
+  // Enhanced downloadXLSX with HTML approach first, then reliable XLSX fallback
   const downloadXLSX = () => {
     if (data.length === 0) {
       alert("No data to download")
       return
     }
 
+    const headers = [
+      'AWB (No Resi)',
+      'Pengirim', 
+      'Penerima',
+      'Coli',
+      'Kg',
+      'Harga (Ongkir)',
+      'Admin',
+      'Packaging',
+      'Cash',
+      'Transfer', 
+      'COD',
+      'Wilayah'
+    ]
+
+    const formattedData = data.map(item => ({
+      'AWB (No Resi)': item.awb_no,
+      'Pengirim': item.nama_pengirim,
+      'Penerima': item.nama_penerima,
+      'Coli': item.coli,
+      'Kg': item.berat_kg,
+      'Harga (Ongkir)': item.harga_per_kg || item.ongkir || 0,
+      'Admin': item.biaya_admin || item.admin || 0,
+      'Packaging': item.biaya_packaging || 0,
+      'Cash': item.metode_pembayaran === 'cash' ? item.total : 0,
+      'Transfer': item.metode_pembayaran === 'transfer' ? item.total : 0,
+      'COD': item.metode_pembayaran === 'cod' ? item.total : 0,
+      'Wilayah': item.wilayah
+    }))
+
     const today = new Date().toLocaleDateString('id-ID', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    }).toUpperCase();
-    
-    const dataHeaders = ['No', 'AWB (No Resi)', 'Pengirim', 'Penerima', 'Coli', 'Kg', 'Harga (Ongkir)', 'Admin', 'Packaging', 'Cash', 'Transfer', 'COD', 'Wilayah'].map(header => header.toUpperCase());
-    const dataRows = data.map((item, index) => [
-      index + 1,
-      item.awb_no,
-      item.nama_pengirim,
-      item.nama_penerima,
-      item.coli,
-      item.berat_kg,
-      item.harga_per_kg || item.ongkir,
-      (item.biaya_admin || item.admin || 0),
-      (item.biaya_packaging || 0),
-      item.metode_pembayaran === 'cash' ? item.total : 0,
-      item.metode_pembayaran === 'transfer' ? item.total : 0,
-      item.metode_pembayaran === 'cod' ? item.total : 0,
-      item.wilayah
-    ]);
-    
-    const totalCash = data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalTransfer = data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalCOD = data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalSemua = data.reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalsRow = ['Total Keseluruhan', '', '', '', '', '', '', '', '', totalCash, totalTransfer, totalCOD, totalSemua].map(text => typeof text === 'string' ? text.toUpperCase() : text);
-    
-    const allRows = [['Report dibuat pada: ' + today], dataHeaders, ...dataRows, totalsRow];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    
-    // Setel lebar kolom berdasarkan panjang header (approximasi)
-    worksheet['!cols'] = [
-      { wch: 5 },   // No
-      { wch: 15 },  // AWB (No Resi)
-      { wch: 15 },  // Pengirim
-      { wch: 15 },  // Penerima
-      { wch: 10 },  // Coli
-      { wch: 5 },   // Kg
-      { wch: 12 },  // Harga (Ongkir)
-      { wch: 10 },  // Admin
-      { wch: 12 },  // Packaging
-      { wch: 10 },  // Cash
-      { wch: 12 },  // Transfer
-      { wch: 10 },  // COD
-      { wch: 15 }   // Wilayah
-    ];
-    
-    // Setel border, bold untuk header, tanggal, dan total
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    for (let rowNum = range.s.r; rowNum <= range.e.r; rowNum++) {
-      for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: colNum });
-        if (!worksheet[cellAddress]) continue;
-        
-        // Bold untuk baris tanggal (baris 0), header (baris 1), dan total (baris terakhir)
-        if (rowNum === 0 || rowNum === 1 || rowNum === range.e.r) {  // Baris 0: tanggal, Baris 1: header, Baris terakhir: total
-          worksheet[cellAddress].s = {
-            font: { bold: true },
-            border: {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" }
-            }
-          };
-        } else {
-          // Border untuk seluruh tabel
-          worksheet[cellAddress].s = {
-            border: {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" }
-            }
-          };
-          
-          // Format angka untuk kolom yang relevan
-          if (colNum >= 7 && colNum <= 11 && typeof worksheet[cellAddress].v === 'number') {  // Kolom 8-12 (indeks 7-11: Admin, Packaging, Cash, Transfer, COD)
-            worksheet[cellAddress].z = '"rp." #,##0';  // Format sebagai "rp. 20,000"
-            worksheet[cellAddress].t = 's';  // Treat as string
-          }
-        }
+    })
+
+    // Create date range string if filters are applied
+    let dateRange = ''
+    if (selectedDateFrom || selectedDateTo) {
+      if (selectedDateFrom && selectedDateTo) {
+        // Convert YYYY-MM-DD to DD-MM-YYYY format
+        const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
+        const toFormatted = selectedDateTo.split('-').reverse().join('-')
+        dateRange = `${fromFormatted} s/d ${toFormatted}`
+      } else if (selectedDateFrom) {
+        const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
+        dateRange = `Dari ${fromFormatted}`
+      } else if (selectedDateTo) {
+        const toFormatted = selectedDateTo.split('-').reverse().join('-')
+        dateRange = `Sampai ${toFormatted}`
       }
     }
-    
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Report');
-    
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `daily_report_${today.replace(/\//g, '-')}.xlsx`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    // Try HTML approach first for guaranteed styling
+    createStyledExcelWithHTML({
+      title: 'Daily Report',
+      headers,
+      data: formattedData,
+      fileName: `daily_report_${today.replace(/\s+/g, '_')}.xls`,
+      currency: 'Rp',
+      currencyColumns: [5, 6, 7, 8, 9, 10], // Currency columns
+      numberColumns: [3, 4], // Number columns
+      dateRange: dateRange // Use formatted date range
+    })
   }
 
   // Tambahkan fungsi handlePrint di dalam komponen, misalnya setelah fungsi downloadXLSX
