@@ -1,0 +1,9 @@
+User-agent: Googlebot
+Allow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /branch
+Disallow: /courier 
+Disallow: /private/

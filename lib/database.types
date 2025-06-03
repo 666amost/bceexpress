@@ -1,0 +1,258 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      shipments: {
+        Row: {
+          awb_number: string
+          sender_name: string
+          sender_address: string
+          sender_phone: string
+          receiver_name: string
+          receiver_address: string
+          receiver_phone: string
+          weight: number
+          dimensions: string
+          service_type: string
+          current_status: string
+          created_at: string
+          updated_at: string
+          courier_id: string | null
+        }
+        Insert: {
+          awb_number: string
+          sender_name: string
+          sender_address: string
+          sender_phone: string
+          receiver_name: string
+          receiver_address: string
+          receiver_phone: string
+          weight: number
+          dimensions: string
+          service_type: string
+          current_status: string
+          created_at?: string
+          updated_at?: string
+          courier_id?: string | null
+        }
+        Update: {
+          awb_number?: string
+          sender_name?: string
+          sender_address?: string
+          sender_phone?: string
+          receiver_name?: string
+          receiver_address?: string
+          receiver_phone?: string
+          weight?: number
+          dimensions?: string
+          service_type?: string
+          current_status?: string
+          created_at?: string
+          updated_at?: string
+          courier_id?: string | null
+        }
+      }
+      shipment_history: {
+        Row: {
+          id: string
+          awb_number: string
+          status: string
+          location: string
+          notes: string | null
+          photo_url: string | null
+          created_at: string
+          latitude: number | null
+          longitude: number | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          awb_number: string
+          status: string
+          location: string
+          notes?: string | null
+          photo_url?: string | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          awb_number?: string
+          status?: string
+          location?: string
+          notes?: string | null
+          photo_url?: string | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          updated_by?: string | null
+        }
+      }
+      users: {
+        Row: {
+          id: string
+          email: string
+          name: string
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id: string
+          email: string
+          name: string
+          role: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string
+          role?: string
+          created_at?: string
+        }
+      }
+      manifest: {
+        Row: {
+          id: string
+          awb_no: string | null
+          awb_date: string | null
+          kirim_via: string | null
+          kota_tujuan: string | null
+          wilayah: string | null
+          metode_pembayaran: string | null
+          agent_customer: string | null
+          nama_pengirim: string | null
+          nomor_pengirim: string | null
+          nama_penerima: string | null
+          nomor_penerima: string | null
+          alamat_penerima: string | null
+          coli: number | null
+          berat_kg: number | null
+          harga_per_kg: number | null
+          sub_total: number | null
+          biaya_admin: number | null
+          biaya_packaging: number | null
+          biaya_transit: number | null
+          total: number | null
+          buktimembayar: boolean | null
+          potongan: number | null
+          status_pelunasan: string | null
+        }
+        Insert: {
+          id?: string
+          awb_no?: string | null
+          awb_date?: string | null
+          kirim_via?: string | null
+          kota_tujuan?: string | null
+          wilayah?: string | null
+          metode_pembayaran?: string | null
+          agent_customer?: string | null
+          nama_pengirim?: string | null
+          nomor_pengirim?: string | null
+          nama_penerima?: string | null
+          nomor_penerima?: string | null
+          alamat_penerima?: string | null
+          coli?: number | null
+          berat_kg?: number | null
+          harga_per_kg?: number | null
+          sub_total?: number | null
+          biaya_admin?: number | null
+          biaya_packaging?: number | null
+          biaya_transit?: number | null
+          total?: number | null
+          buktimembayar?: boolean | null
+          potongan?: number | null
+          status_pelunasan?: string | null
+        }
+        Update: {
+          id?: string
+          awb_no?: string | null
+          awb_date?: string | null
+          kirim_via?: string | null
+          kota_tujuan?: string | null
+          wilayah?: string | null
+          metode_pembayaran?: string | null
+          agent_customer?: string | null
+          nama_pengirim?: string | null
+          nomor_pengirim?: string | null
+          nama_penerima?: string | null
+          nomor_penerima?: string | null
+          alamat_penerima?: string | null
+          coli?: number | null
+          berat_kg?: number | null
+          harga_per_kg?: number | null
+          sub_total?: number | null
+          biaya_admin?: number | null
+          biaya_packaging?: number | null
+          biaya_transit?: number | null
+          total?: number | null
+          buktimembayar?: boolean | null
+          potongan?: number | null
+          status_pelunasan?: string | null
+        }
+      }
+      pelunasan: {
+        Row: {
+          id: string
+          awb_no: string | null
+          awb_date: string | null
+          nama_pengirim: string | null
+          nama_penerima: string | null
+          original_amount: number | null
+          discount: number | null
+          final_amount: number | null
+          agent_customer: string | null
+          payment_date: string | null
+        }
+        Insert: {
+          id?: string
+          awb_no?: string | null
+          awb_date?: string | null
+          nama_pengirim?: string | null
+          nama_penerima?: string | null
+          original_amount?: number | null
+          discount?: number | null
+          final_amount?: number | null
+          agent_customer?: string | null
+          payment_date?: string | null
+        }
+        Update: {
+          id?: string
+          awb_no?: string | null
+          awb_date?: string | null
+          nama_pengirim?: string | null
+          nama_penerima?: string | null
+          original_amount?: number | null
+          discount?: number | null
+          final_amount?: number | null
+          agent_customer?: string | null
+          payment_date?: string | null
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      create_shipment_from_manifest: {
+        Args: {
+          awb_number: string
+        }
+        Returns: boolean
+      }
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+  }
+}
