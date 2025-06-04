@@ -11,11 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faMapPin, faSpinner, faUpload } from '@fortawesome/free-solid-svg-icons'
 import {
   ChevronLeft,
-  Map as MapIcon,
-  Upload as UploadIcon,
   Close as CloseIcon,
   Camera as CameraIcon,
   CheckmarkFilled as CheckmarkIcon,
@@ -207,15 +205,56 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
-      const options = { maxSizeMB: 1.5, maxWidthOrHeight: 1920, useWebWorker: true, quality: 0.85 }
-      try {
-        const compressedFile = await imageCompression(file, options)
-        setPhoto(compressedFile)
+      
+      // Check if file is already small enough (under 1.5MB)
+      if (file.size <= 1.5 * 1024 * 1024) {
+        // Use original file if it's already under 1.5MB
+        setPhoto(file)
         const reader = new FileReader()
         reader.onload = (e) => {
           setPhotoPreview(e.target?.result as string)
         }
-        reader.readAsDataURL(compressedFile)
+        reader.readAsDataURL(file)
+        return
+      }
+
+      // Only compress if file is larger than 1.5MB
+      const options = { 
+        maxSizeMB: 1.5, 
+        maxWidthOrHeight: 2048, // Increased resolution
+        useWebWorker: true, 
+        quality: 0.9, // Increased quality from 0.85 to 0.9
+        initialQuality: 0.9 // Set initial quality higher
+      }
+      
+      try {
+        const compressedFile = await imageCompression(file, options)
+        
+        // Ensure compressed file is at least 1MB, if too small, use less compression
+        if (compressedFile.size < 1 * 1024 * 1024) {
+          const lessCompressedOptions = { 
+            maxSizeMB: 1.5, 
+            maxWidthOrHeight: 2560, // Even higher resolution
+            useWebWorker: true, 
+            quality: 0.95, // Higher quality
+            initialQuality: 0.95
+          }
+          const lessCompressedFile = await imageCompression(file, lessCompressedOptions)
+          setPhoto(lessCompressedFile)
+          
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            setPhotoPreview(e.target?.result as string)
+          }
+          reader.readAsDataURL(lessCompressedFile)
+        } else {
+          setPhoto(compressedFile)
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            setPhotoPreview(e.target?.result as string)
+          }
+          reader.readAsDataURL(compressedFile)
+        }
       } catch (error) {
         // If compression fails, use original file
         setPhoto(file)
@@ -246,7 +285,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
           setGpsCoords({ lat, lng })
           setLocation("Current GPS Location")
         },
-        (error) => {
+        () => {
           setLocation("")
           // Silently handle geolocation errors
         },
@@ -635,6 +674,13 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             // Sync error - silently handle
           }
         }
+
+        // Tambahkan jeda singkat dan refresh router untuk memastikan data terbaru
+        setTimeout(() => {
+          router.refresh(); // Memaksa refresh data di halaman tujuan
+          router.push("/courier/dashboard");
+        }, 500); // Jeda 500ms untuk memungkinkan data Supabase konsisten
+
       } else {
         setError("Gagal mengupdate status shipment. Silakan coba lagi.")
       }
@@ -799,7 +845,7 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                     <CameraIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2 sm:mb-3" />
                     <p className="text-gray-600 dark:text-gray-400 mb-2 sm:mb-3 text-sm sm:text-base">Upload photo proof of delivery (Optional)</p>
                     <Button type="button" onClick={() => fileInputRef.current?.click()} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm sm:text-base h-8 sm:h-10">
-                      <UploadIcon className="w-4 h-4 mr-2" /> Select Photo
+                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4 mr-2" /> Select Photo
                     </Button>
                   </div>
                 )}

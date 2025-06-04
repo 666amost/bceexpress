@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -129,77 +129,12 @@ export function CourierDashboard() {
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
-  const [refreshTimeout, setRefreshTimeout] = useState<NodeJS.Timeout | null>(null)
+  const refreshTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const router = useRouter()
   const { toast } = useToast()
 
-  // Debounced refresh function to prevent multiple simultaneous refreshes
-  const debouncedRefresh = (user: any) => {
-    if (refreshTimeout) {
-      clearTimeout(refreshTimeout)
-    }
-    
-    const timeout = setTimeout(() => {
-      loadShipmentData(user)
-      setRefreshTimeout(null)
-    }, 1000) // Wait 1 second before refreshing
-    
-    setRefreshTimeout(timeout)
-  }
-
-  useEffect(() => {
-    async function loadUserProfile() {
-      try {
-        setIsProfileLoading(true)
-        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
-        if (sessionError) {
-          setIsProfileLoading(false)
-          return
-        }
-        if (!sessionData?.session?.user?.id) {
-          router.push("/courier")
-          setIsProfileLoading(false)
-          return
-        }
-
-        const userId = sessionData.session.user.id
-        const { data: userData, error: userError } = await supabaseClient
-          .from("users")
-          .select("*")
-          .eq("id", userId)
-          .single()
-
-        if (userError) {
-          setIsProfileLoading(false)
-          return
-        }
-
-        setCurrentUser(userData)
-        setIsProfileLoading(false)
-        // Load shipment data after user profile is loaded
-        loadShipmentData(userData)
-      } catch (err) {
-        setIsProfileLoading(false)
-        toast({
-          title: "Error",
-          description: "Failed to load user profile. Please try again.",
-          variant: "destructive",
-        })
-      }
-    }
-
-    loadUserProfile()
-
-    // Cleanup function
-    return () => {
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout)
-      }
-    }
-  }, [])
-
-  const loadShipmentData = async (user: any) => {
+  const loadShipmentData = useCallback(async (user: any) => {
     setIsShipmentsLoading(true)
     try {
       const today = new Date()
@@ -217,15 +152,15 @@ export function CourierDashboard() {
         setTimeout(() => reject(new Error('Database timeout')), 15000)
       );
 
-      // Get today's bulk shipments with only necessary fields - with timeout
+      // Get today's bulk shipments (Today's Assignment) - shipments created today that are not yet delivered/cancelled
       const bulkShipmentsPromise = supabaseClient
         .from("shipments")
         .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, updated_at")
-        .eq("current_status", "out_for_delivery")
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
+        .not("current_status", "in", '("delivered", "cancelled")') // Filter out delivered and cancelled shipments
         .order("updated_at", { ascending: false })
-        .limit(50); // Limit results to improve performance
+        .limit(50); 
 
       // Get pending deliveries with only necessary fields - with timeout
       const pendingPromise = supabaseClient
@@ -318,7 +253,71 @@ export function CourierDashboard() {
     } finally {
       setIsShipmentsLoading(false);
     }
-  }
+  }, [toast]);
+
+  const debouncedRefresh = useCallback((user: any) => {
+    if (refreshTimeout.current) {
+      clearTimeout(refreshTimeout.current)
+    }
+    
+    const timeout = setTimeout(() => {
+      loadShipmentData(user)
+      refreshTimeout.current = null
+    }, 1000)
+    
+    refreshTimeout.current = timeout
+  }, [loadShipmentData])
+
+  const loadUserProfile = useCallback(async () => {
+    setIsProfileLoading(true)
+    try {
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
+      if (sessionError) {
+        setIsProfileLoading(false)
+        return
+      }
+      if (!sessionData?.session?.user?.id) {
+        router.push("/courier")
+        setIsProfileLoading(false)
+        return
+      }
+
+      const userId = sessionData.session.user.id
+      const { data: userData, error: userError } = await supabaseClient
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
+      if (userError) {
+        setIsProfileLoading(false)
+        return
+      }
+
+      setCurrentUser(userData)
+      setIsProfileLoading(false)
+      // Load shipment data after user profile is loaded
+      loadShipmentData(userData)
+    } catch (err) {
+      setIsProfileLoading(false)
+      toast({
+        title: "Error",
+        description: "Failed to load user profile. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [loadShipmentData, router, toast])
+
+  useEffect(() => {
+    loadUserProfile()
+
+    // Cleanup function
+    return () => {
+      if (refreshTimeout.current) {
+        clearTimeout(refreshTimeout.current)
+      }
+    }
+  }, [loadUserProfile, refreshTimeout])
 
   const handleBulkUpdateSuccess = (count: number) => {
     toast({

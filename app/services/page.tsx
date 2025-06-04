@@ -28,6 +28,7 @@ import { Oval as LoadingIcon } from 'react-loading-icons'
 import Image from "next/image"
 import gsap from 'gsap'
 import { TextPlugin } from 'gsap/TextPlugin'
+import { Power3 } from 'gsap'
 
 export default function ServicesPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -52,32 +53,51 @@ export default function ServicesPage() {
     return () => clearTimeout(timer);
   }, []); // Effect runs once on mount for loading simulation
 
-  useLayoutEffect(() => {
-    // Set up GSAP after the ref is available and loading is done
-    if (!isLoading && headingRef.current) {
-      gsap.registerPlugin(TextPlugin);
+  useEffect(() => {
+    if (!isLoading) {
+      const headingElement = headingRef.current; // Capture the current ref value
+      if (!headingElement) return; // Exit if ref is null
 
-      const timeline = gsap.timeline({ repeat: -1, repeatDelay: 1 });
+      const texts = rotatingTexts;
+      let currentIndex = 0;
 
-      // Type the first text
-      timeline.to(headingRef.current, { duration: 1.5, text: rotatingTexts[0] });
-      timeline.to(headingRef.current, { duration: 1, delay: 2 }); // Pause after first text
+      const animateText = () => {
+        const currentText = texts[currentIndex];
+        gsap.to(headingElement, { // Use the captured element
+          duration: 0.5,
+          opacity: 0,
+          y: -10,
+          ease: Power3.easeOut,
+          onComplete: () => {
+            if (headingElement) { // Use the captured element
+              headingElement.textContent = currentText;
+              gsap.to(headingElement, {
+                duration: 0.5,
+                opacity: 1,
+                y: 0,
+                ease: Power3.easeOut
+              });
+            }
+          }
+        });
+        currentIndex = (currentIndex + 1) % texts.length;
+      };
 
-      // Loop through the rest of the texts
-      rotatingTexts.slice(1).forEach(text => {
-        timeline.to(headingRef.current, { duration: 1, text: "" }); // Clear text
-        timeline.to(headingRef.current, { duration: 1.5, text: text, delay: 0.5 }); // Type new text
-        timeline.to(headingRef.current, { duration: 1, delay: 2 }); // Pause before next text
-      });
+      // Initial animation
+      animateText();
+
+      // Set interval for continuous animation
+      const interval = setInterval(animateText, 3000); // Change text every 3 seconds
 
       // Cleanup GSAP animation on unmount or when dependencies change
       return () => {
-        if (headingRef.current) {
-          gsap.killTweensOf(headingRef.current);
+        clearInterval(interval);
+        if (headingElement) { // Use the captured element
+          gsap.killTweensOf(headingElement);
         }
       };
     }
-  }, [isLoading, rotatingTexts, headingRef.current]); // Depend on loading state, text array, and ref
+  }, [isLoading, rotatingTexts, headingRef]); // Remove headingRef.current, keep headingRef
 
   const services = [
     {

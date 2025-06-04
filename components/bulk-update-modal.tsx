@@ -16,6 +16,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
 import { toast } from "sonner"
+import { QRScanner } from './qr-scanner'
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -32,6 +33,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -42,6 +44,29 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     audio.play().catch(() => {
       // Silently handle audio play errors
     });
+  };
+
+  const handleQRScan = (result: string) => {
+    if (result) {
+      const newAwb = result.trim();
+      const currentAwbs = awbNumbers.split(/\s*,\s*|\s+|\n/).filter(Boolean);
+
+      if (!currentAwbs.includes(newAwb)) {
+        setAwbNumbers(prev => (prev ? `${prev}\n${newAwb}` : newAwb));
+        playScanSuccessSound();
+      } else {
+        toast.warning("Duplicate AWB scanned!", {
+          description: `${newAwb} has already been added.`, 
+          duration: 2000,
+        });
+      }
+    }
+    setShowScanner(false);
+  };
+
+  const handleQRScannerError = (error: string) => {
+    toast.error("QR Scanner Error", { description: error });
+    setShowScanner(false);
   };
 
   // Handle mobile keyboard detection
@@ -130,6 +155,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setIsLoading(false)
       setAbortController(null)
       setIsKeyboardOpen(false)
+      setShowScanner(false)
       
       // Generate new modal key to force re-render
       setModalKey(Date.now().toString())
@@ -152,6 +178,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setProcessingStatus("")
       setAbortController(null)
       setIsKeyboardOpen(false)
+      setShowScanner(false)
     }
   }, [isOpen, abortController])
 
@@ -391,126 +418,62 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   }
 
   const handleSubmit = async () => {
-    // Prevent multiple simultaneous submissions
-    if (isLoading) {
+    if (!currentUser || !currentUser.id) {
+      setError("User not authenticated.")
       return
     }
-    
-    // Cancel any previous operation
+
+    const awbList = awbNumbers
+      .split(/\s*,\s*|\s+|\n/) // Split by comma, space, or newline
+      .filter(Boolean) // Remove empty strings
+      .map((awb) => awb.trim())
+
+    if (awbList.length === 0) {
+      setError("Please enter at least one AWB number.")
+      return
+    }
+
+    setError(null)
+    setIsLoading(true)
+    setProcessingStatus("Processing AWBs...")
+    const controller = new AbortController()
+    setAbortController(controller)
+
+    try {
+      const successfulUpdatesCount = await processAwbsParallel(
+        awbList,
+        currentUser.id,
+        currentUser.name || currentUser.email.split("@")[0],
+      )
+
+      toast.success("Bulk Update Complete", {
+        description: `Successfully processed ${successfulUpdatesCount} shipments.`,
+        duration: 5000,
+      })
+      onSuccess(successfulUpdatesCount)
+      onClose()
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setProcessingStatus("Operation cancelled.")
+        toast.info("Update Cancelled", { description: "Bulk update operation was cancelled." });
+      } else {
+        setError(err.message || "An unknown error occurred during bulk update.")
+        toast.error("Bulk Update Failed", {
+          description: err.message || "An unknown error occurred.",
+          duration: 5000,
+        });
+      }
+    } finally {
+      setIsLoading(false)
+      setAbortController(null)
+    }
+  }
+
+  const handleCancel = () => {
     if (abortController) {
       abortController.abort()
     }
-    
-    // Create new abort controller for this operation
-    const newAbortController = new AbortController()
-    setAbortController(newAbortController)
-    
-    setIsLoading(true)
-    setError("")
-    setProcessingStatus("Memproses...")
-
-    // Short timeout for fast processing (30 seconds max)
-    const overallTimeout = setTimeout(() => {
-      newAbortController.abort()
-      setError("Proses timeout. Silakan coba lagi.")
-      setIsLoading(false)
-      setProcessingStatus("")
-    }, 30000) // 30 seconds
-
-    try {
-      // Check if operation was aborted
-      if (newAbortController.signal.aborted) {
-        throw new Error('Operation aborted')
-      }
-
-      const awbList = awbNumbers
-        .split(/[\n,\s]+/)
-        .map((awb) => awb.trim())
-        .filter((awb) => awb.length > 0)
-
-      if (awbList.length === 0) {
-        setError("Masukkan minimal satu nomor resi")
-        return
-      }
-
-      // Quick auth verification
-      const { data: session, error: sessionError } = await supabaseClient.auth.getSession()
-
-      if (sessionError || !session?.session?.user?.id) {
-        setError("Session tidak ditemukan. Silakan login ulang.")
-        return
-      }
-
-      const courierId = session.session.user.id
-      const courierName = currentUser?.name || session.session.user.email?.split("@")[0] || "courier"
-
-      // Check if operation was aborted
-      if (newAbortController.signal.aborted) {
-        throw new Error('Operation aborted')
-      }
-
-      setProcessingStatus(`Proses ${awbList.length} resi...`)
-
-      // Process all AWBs in parallel for maximum speed
-      const successCount = await processAwbsParallel(awbList, courierId, courierName)
-
-      // Check if operation was aborted before final steps
-      if (newAbortController.signal.aborted) {
-        throw new Error('Operation aborted')
-      }
-
-      // Show final status
-      setProcessingStatus(`Selesai! ${successCount}/${awbList.length} berhasil`)
-      
-      // Brief pause to show result
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Increased to show result longer
-
-      // Play success sound
-      playScanSuccessSound()
-
-      // Show detailed results if there were failures
-      if (successCount < awbList.length) {
-        const failedCount = awbList.length - successCount;
-        toast.warning(`${successCount} berhasil, ${failedCount} gagal`, {
-          description: "Periksa console untuk detail error",
-          duration: 5000,
-        });
-      } else {
-        toast.success(`Semua ${successCount} resi berhasil diproses!`, {
-          description: "Shipment dan history tersimpan",
-          duration: 3000,
-        });
-      }
-
-      // Notify parent component about success and close modal
-      onSuccess(successCount)
-
-      // Reset form and close modal
-      setAwbNumbers("")
-      onClose()
-    } catch (error: any) {
-      // Don't show error if operation was intentionally aborted
-      if (error?.message === 'Operation aborted') {
-        return
-      }
-      
-      // Handle specific error types
-      if (error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
-        setError("Session expired. Silakan login ulang.")
-      } else if (error?.message?.includes('timeout') || error?.message?.includes('Timeout')) {
-        setError("Request timeout. Silakan coba lagi.")
-      } else {
-        setError(`Terjadi kesalahan: ${error?.message || 'Unknown error'}. Silakan coba lagi.`)
-      }
-    } finally {
-      // Clear the timeout
-      clearTimeout(overallTimeout)
-      
-      // Always reset loading state regardless of success or error
-      setIsLoading(false)
-      setProcessingStatus("")
-      setAbortController(null)
-    }
+    onClose()
   }
 
   return (
@@ -586,26 +549,35 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 <div className="flex justify-between items-center">
                   <Label htmlFor="awb-numbers" className="text-sm sm:text-base text-gray-700 dark:text-gray-300 font-semibold">AWB Numbers</Label>
                 </div>
-                <Textarea
-                  id="awb-numbers"
-                  placeholder="Masukkan nomor resi di sini..."
-                  rows={isKeyboardOpen ? 3 : 5}
-                  value={awbNumbers}
-                  onChange={(e) => setAwbNumbers(e.target.value)}
-                  className="text-sm sm:text-base font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] resize-none w-full"
-                  ref={textareaRef}
-                  onFocus={() => {
-                    // Small delay to ensure keyboard is open before scrolling
-                    setTimeout(() => {
-                      if (isKeyboardOpen) {
-                        submitButtonRef.current?.scrollIntoView({ 
-                          behavior: 'smooth', 
-                          block: 'nearest' 
-                        });
-                      }
-                    }, 500);
-                  }}
-                />
+                {showScanner ? (
+                  <div className="p-4">
+                    <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
+                    <Button onClick={() => setShowScanner(false)} className="mt-4 w-full">
+                      Back to Manual Entry
+                    </Button>
+                  </div>
+                ) : (
+                  <Textarea
+                    id="awb-numbers"
+                    placeholder="Masukkan nomor resi di sini..."
+                    rows={isKeyboardOpen ? 3 : 5}
+                    value={awbNumbers}
+                    onChange={(e) => setAwbNumbers(e.target.value)}
+                    className="text-sm sm:text-base font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] resize-none w-full"
+                    ref={textareaRef}
+                    onFocus={() => {
+                      // Small delay to ensure keyboard is open before scrolling
+                      setTimeout(() => {
+                        if (isKeyboardOpen) {
+                          submitButtonRef.current?.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'nearest' 
+                          });
+                        }
+                      }, 500);
+                    }}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground px-1 break-words">
                   contoh: BCE556786, 556744, Hanya untuk resi manual
                 </p>
@@ -654,12 +626,12 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                         onClose()
                       }, 1000)
                     } else {
-                      onClose()
+                      setShowScanner(true)
                     }
                   }} 
                   className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm sm:text-base py-2 sm:py-3 min-w-0 order-2 sm:order-1"
                 >
-                  <span className="truncate">{isLoading ? "Batal" : "Cancel"}</span>
+                  <span className="truncate">{isLoading ? "Batal" : "Scan QR"}</span>
                 </Button>
               </div>
             </DialogFooter>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
   DeliveryParcel as DeliveryParcelIcon,
   Renew as RefreshIcon,
   ChartArea as ChartIcon,
+  LocationFilled as LocationPointIcon,
 } from '@carbon/icons-react'
 import { supabaseClient } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
@@ -39,69 +40,25 @@ const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then
 })
 
 export function LeaderDashboard() {
+  const router = useRouter()
+
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [couriers, setCouriers] = useState<any[]>([])
-  const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState("couriers")
-  const [courierStats, setCourierStats] = useState<
-    Record<string, { total: number; completed: number; pending: number }>
-  >({})
+  const [courierStats, setCourierStats] = useState<Record<string, { total: number; completed: number; pending: number }>>({})
   const [totalShipments, setTotalShipments] = useState(0)
   const [totalCompleted, setTotalCompleted] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any>(null)
-  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
   const [pendingShipments, setPendingShipments] = useState<any[]>([])
-  const [dataRange, setDataRange] = useState(1)
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [dataRange, setDataRange] = useState(1) // Default to 1 day
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState("couriers")
+  const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
+  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
 
-  const router = useRouter()
-
-  useEffect(() => {
-    async function loadUserProfile() {
-      try {
-        const {
-          data: { session },
-        } = await supabaseClient.auth.getSession()
-
-        if (!session) {
-          router.push("/courier")
-          return
-        }
-
-        const { data: userData, error } = await supabaseClient
-          .from("users")
-          .select("id, role")
-          .eq("id", session.user.id)
-          .single()
-
-        if (error) {
-          setIsLoading(false)
-          return
-        }
-
-        if (userData?.role !== "admin" && userData?.role !== "leader") {
-          router.push("/courier/dashboard")
-          return
-        }
-
-        setUser(userData)
-        await loadDashboardData()
-      } catch (err) {
-        setIsLoading(false)
-      }
-    }
-
-    loadUserProfile()
-  }, [router])
-
-  useEffect(() => {
-    setIsRefreshing(isLoading)
-  }, [isLoading])
-
-  const getDateRange = (days: number) => {
+  const getDateRange = useCallback((days: number) => {
     const now = new Date()
     
     const endDate = new Date(Date.UTC(
@@ -122,9 +79,9 @@ export function LeaderDashboard() {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
     }
-  }
+  }, []);
 
-  const loadDashboardData = async (daysToLoad?: number) => {
+  const loadDashboardData = useCallback(async (daysToLoad?: number) => {
     setIsLoading(true)
     
     const currentRange = daysToLoad !== undefined ? daysToLoad : dataRange
@@ -204,16 +161,15 @@ export function LeaderDashboard() {
 
       const { data: latestLocations } = await supabaseClient
         .from("shipment_history")
-        .select("notes, latitude, longitude, created_at")
+        .select("notes, latitude, longitude, created_at, awb_number")
         .not("latitude", "is", null)
         .not("longitude", "is", null)
-        .gte("created_at", startDate)
-        .lte("created_at", endDate)
         .order("created_at", { ascending: false })
-        .limit(50)
+        .limit(200)
 
       const couriersWithLocations = courierData.map((courier) => {
         const courierUsername = courier.email.split("@")[0]
+        
         const locationEntry = latestLocations?.find((entry: any) =>
           entry.notes &&
           (entry.notes.toLowerCase().includes(courier.name.toLowerCase()) ||
@@ -223,7 +179,9 @@ export function LeaderDashboard() {
         return {
           ...courier,
           latestLatitude: locationEntry?.latitude || null,
-          latestLongitude: locationEntry?.longitude || null
+          latestLongitude: locationEntry?.longitude || null,
+          latestLocationTime: locationEntry?.created_at || null,
+          latestAwb: locationEntry?.awb_number || null
         }
       })
 
@@ -239,7 +197,35 @@ export function LeaderDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [dataRange, getDateRange]);
+
+  const loadUserProfile = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser()
+
+      if (userError || !userData?.user) {
+        router.push("/admin")
+        return
+      }
+
+      const user = userData.user
+      setUser(user)
+
+      // Load dashboard data after user profile is loaded
+      await loadDashboardData() // Memanggil fungsi loadDashboardData
+    } catch (err) {
+      setIsLoading(false)
+    }
+  }, [router, loadDashboardData]); // Tambahkan loadDashboardData sebagai dependensi
+
+  useEffect(() => {
+    loadUserProfile()
+  }, [loadUserProfile])
+
+  useEffect(() => {
+    setIsRefreshing(isLoading)
+  }, [isLoading])
 
   const handleLogout = async () => {
     try {
@@ -313,9 +299,9 @@ export function LeaderDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-4 sm:p-6 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -333,11 +319,10 @@ export function LeaderDashboard() {
                     variant={dataRange === days ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleRangeChange(days)}
-                    className={`h-8 px-3 text-xs font-bold ${
-                      dataRange === days 
+                    className={`h-8 px-3 text-xs font-bold ${dataRange === days 
                         ? "bg-gray-800 hover:bg-gray-700 text-white dark:bg-gray-700 dark:hover:bg-gray-600" 
-                        : "border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-                    }`}
+                        : "border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"}
+                      shadow-sm hover:shadow transition-all duration-200`}
                   >
                     {days}d
                   </Button>
@@ -346,7 +331,7 @@ export function LeaderDashboard() {
               <Button 
                 variant="outline" 
                 onClick={handleRefresh}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
               >
                 <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
                 Refresh
@@ -354,7 +339,7 @@ export function LeaderDashboard() {
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
               >
                 <LogoutIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" />
                 Logout
@@ -414,17 +399,17 @@ export function LeaderDashboard() {
 
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 mb-6 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-              <TabsTrigger value="couriers" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-700 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">
-                <UserMultipleIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+            <TabsList className="grid w-full grid-cols-3 mb-6 bg-gray-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
+              <TabsTrigger value="couriers" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <UserMultipleIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
                 Couriers
               </TabsTrigger>
-              <TabsTrigger value="shipments" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-700 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">
-                <PackageIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+              <TabsTrigger value="shipments" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <PackageIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
                 Shipments
               </TabsTrigger>
-              <TabsTrigger value="search" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-700 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">
-                <SearchIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+              <TabsTrigger value="search" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <SearchIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
                 Search
               </TabsTrigger>
             </TabsList>
@@ -455,7 +440,7 @@ export function LeaderDashboard() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs mb-3">
                       <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
                         <BoxIcon className="h-4 w-4 text-gray-700 dark:text-gray-300 mx-auto mb-1" style={{ fontWeight: 'bold' }} />
                         <span className="text-sm sm:text-base font-black text-gray-900 dark:text-white block">{courierStats[courier.id]?.total || 0}</span>
@@ -473,17 +458,38 @@ export function LeaderDashboard() {
                       </div>
                     </div>
                     
-                    {courier.latestLatitude && courier.latestLongitude && (
-                      <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                        <p className="text-xs text-gray-700 dark:text-gray-300 font-semibold mb-1">📍 Last Location:</p>
+                    {courier.latestLatitude && courier.latestLongitude ? (
+                      <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3 border border-blue-200 dark:border-blue-700 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold flex items-center gap-1">
+                            <LocationPointIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" /> Latest GPS Location
+                          </p>
+                          {courier.latestLocationTime && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              {new Date(courier.latestLocationTime).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
                         <a
                           href={`https://www.google.com/maps/place/${courier.latestLatitude},${courier.latestLongitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 font-mono break-all"
+                          className="block text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-mono bg-white dark:bg-gray-800 rounded px-2 py-1 border border-blue-200 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-400 transition-colors shadow-inner"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          {courier.latestLatitude?.toFixed(4)}, {courier.latestLongitude?.toFixed(4)}
+                          {courier.latestLatitude?.toFixed(6)}, {courier.latestLongitude?.toFixed(6)}
                         </a>
+                        {courier.latestAwb && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            From: {courier.latestAwb}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600 shadow-sm">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center flex items-center justify-center">
+                          <LocationPointIcon className="h-4 w-4 mr-1 text-gray-500 dark:text-gray-400" /> No recent GPS location
+                        </p>
                       </div>
                     )}
                   </div>
@@ -515,17 +521,17 @@ export function LeaderDashboard() {
                     placeholder="Enter AWB number..." 
                     value={searchQuery} 
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="border-gray-300 focus:border-gray-500 dark:border-gray-600 dark:focus:border-gray-500 dark:bg-gray-700 dark:text-gray-100"
+                    className="border-gray-300 focus:border-gray-500 dark:border-gray-600 dark:focus:border-gray-500 dark:bg-gray-700 dark:text-gray-100 shadow-sm"
                   />
                   <Button 
                     onClick={handleSearch}
-                    className="bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white"
+                    className="bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white shadow-sm"
                   >
                     <SearchIcon className="h-4 w-4 text-white" style={{ fontWeight: 'bold' }} />
                   </Button>
                 </div>
                 {searchResults ? (
-                  <Card className="border-gray-300 dark:border-gray-600 dark:bg-gray-800">
+                  <Card className="border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-gray-900 dark:text-white font-bold">Search Results</CardTitle>
                     </CardHeader>
@@ -538,7 +544,7 @@ export function LeaderDashboard() {
                           <p className="dark:text-gray-200"><strong>Courier:</strong> {searchResults.courier}</p>
                           <Button 
                             onClick={() => handleDeleteShipment(searchResults.awb_number)} 
-                            className="mt-3 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold w-full"
+                            className="mt-3 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold w-full shadow-sm"
                           >
                             <TrashCanIcon className="h-4 w-4 mr-2" style={{ fontWeight: 'bold' }} />
                             Delete Shipment
@@ -559,7 +565,7 @@ export function LeaderDashboard() {
         </div>
 
         <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
-          <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] dark:bg-gray-800 dark:border-gray-600">
+          <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
             <DialogHeader>
               <DialogTitle className="text-red-600 dark:text-red-400 font-bold flex items-center gap-2">
                 <WarningIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
@@ -569,7 +575,7 @@ export function LeaderDashboard() {
             <div className="overflow-auto max-h-[60vh]">
               <div className="space-y-2">
                 {pendingShipments.map((shipment) => (
-                  <div key={shipment.awb_number} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <div key={shipment.awb_number} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
                     <div className="flex-1 min-w-0">
                       <p className="font-mono font-bold text-sm text-gray-900 dark:text-gray-100 truncate">
                         {shipment.awb_number}
