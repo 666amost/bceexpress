@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Search } from "lucide-react"
+import { SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -63,7 +63,7 @@ export function Hero() {
           <CardHeader className="bg-primary text-white p-4 rounded-t-lg">
             <h2 className="text-xl font-semibold">Track Your Shipment</h2>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <form onSubmit={handleTrack} className="flex">
               <Input
                 type="text"
@@ -73,7 +73,7 @@ export function Hero() {
                 className="flex-grow rounded-r-none focus:ring-primary"
               />
               <Button type="submit" className="rounded-l-none">
-                <Search className="h-4 w-4 mr-2" /> Track
+                <SearchIcon className="h-4 w-4 mr-2" /> Track
               </Button>
             </form>
           </CardContent>
