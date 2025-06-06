@@ -53,7 +53,7 @@ export function LeaderDashboard() {
   const [pendingShipments, setPendingShipments] = useState<any[]>([])
   const [dataRange, setDataRange] = useState(1) // Default to 1 day
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<any>(null)
+  const [searchResults, setSearchResults] = useState<any[] | { error: string } | null>(null)
   const [activeTab, setActiveTab] = useState("couriers")
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
@@ -248,15 +248,63 @@ export function LeaderDashboard() {
   }
 
   const handleSearch = async () => {
-    if (searchQuery.trim()) {
-      const { data, error } = await supabaseClient.from('shipments').select('*').eq('awb_number', searchQuery).single();
-      if (error) {
-        setSearchResults({ error: 'Shipment not found' });
-      } else {
-        const courierData = await supabaseClient.from('users').select('name').eq('id', data.courier_id).single();
-        setSearchResults({ ...data, courier: courierData.data ? courierData.data.name : 'Unknown' });
+    setSearchResults(null); // Clear previous results
+    if (!searchQuery.trim()) {
+      return;
+    }
+
+    // Attempt to search by AWB number first
+    const { data: awbShipment, error: awbError } = await supabaseClient
+      .from('shipments')
+      .select('*, updated_at') // Ensure updated_at is selected
+      .eq('awb_number', searchQuery.trim())
+      .single();
+
+    if (awbShipment) {
+      const { data: courierData } = await supabaseClient
+        .from('users')
+        .select('name')
+        .eq('id', awbShipment.courier_id)
+        .single();
+      setSearchResults([{ // Wrap in array even for single result for consistent rendering
+        ...awbShipment,
+        courier: courierData?.name || 'Unknown',
+      }]);
+      return;
+    }
+
+    // If AWB not found, attempt to search by courier name
+    const { data: couriersFound, error: courierSearchError } = await supabaseClient
+      .from('users')
+      .select('id, name')
+      .ilike('name', `%${searchQuery.trim()}%`); // Case-insensitive partial match
+
+    if (couriersFound && couriersFound.length > 0) {
+      const courierIds = couriersFound.map(c => c.id);
+      const { startDate, endDate } = getDateRange(dataRange); // Get date range
+      const { data: courierShipments, error: shipmentsByCourierError } = await supabaseClient
+        .from('shipments')
+        .select('*, updated_at') // Ensure updated_at is selected
+        .in('courier_id', courierIds)
+        .gte("created_at", startDate) // Apply date filter
+        .lte("created_at", endDate) // Apply date filter
+        .order('updated_at', { ascending: false }); // Order by updated_at
+
+      if (courierShipments && courierShipments.length > 0) {
+        const resultsWithCourierNames = courierShipments.map(shipment => {
+          const matchedCourier = couriersFound.find(c => c.id === shipment.courier_id);
+          return {
+            ...shipment,
+            courier: matchedCourier?.name || 'Unknown',
+          };
+        });
+        setSearchResults(resultsWithCourierNames);
+        return;
       }
     }
+
+    // If no results found by AWB or courier name
+    setSearchResults({ error: 'No shipments or couriers found di filter ini' });
   };
 
   async function deleteShipmentHistory(awbNumber: string) {
@@ -308,7 +356,7 @@ export function LeaderDashboard() {
                 BCE Express
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Real-time courier monitoring system
+                Monitoring For Couriers BCE Express
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-4 justify-center sm:justify-end items-center">
@@ -505,7 +553,7 @@ export function LeaderDashboard() {
 
             <TabsContent value="shipments">
               {selectedCourier ? (
-                <CourierShipmentList courierId={selectedCourier} />
+                <CourierShipmentList courierId={selectedCourier} dataRange={dataRange} />
               ) : (
                 <div className="text-center py-12">
                   <BoxIcon className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" style={{ fontWeight: 'bold' }} />
@@ -518,9 +566,14 @@ export function LeaderDashboard() {
               <div className="max-w-md mx-auto">
                 <div className="mb-4 flex gap-2">
                   <Input 
-                    placeholder="Enter AWB number..." 
+                    placeholder="Enter AWB number or courier name..." 
                     value={searchQuery} 
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
                     className="border-gray-300 focus:border-gray-500 dark:border-gray-600 dark:focus:border-gray-500 dark:bg-gray-700 dark:text-gray-100 shadow-sm"
                   />
                   <Button 
@@ -531,32 +584,39 @@ export function LeaderDashboard() {
                   </Button>
                 </div>
                 {searchResults ? (
-                  <Card className="border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-gray-900 dark:text-white font-bold">Search Results</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {searchResults.error ? (
-                        <p className="text-red-600 dark:text-red-400 font-semibold">{searchResults.error}</p>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="dark:text-gray-200"><strong>AWB Number:</strong> {searchResults.awb_number}</p>
-                          <p className="dark:text-gray-200"><strong>Courier:</strong> {searchResults.courier}</p>
-                          <Button 
-                            onClick={() => handleDeleteShipment(searchResults.awb_number)} 
-                            className="mt-3 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold w-full shadow-sm"
-                          >
-                            <TrashCanIcon className="h-4 w-4 mr-2" style={{ fontWeight: 'bold' }} />
-                            Delete Shipment
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  // Check if searchResults is an array (multiple shipments or single AWB result wrapped in array)
+                  Array.isArray(searchResults) ? (
+                    searchResults.length > 0 ? (
+                      <div className="space-y-3">
+                        {searchResults.map((shipment) => (
+                          <Card key={shipment.awb_number} className="border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
+                            <CardContent className="p-4">
+                              <p className="dark:text-gray-200"><strong>AWB Number:</strong> {shipment.awb_number}</p>
+                              <p className="dark:text-gray-200"><strong>Courier:</strong> {shipment.courier}</p>
+                              {shipment.updated_at && (
+                                <p className="dark:text-gray-200"><strong>Last Updated:</strong> {new Date(shipment.updated_at).toLocaleString()}</p>
+                              )}
+                              <Button
+                                onClick={() => handleDeleteShipment(shipment.awb_number)}
+                                className="mt-3 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold w-full shadow-sm"
+                              >
+                                <TrashCanIcon className="h-4 w-4 mr-2" style={{ fontWeight: 'bold' }} />
+                                Delete Shipment
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400 font-semibold text-center">No shipments found for this search.</p>
+                    )
+                  ) : ( // It's an error object
+                    <p className="text-red-600 dark:text-red-400 font-semibold text-center">{searchResults.error}</p>
+                  )
                 ) : (
                   <div className="text-center py-8">
                     <SearchIcon className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" style={{ fontWeight: 'bold' }} />
-                    <p className="text-gray-500 dark:text-gray-400 font-semibold">Enter AWB number to search</p>
+                    <p className="text-gray-500 dark:text-gray-400 font-semibold">Enter AWB number or courier name to search</p>
                   </div>
                 )}
               </div>

@@ -12,9 +12,34 @@ import { supabaseClient } from "@/lib/auth";
 interface CourierShipmentListProps {
   courierId: string;
   onDeleteShipment?: (shipmentId: string) => void;
+  dataRange: number;
 }
 
-export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShipmentListProps) {
+// Utility function to get date range (copied from leader-dashboard.tsx)
+const getDateRange = (days: number) => {
+  const now = new Date();
+  
+  const endDate = new Date(Date.UTC(
+    now.getFullYear(), 
+    now.getMonth(), 
+    now.getDate(), 
+    23, 59, 59, 999
+  ));
+  
+  const startDate = new Date(Date.UTC(
+    now.getFullYear(), 
+    now.getMonth(), 
+    now.getDate() - (days - 1),
+    0, 0, 0, 0
+  ));
+  
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString()
+  };
+};
+
+export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: CourierShipmentListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [courier, setCourier] = useState<any>(null);
   const [shipments, setShipments] = useState<any[]>([]); // State untuk semua shipment yang terkait dengan kurir
@@ -49,12 +74,16 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
       setCourier(courierData);
       setDebugInfo(`Workspaceed courier: ${courierData?.name}`);
 
-      // === Mengambil SEMUA data history (tanpa filter tanggal) dan menyertakan lokasi ===
-      const { data: allHistoryData, error: historyError } = await supabaseClient
+      // === Mengambil data history yang relevan langsung dari database dengan filter ===
+      const courierUsername = courierData.email.split("@")[0];
+      const { startDate, endDate } = getDateRange(dataRange);
+      const { data: courierHistoryData, error: historyError } = await supabaseClient
         .from("shipment_history")
-        .select("awb_number, created_at, latitude, longitude, notes, location, status") // *** Tambahkan status ***
-        .order("created_at", { ascending: false }); // Tetap urutkan
-
+        .select("awb_number, created_at, latitude, longitude, notes, location, status")
+        .or(`notes.ilike.%${courierData.name.toLowerCase()}%,notes.ilike.%${courierUsername.toLowerCase()}%`)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .order("created_at", { ascending: false });
 
       if (historyError) {
         setDebugInfo(`Error fetching all history: ${historyError.message}`);
@@ -62,24 +91,23 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
         return;
       }
 
-      setDebugInfo(`Workspaceed ${allHistoryData?.length || 0} total history entries.`);
-
-      // Filter history data berdasarkan nama atau email kurir di kolom 'notes'
-      const courierUsername = courierData.email.split("@")[0];
-      const courierHistoryData =
-        allHistoryData?.filter( // Menggunakan allHistoryData
-          (entry) =>
-            entry.notes && // Pastikan notes tidak null atau undefined
-            (entry.notes.toLowerCase().includes(courierData.name.toLowerCase()) ||
-              entry.notes.toLowerCase().includes(courierUsername.toLowerCase())),
-        ) || [];
-
-      setDebugInfo(`Found ${courierHistoryData.length} relevant history entries for courier ${courierData.name} after filtering by notes.`);
+      setDebugInfo(`Workspaceed ${courierHistoryData?.length || 0} relevant history entries directly from DB.`);
 
       // Get unique AWB numbers from relevant history
       const awbNumbers = Array.from(new Set(courierHistoryData.map((item) => item.awb_number))).filter(Boolean);
 
       setDebugInfo(`Found ${awbNumbers.length} unique AWB numbers from relevant history after filtering.`);
+
+      // Pre-process courierHistoryData into a map for faster lookups
+      // The history entries for each AWB will be sorted by `created_at` descending
+      // because the query was fetched with `order("created_at", { ascending: false })`.
+      const historyMap = new Map<string, any[]>();
+      for (const entry of courierHistoryData || []) {
+        if (!historyMap.has(entry.awb_number)) {
+          historyMap.set(entry.awb_number, []);
+        }
+        historyMap.get(entry.awb_number)?.push(entry);
+      }
 
       // === Mengambil detail shipment menggunakan query .in() ===
       const shipmentDetails: any[] = [];
@@ -98,15 +126,8 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
           setDebugInfo(`Workspaceed ${shipmentsData?.length || 0} shipment details using .in().`);
 
            for (const shipment of shipmentsData || []) {
-               // Cari latest history entry untuk shipment ini dari courierHistoryData (history relevant)
-               // courierHistoryData sudah diurutkan berdasarkan created_at descending dari allHistoryData
-               const latestHistory = courierHistoryData
-                .find((item) => item.awb_number === shipment.awb_number); // Cari entri terbaru untuk AWB ini
-
-               // Get all history entries for this shipment (for activity timeline)
-               const allShipmentHistory = courierHistoryData
-                .filter((item) => item.awb_number === shipment.awb_number)
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+               const allShipmentHistory = historyMap.get(shipment.awb_number) || [];
+               const latestHistory = allShipmentHistory.length > 0 ? allShipmentHistory[0] : null; // First element is latest due to sorting
 
                 shipmentDetails.push({
                     ...shipment,
@@ -140,7 +161,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
       setDebugInfo(`Error loading courier data: ${err}`);
       setIsLoading(false);
     }
-  }, [courierId, setIsLoading, setDebugInfo, setCourier, setShipments]);
+  }, [courierId, setIsLoading, setDebugInfo, setCourier, setShipments, dataRange]);
 
   useEffect(() => {
     loadCourierData();
@@ -213,7 +234,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
       </div>
 
       <Tabs defaultValue="ongoing" onValueChange={setActiveTab}>
-        <TabsList className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
+        <TabsList className="grid grid-cols-3 mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
           <TabsTrigger value="ongoing" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-900 data-[state=active]:text-white dark:data-[state=active]:bg-gray-900 dark:data-[state=active]:text-white transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
             Ongoing
             <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
@@ -229,12 +250,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
               {completedCount} {/* Menggunakan state completedCount */}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="issues" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-900 data-[state=active]:text-white dark:data-[state=active]:bg-gray-900 dark:data-[state=active]:text-white transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-            Issues
-            <Badge variant="secondary" className="ml-2 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-              {issuesCount} {/* Menggunakan state issuesCount */}
-            </Badge>
-          </TabsTrigger>
+          
           <TabsTrigger value="all" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-900 data-[state=active]:text-white dark:data-[state=active]:bg-gray-900 dark:data-[state=active]:text-white transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
             All
             <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
@@ -252,10 +268,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment }: CourierShip
           <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
         </TabsContent>
 
-        <TabsContent value="issues">
-          <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
-        </TabsContent>
-
+        
         <TabsContent value="all">
           <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
         </TabsContent>
