@@ -231,11 +231,11 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
   }, [userRole, branchOrigin]);
 
   return (
-    <>
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Tombol Tambahkan Resi */}
-      <div className="flex justify-end items-center mb-4 gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center mb-4 gap-2">
         <Button
-          className="flex items-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
           onClick={() => {
             onShowAwbForm(true);
             setShowBulkAwbForm(false);
@@ -244,7 +244,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           <FaPlus /> Tambahkan Resi (Single)
         </Button>
         <Button
-          className="flex items-center gap-2 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded font-bold hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded font-bold hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
           onClick={() => {
             setShowBulkAwbForm(true);
             onShowAwbForm(false);
@@ -603,6 +603,6 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

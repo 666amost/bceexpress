@@ -951,7 +951,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
   };
 
   return (
-    <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-0 px-0 py-6 bg-transparent">
+    <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-auto px-4 py-6 bg-transparent">
       <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
         Input AWB BULK
       </h2>
@@ -1289,29 +1289,29 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 mt-4">
+      <div className="flex flex-col sm:flex-row justify-end gap-2 mt-4">
         {onCancel && (
-          <Button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+          <Button type="button" onClick={onCancel} className="w-full sm:w-auto px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
             Batal
           </Button>
         )}
         <Button
           type="submit"
-          className="px-6 py-2 bg-green-600 dark:bg-green-700 text-white font-bold rounded shadow-lg hover:bg-green-700 dark:hover:bg-green-800 transition text-base"
+          className="w-full sm:w-auto px-6 py-2 bg-green-600 dark:bg-green-700 text-white font-bold rounded shadow-lg hover:bg-green-700 dark:hover:bg-green-800 transition text-base"
         >
           SIMPAN SEMUA RESI
         </Button>
         <Button
           type="button"
           onClick={handlePrintAll}
-          className="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white font-bold rounded shadow-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition text-base"
+          className="w-full sm:w-auto px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white font-bold rounded shadow-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition text-base"
         >
           SIMPAN DAN CETAK SEMUA
         </Button>
         <Button
           type="button"
           onClick={handleDownloadAllPdf}
-          className="px-6 py-2 bg-red-600 dark:bg-red-700 text-white font-bold rounded shadow-lg hover:bg-red-700 dark:hover:bg-red-800 transition text-base"
+          className="w-full sm:w-auto px-6 py-2 bg-red-600 dark:bg-red-700 text-white font-bold rounded shadow-lg hover:bg-red-700 dark:hover:bg-red-800 transition text-base"
         >
           SIMPAN DAN DOWNLOAD SEMUA PDF
         </Button>
