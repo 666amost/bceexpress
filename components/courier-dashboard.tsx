@@ -126,10 +126,12 @@ export function CourierDashboard() {
   const [showPendingDetails, setShowPendingDetails] = useState(false)
   const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
+  const [hasCompletedFirstDelivery, setHasCompletedFirstDelivery] = useState(false)
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null)
+  const locationUpdateInterval = useRef<NodeJS.Timeout | null>(null)
 
   const router = useRouter()
   const { toast } = useToast()
@@ -268,56 +270,274 @@ export function CourierDashboard() {
     refreshTimeout.current = timeout
   }, [loadShipmentData])
 
-  const loadUserProfile = useCallback(async () => {
-    setIsProfileLoading(true)
+  // Function to check if courier has completed any deliveries today
+  const checkFirstDeliveryStatus = useCallback(async (user: any) => {
     try {
-      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession()
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayISOString = today.toISOString()
+      const courierName = user?.name || user?.email?.split("@")[0] || ""
+
+      const { data: completedToday, error } = await supabaseClient
+        .from("shipment_history")
+        .select("awb_number")
+        .eq("status", "delivered")
+        .ilike("notes", `%${courierName}%`)
+        .gte("created_at", todayISOString)
+        .limit(1)
+
+      if (!error && completedToday && completedToday.length > 0) {
+        setHasCompletedFirstDelivery(true)
+      } else {
+        setHasCompletedFirstDelivery(false)
+      }
+    } catch (error) {
+      setHasCompletedFirstDelivery(false)
+    }
+  }, [])
+
+  const loadUserProfile = useCallback(async () => {
+    setIsProfileLoading(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+
       if (sessionError) {
-        setIsProfileLoading(false)
-        return
+        toast({
+          title: "Error Session",
+          description: sessionError.message || "Failed to get session. Please log in again.",
+          variant: "destructive",
+        });
+        setIsProfileLoading(false);
+        return;
       }
       if (!sessionData?.session?.user?.id) {
-        router.push("/courier")
-        setIsProfileLoading(false)
-        return
+        router.push("/courier");
+        setIsProfileLoading(false);
+        return;
       }
 
-      const userId = sessionData.session.user.id
+      const userId = sessionData.session.user.id;
       const { data: userData, error: userError } = await supabaseClient
         .from("users")
         .select("*")
         .eq("id", userId)
-        .single()
+        .single();
 
       if (userError) {
-        setIsProfileLoading(false)
-        return
+        toast({
+          title: "Error User Data",
+          description: userError.message || "Failed to fetch user data. Check RLS on 'users' table.",
+          variant: "destructive",
+        });
+        setIsProfileLoading(false);
+        return;
       }
 
-      setCurrentUser(userData)
-      setIsProfileLoading(false)
-      // Load shipment data after user profile is loaded
-      loadShipmentData(userData)
-    } catch (err) {
-      setIsProfileLoading(false)
+      setCurrentUser(userData);
+      setIsProfileLoading(false);
+      
+      // Check first delivery status
+      await checkFirstDeliveryStatus(userData);
+      
+      loadShipmentData(userData);
+
+    } catch (err: any) {
+      setIsProfileLoading(false);
       toast({
         title: "Error",
-        description: "Failed to load user profile. Please try again.",
+        description: err.message || "Failed to load user profile. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }, [loadShipmentData, router, toast])
+  }, [loadShipmentData, router, toast, checkFirstDeliveryStatus]);
+
+  // Geolocation update logic
+  const updateCourierLocation = useCallback(async (userId: string) => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            // Attempt to update existing record
+            const { data: updatedData, error: updateError } = await supabaseClient
+              .from('courier_current_locations')
+              .update({
+                latitude: latitude,
+                longitude: longitude,
+                updated_at: new Date().toISOString()
+              })
+              .eq('courier_id', userId)
+              .select()
+              .maybeSingle(); // Use maybeSingle to get null if no row found
+
+            if (updateError) {
+              // If it's a specific error for "no rows updated" (e.g., PGRST116 for PostgREST), then attempt insert
+              // Note: supabase-js may not always expose PGRST116 explicitly, but `!updatedData` check handles no matching row.
+              const { error: insertError } = await supabaseClient
+                .from('courier_current_locations')
+                .insert({
+                  courier_id: userId,
+                  latitude: latitude,
+                  longitude: longitude
+                });
+              if (insertError) {
+                toast({
+                  title: "Location Save Failed",
+                  description: insertError.message || "Could not save current location. Check RLS for INSERT.",
+                  variant: "destructive",
+                });
+              }
+            } else if (updatedData) { // If update was successful and data was returned
+            } else { // If update was successful but no data was returned (e.g., no matching row for update)
+              const { error: insertError } = await supabaseClient
+                .from('courier_current_locations')
+                .insert({
+                  courier_id: userId,
+                  latitude: latitude,
+                  longitude: longitude
+                });
+              if (insertError) {
+                toast({
+                  title: "Location Save Failed",
+                  description: insertError.message || "Could not save current location. Check RLS for INSERT.",
+                  variant: "destructive",
+                });
+              }
+            }
+
+          } catch (dbError: any) {
+            toast({
+              title: "Location DB Error",
+              description: dbError.message || "An unexpected database error occurred for location.",
+              variant: "destructive",
+            });
+          }
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            toast({
+              title: "Geolocation Denied",
+              description: "Please allow location access to enable live tracking.",
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "Geolocation Error",
+              description: error.message || "Could not get current location.",
+              variant: "destructive",
+            });
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000, // 10 seconds
+          maximumAge: 0 // No cache
+        }
+      );
+    } else {
+      toast({
+        title: "Geolocation Not Supported",
+        description: "Your browser does not support Geolocation.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   useEffect(() => {
-    loadUserProfile()
+    loadUserProfile();
 
     // Cleanup function
     return () => {
       if (refreshTimeout.current) {
-        clearTimeout(refreshTimeout.current)
+        clearTimeout(refreshTimeout.current);
       }
-    }
-  }, [loadUserProfile, refreshTimeout])
+      if (locationUpdateInterval.current) {
+        clearInterval(locationUpdateInterval.current);
+        locationUpdateInterval.current = null;
+      }
+    };
+  }, [loadUserProfile]);
+
+  // Separate useEffect for location tracking that depends on hasCompletedFirstDelivery
+  useEffect(() => {
+    const setupLocationUpdates = async () => {
+      if (!hasCompletedFirstDelivery) {
+        // Clear any existing interval if tracking should be disabled
+        if (locationUpdateInterval.current) {
+          clearInterval(locationUpdateInterval.current);
+          locationUpdateInterval.current = null;
+        }
+        return;
+      }
+
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const currentUserId = sessionData?.session?.user?.id || null;
+
+      if (currentUserId) {
+        // Clear any existing interval first
+        if (locationUpdateInterval.current) {
+          clearInterval(locationUpdateInterval.current);
+          locationUpdateInterval.current = null;
+        }
+
+        // Function to start/resume interval
+        const startLocationInterval = () => {
+          if (locationUpdateInterval.current) {
+            clearInterval(locationUpdateInterval.current);
+          }
+          // Initial location update immediately
+          updateCourierLocation(currentUserId);
+          
+          // Set up interval for every 5 minutes (reduced from 1 minute to save bandwidth)
+          locationUpdateInterval.current = setInterval(() => {
+            updateCourierLocation(currentUserId);
+          }, 5 * 60 * 1000); // Update every 5 minutes (300 seconds)
+        };
+
+        // Function to pause interval
+        const pauseLocationInterval = () => {
+          if (locationUpdateInterval.current) {
+            clearInterval(locationUpdateInterval.current);
+            locationUpdateInterval.current = null;
+          }
+        };
+
+        // Handle visibility changes
+        const handleVisibilityChange = () => {
+          if (document.hidden) {
+            pauseLocationInterval();
+          } else {
+            startLocationInterval(); // Resume when tab becomes active
+          }
+        };
+
+        // Initial start if tab is visible
+        if (!document.hidden) {
+          startLocationInterval();
+        }
+
+        // Add event listener for visibility change
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Return cleanup function
+        return () => {
+          if (locationUpdateInterval.current) {
+            clearInterval(locationUpdateInterval.current);
+            locationUpdateInterval.current = null;
+          }
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+
+      }
+    };
+
+    setupLocationUpdates();
+
+    return () => {
+      // This outer return cleanup handles unmount of the component
+      // Inner return from setupLocationUpdates handles specific interval and listener cleanup
+    };
+  }, [hasCompletedFirstDelivery, updateCourierLocation]);
 
   const handleBulkUpdateSuccess = (count: number) => {
     toast({
@@ -326,12 +546,16 @@ export function CourierDashboard() {
     })
     if (currentUser) {
       debouncedRefresh(currentUser)
+      // Re-check delivery status after bulk update
+      checkFirstDeliveryStatus(currentUser)
     }
   }
 
   const handleContinuousScanSuccess = () => {
     if (currentUser) {
       debouncedRefresh(currentUser)
+      // Re-check delivery status after continuous scan
+      checkFirstDeliveryStatus(currentUser)
     }
   }
 

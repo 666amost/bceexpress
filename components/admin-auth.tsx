@@ -40,7 +40,8 @@ export function AdminAuth() {
           if (userData?.role === "admin" || userData?.role === "leader") {
             router.push("/admin/dashboard")
           } else {
-            router.push("/courier")
+            // If user is not admin/leader, sign them out so they can login as admin
+            await supabaseClient.auth.signOut()
           }
         }
       } catch (err) {

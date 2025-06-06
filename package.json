@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@carbon/icons-react": "^11.60.0",
+    "@carbon/icons-react": "^11.61.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
@@ -44,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
+    "@types/leaflet": "^1.9.18",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "@zxing/browser": "^0.1.1",
@@ -66,6 +67,7 @@
     "input-otp": "^1.0.0",
     "jsbarcode": "^3.11.6",
     "jspdf": "^3.0.1",
+    "leaflet": "^1.9.4",
     "lru-cache": "^10.4.3",
     "lucide-react": "^0.510.0",
     "next": "^15.3.2",
@@ -76,7 +78,7 @@
     "react-barcode": "^1.6.1",
     "react-chartjs-2": "^5.3.0",
     "react-day-picker": "^8.10.0",
-    "react-dom": "^18.2.0",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.50.1",
     "react-icons": "^5.5.0",
     "react-loading-icons": "^1.1.0",

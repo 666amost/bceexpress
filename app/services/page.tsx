@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useLayoutEffect } from "react"
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,11 +37,11 @@ export default function ServicesPage() {
 
   const headingRef = useRef<HTMLHeadingElement>(null)
 
-  const rotatingTexts = [
+  const rotatingTexts = useMemo(() => [
     "Layanan Pengiriman Terbaik",
     "Spesialist Pengiriman Makanan",
     "Jaminan 1 hari sampai tujuan"
-  ]
+  ], []);
 
   useEffect(() => {
     // Simulate loading

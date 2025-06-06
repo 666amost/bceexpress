@@ -39,6 +39,18 @@ const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then
   )
 })
 
+const LeafletMap = dynamic(() => import('./leaflet-map').then(mod => mod.LeafletMap), {
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center py-12">
+      <div className="text-center">
+        <LoadingIcon className="h-12 w-12 animate-spin mx-auto mb-4" style={{ color: '#4a5568', fontWeight: 'bold' }} />
+        <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">Loading map...</p>
+      </div>
+    </div>
+  )
+})
+
 export function LeaderDashboard() {
   const router = useRouter()
 
@@ -57,6 +69,8 @@ export function LeaderDashboard() {
   const [activeTab, setActiveTab] = useState("couriers")
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
+  const [isLocationMapOpen, setIsLocationMapOpen] = useState(false) // State for location map modal
+  const [mapRefreshKey, setMapRefreshKey] = useState(0) // Key to force map refresh
 
   const getDateRange = useCallback((days: number) => {
     const now = new Date()
@@ -384,6 +398,14 @@ export function LeaderDashboard() {
                 <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
                 Refresh
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsLocationMapOpen(true)} // Open map modal
+                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
+              >
+                <LocationPointIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" />
+                Lokasi Kurir
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
@@ -651,6 +673,36 @@ export function LeaderDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Live Location Map Modal */}
+        <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+          <DialogContent className="max-w-4xl sm:max-w-5xl max-h-[90vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900 dark:text-white font-bold flex items-center gap-2 justify-between">
+                <div className="flex items-center gap-2">
+                  <LocationPointIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
+                  Live Courier Locations
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMapRefreshKey(prev => prev + 1)}
+                  className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
+                  Refresh Map
+                </Button>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="h-[60vh] w-full">
+              {isLocationMapOpen && <LeafletMap key={mapRefreshKey} />}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Showing live locations of all active couriers. Locations update every 1-2 minutes.
+            </p>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>
   )
