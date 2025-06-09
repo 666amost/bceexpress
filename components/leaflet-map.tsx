@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabaseClient } from '@/lib/auth'
-import { DeliveryTruck as DeliveryTruckIcon } from '@carbon/icons-react' // Import Carbon icon
-import { renderToString } from 'react-dom/server'
 
 // Fix for default icon issues with Leaflet and Webpack/Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,14 +19,12 @@ const DEFAULT_LNG = 106.71296491328197;
 
 // Define a custom icon for couriers using L.divIcon
 const createCourierIcon = (courierName: string) => {
-  const iconSvg = renderToString(
-    <DeliveryTruckIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-  );
+  const imageUrl = '/leaflet/images/courier_map.png'; // Corrected path
   return L.divIcon({
     html: `
       <div style="text-align: center; white-space: nowrap;">
-        <div style="background-color: white; border-radius: 50%; padding: 4px; border: 2px solid #3b82f6; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-          ${iconSvg}
+        <div style="background-color: white; border-radius: 50%; padding: 4px; border: 2px solid #3b82f6; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+          <img src="${imageUrl}" style="width: 32px; height: 32px; object-fit: contain;" />
         </div>
         <div style="font-size: 0.7rem; font-weight: bold; color: #333; margin-top: 2px;">
           ${courierName}
@@ -36,8 +32,9 @@ const createCourierIcon = (courierName: string) => {
       </div>
     `,
     className: 'custom-courier-marker',
-    iconSize: L.point(40, 40), // Adjust size based on content
-    iconAnchor: L.point(20, 40), // Anchor to the bottom-middle of the icon
+    iconSize: L.point(48, 48), // Adjust size based on content
+    iconAnchor: L.point(24, 48), // Anchor to the bottom-middle of the icon
+    popupAnchor: L.point(0, -60) // Adjust popup position (X: centered, Y: up from iconAnchor)
   });
 };
 
@@ -49,18 +46,23 @@ interface CourierLocation {
   courier_name?: string; // Add courier name for display
 }
 
-export function LeafletMap() {
+interface LeafletMapProps {
+    onCouriersUpdated?: (lastUpdate: string | null, hasCouriers: boolean) => void;
+}
+
+export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const markersRef = useRef<Record<string, L.Marker>>({})
   const [courierLocations, setCourierLocations] = useState<CourierLocation[]>([])
   const [mapKey, setMapKey] = useState(0) // Add key to force re-render
   const lastFetchTime = useRef<number>(0) // Track last successful fetch time
   const isFetching = useRef<boolean>(false) // Prevent concurrent fetches
+  const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null); // Track when map data was last updated
 
   const fetchCourierLocations = async () => {
     // Prevent concurrent fetches and rate limiting
     const now = Date.now();
-    if (isFetching.current || (now - lastFetchTime.current < 4 * 60 * 1000)) { // 4 minutes minimum between fetches
+    if (isFetching.current || (lastFetchTime.current !== 0 && (now - lastFetchTime.current < 4 * 60 * 1000))) { // 4 minutes minimum between fetches, bypass for initial fetch
       return;
     }
 
@@ -87,8 +89,15 @@ export function LeafletMap() {
         return;
       }
 
-      // Map locations to include courier names
-      const mergedData = locations.map(loc => {
+      // Define an inactivity threshold (e.g., 5 minutes for active couriers)
+      const INACTIVITY_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+      const currentTime = Date.now();
+
+      // Filter out locations older than the inactivity threshold and map to include courier names
+      const mergedData = locations.filter(loc => {
+        const updatedTime = new Date(loc.updated_at).getTime();
+        return (currentTime - updatedTime) <= INACTIVITY_THRESHOLD_MS;
+      }).map(loc => {
         const courier = couriers?.find(c => c.id === loc.courier_id);
         return {
           ...loc,
@@ -98,6 +107,12 @@ export function LeafletMap() {
 
       setCourierLocations(mergedData);
       lastFetchTime.current = now; // Update last successful fetch time
+      const currentUpdateTime = new Date().toISOString();
+      setLastMapUpdateTime(currentUpdateTime); // Update last map update time
+
+      if (onCouriersUpdated) {
+          onCouriersUpdated(currentUpdateTime, mergedData.length > 0);
+      }
 
     } catch (error) {
     } finally {
@@ -153,6 +168,11 @@ export function LeafletMap() {
             .bindPopup(`<b>${loc.courier_name}</b><br>Lat: ${loc.latitude.toFixed(4)}<br>Lon: ${loc.longitude.toFixed(4)}<br>Updated: ${new Date(loc.updated_at).toLocaleTimeString()}`);
           
           newMarker.addTo(mapRef.current!);
+          // Add click listener to zoom in on the marker
+          newMarker.on('click', () => {
+            mapRef.current?.setView([loc.latitude, loc.longitude], 15); // Zoom to level 15
+          });
+
           markersRef.current[loc.courier_id] = newMarker;
           bounds.extend([loc.latitude, loc.longitude]);
         });

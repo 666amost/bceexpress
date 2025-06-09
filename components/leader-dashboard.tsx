@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Oval as LoadingIcon } from 'react-loading-icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -71,6 +72,10 @@ export function LeaderDashboard() {
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false) // State for location map modal
   const [mapRefreshKey, setMapRefreshKey] = useState(0) // Key to force map refresh
+  const [sortOption, setSortOption] = useState<string>('name') // Default sort by name
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">('asc') // Default sort ascending
+  const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null); // State for last map update time
+  const [hasActiveCouriers, setHasActiveCouriers] = useState<boolean>(false); // State for active couriers status
 
   const getDateRange = useCallback((days: number) => {
     const now = new Date()
@@ -213,6 +218,41 @@ export function LeaderDashboard() {
     }
   }, [dataRange, getDateRange]);
 
+  const sortedCouriers = useMemo(() => {
+    const sortableCouriers = [...couriers];
+    sortableCouriers.sort((a, b) => {
+      let valA: any;
+      let valB: any;
+
+      if (sortOption === 'name') {
+        valA = a.name.toLowerCase();
+        valB = b.name.toLowerCase();
+      } else if (sortOption === 'total') {
+        valA = courierStats[a.id]?.total || 0;
+        valB = courierStats[b.id]?.total || 0;
+      } else if (sortOption === 'pending') {
+        valA = courierStats[a.id]?.pending || 0;
+        valB = courierStats[b.id]?.pending || 0;
+      } else if (sortOption === 'completed') {
+        valA = courierStats[a.id]?.completed || 0;
+        valB = courierStats[b.id]?.completed || 0;
+      } else if (sortOption === 'lastSeen') {
+        valA = a.latestLocationTime ? new Date(a.latestLocationTime).getTime() : 0;
+        valB = b.latestLocationTime ? new Date(b.latestLocationTime).getTime() : 0;
+
+        // Handle cases where one or both couriers have no latestLocationTime
+        if (valA === 0 && valB === 0) return 0;
+        if (valA === 0) return sortOrder === 'asc' ? 1 : -1; // No time means less recent, so put it at the end for asc
+        if (valB === 0) return sortOrder === 'asc' ? -1 : 1; // No time means less recent, so put it at the end for asc
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sortableCouriers;
+  }, [couriers, courierStats, sortOption, sortOrder]);
+
   const loadUserProfile = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -254,6 +294,11 @@ export function LeaderDashboard() {
     setIsLoading(true)
     loadDashboardData()
   }
+
+  const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
+    setLastMapUpdateTime(lastUpdate);
+    setHasActiveCouriers(hasCouriers);
+  }, []);
 
   const handleRangeChange = (days: number) => {
     setDataRange(days)
@@ -485,8 +530,35 @@ export function LeaderDashboard() {
             </TabsList>
 
             <TabsContent value="couriers">
+              <div className="flex justify-end mb-4 gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm">
+                      Sort By: {sortOption === 'name' ? 'Name' : sortOption === 'total' ? 'Total Shipments' : sortOption === 'pending' ? 'Pending Shipments' : sortOption === 'completed' ? 'Completed Shipments' : 'Last Seen'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                    <DropdownMenuItem onClick={() => setSortOption('name')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Name</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOption('total')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Total Shipments</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOption('pending')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Pending Shipments</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOption('completed')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Completed Shipments</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOption('lastSeen')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Last Seen</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="outline"
+                  className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm"
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  {sortOrder === 'asc' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                  )}
+                </Button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {couriers.map((courier) => (
+                {sortedCouriers.map((courier) => (
                   <div
                     key={courier.id}
                     className={`bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border-2 p-4 transition-all duration-300 cursor-pointer hover:shadow-lg ${
@@ -560,6 +632,11 @@ export function LeaderDashboard() {
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center flex items-center justify-center">
                           <LocationPointIcon className="h-4 w-4 mr-1 text-gray-500 dark:text-gray-400" /> No recent GPS location
                         </p>
+                        {courier.latestLocationTime && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                            Last seen: {new Date(courier.latestLocationTime).toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -695,11 +772,16 @@ export function LeaderDashboard() {
               </DialogTitle>
             </DialogHeader>
             <div className="h-[60vh] w-full">
-              {isLocationMapOpen && <LeafletMap key={mapRefreshKey} />}
+              {isLocationMapOpen && <LeafletMap key={mapRefreshKey} onCouriersUpdated={handleCouriersUpdated} />}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Showing live locations of all active couriers. Locations update every 1-2 minutes.
+              {lastMapUpdateTime ? `Last Updated: ${new Date(lastMapUpdateTime).toLocaleTimeString()}` : 'Loading map data...'}
             </p>
+            {!hasActiveCouriers && (lastMapUpdateTime !== null) && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Tidak ada kurir aktif saat ini.
+                </p>
+            )}
           </DialogContent>
         </Dialog>
 

@@ -48,13 +48,24 @@ export default function PrintLayout({ data }) {
 
   useEffect(() => {
     if (barcodeRef.current && data?.awb_no) {
-      JsBarcode(barcodeRef.current, data.awb_no, {
-        format: "CODE128",
-        width: 2.5,
-        height: 50,
-        displayValue: false,
-        margin: 0,
-      })
+      try {
+        JsBarcode(barcodeRef.current, data.awb_no, {
+          format: "CODE128",
+          width: 2.5,
+          height: 50,
+          displayValue: false,
+          margin: 0,
+          background: "#ffffff",
+          lineColor: "#000000",
+          valid: (valid) => {
+            if (!valid) {
+              console.warn("Invalid barcode value")
+            }
+          }
+        })
+      } catch (error) {
+        console.error("Error generating barcode:", error)
+      }
     }
 
     if (data?.awb_no) {
@@ -90,16 +101,16 @@ export default function PrintLayout({ data }) {
                     const dataURL = tempCanvas.toDataURL("image/png");
                     setQrCodeDataUrl(dataURL);
                   } catch (err) {
-                    // QR code generation failed
+                    console.error("Error generating QR code data URL:", err)
                   }
                 } else {
-                  // Failed to get 2D context
+                  console.error("Error generating QR code:", error)
                 }
               }
             }
           );
         } catch (err) {
-          // Error in QR code generation
+          console.error("Error in QR code generation:", err)
         }
       }
     } else {
@@ -108,55 +119,49 @@ export default function PrintLayout({ data }) {
   }, [data])
 
   const generateAbbreviation = (agentName) => {
-    const words = agentName.trim().split(/\s+/);
+    if (!agentName) return ""
+    const words = agentName.trim().split(/\s+/)
     
-    // Jika hanya 1 kata dan 4 karakter atau kurang, gunakan apa adanya
     if (words.length === 1 && words[0].length <= 4) {
-      return words[0].toUpperCase();
+      return words[0].toUpperCase()
     }
     
-    // Jika nama total (tanpa spasi) 4 karakter atau kurang, gunakan apa adanya
-    const nameWithoutSpaces = agentName.replace(/\s+/g, '');
+    const nameWithoutSpaces = agentName.replace(/\s+/g, '')
     if (nameWithoutSpaces.length <= 4) {
-      return nameWithoutSpaces.toUpperCase();
+      return nameWithoutSpaces.toUpperCase()
     }
     
-    // Jika lebih dari 4 karakter, buat singkatan unik 4 karakter
-    // Ambil huruf pertama dari setiap kata
-    let abbr = words.map(word => word[0].toUpperCase()).join('');
+    let abbr = words.map(word => word[0].toUpperCase()).join('')
     
-    // Jika hasil kurang dari 4 karakter, tambahkan huruf dari kata pertama
     if (abbr.length < 4) {
-      const firstWord = words[0].toUpperCase();
-      let index = 1; // Mulai dari huruf kedua kata pertama
+      const firstWord = words[0].toUpperCase()
+      let index = 1
       while (abbr.length < 4 && index < firstWord.length) {
-        abbr += firstWord[index];
-        index++;
+        abbr += firstWord[index]
+        index++
       }
     }
     
-    // Jika masih kurang dari 4, tambahkan huruf dari kata kedua
     if (abbr.length < 4 && words.length > 1) {
-      const secondWord = words[1].toUpperCase();
-      let index = 1; // Mulai dari huruf kedua kata kedua
+      const secondWord = words[1].toUpperCase()
+      let index = 1
       while (abbr.length < 4 && index < secondWord.length) {
-        abbr += secondWord[index];
-        index++;
+        abbr += secondWord[index]
+        index++
       }
     }
     
-    // Pastikan maksimal 4 karakter
-    return abbr.slice(0, 4);
+    return abbr.slice(0, 4)
   };
 
   // Fungsi untuk mengkonversi metode pembayaran ke format singkat
   const getPaymentMethodCode = (method) => {
-    if (!method) return '';
-    const methodUpper = method.toUpperCase();
-    if (methodUpper === 'CASH') return 'CASH';
-    if (methodUpper === 'TRANSFER') return 'TRF';
-    if (methodUpper === 'COD') return 'COD';
-    return methodUpper;
+    if (!method) return ''
+    const methodUpper = method.toUpperCase()
+    if (methodUpper === 'CASH') return 'CASH'
+    if (methodUpper === 'TRANSFER') return 'TRF'
+    if (methodUpper === 'COD') return 'COD'
+    return methodUpper
   };
 
   if (!data) return null
