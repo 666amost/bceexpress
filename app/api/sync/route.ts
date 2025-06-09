@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUndeliveredShipments, getUserNameById, getPhotoUrlFromHistory } from "@/lib/db";  // Tambahkan getUserNameById dan getPhotoUrlFromHistory
-const axios = require('axios').default;
-const FormData = require('form-data');  // Ubah ini untuk menghindari .default jika diperlukan
+import axios from 'axios';
+import FormData from 'form-data';
 
 export async function GET(request: Request) {  // Ubah untuk menerima parameter query, misalnya AWB spesifik
   const url = new URL(request.url);

@@ -1,11 +1,27 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
 
-// Initialize Supabase client
+// Initialize Supabase client with explicit URL and key values
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+// Membuat client dengan opsi yang lebih lengkap
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    fetch: fetch.bind(globalThis)
+  },
+  // Opsi ini membantu mengurangi peringatan browser
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+})
 
 export type ShipmentStatus = "processed" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "exception"
 

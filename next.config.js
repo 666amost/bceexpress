@@ -3,6 +3,18 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true
   },
+  webpack: (config) => {
+    // Ini adalah pendekatan yang tepat untuk mengatasi peringatan dari kode pihak ketiga
+    // yang tidak dapat kita ubah langsung
+    config.ignoreWarnings = [
+      // Peringatan terkait dynamic require di Supabase
+      {
+        module: /node_modules\/@supabase\/realtime-js\/dist\/main\/RealtimeClient\.js/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      }
+    ];
+    return config;
+  },
   images: {
     remotePatterns: [
       {

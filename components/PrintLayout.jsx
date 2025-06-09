@@ -59,12 +59,12 @@ export default function PrintLayout({ data }) {
           lineColor: "#000000",
           valid: (valid) => {
             if (!valid) {
-              console.warn("Invalid barcode value")
+              // Pernyataan console dihapus
             }
           }
         })
       } catch (error) {
-        console.error("Error generating barcode:", error)
+        // Error handling tanpa console
       }
     }
 
@@ -101,16 +101,16 @@ export default function PrintLayout({ data }) {
                     const dataURL = tempCanvas.toDataURL("image/png");
                     setQrCodeDataUrl(dataURL);
                   } catch (err) {
-                    console.error("Error generating QR code data URL:", err)
+                    // Error handling tanpa console
                   }
                 } else {
-                  console.error("Error generating QR code:", error)
+                  // Error handling tanpa console
                 }
               }
             }
           );
         } catch (err) {
-          console.error("Error in QR code generation:", err)
+          // Error handling tanpa console
         }
       }
     } else {
