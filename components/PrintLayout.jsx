@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useLayoutEffect } from "react"
 import JsBarcode from "jsbarcode"
 import QRCode from "qrcode" // Menggunakan library qrcode
 import { Phone } from 'lucide-react' // Import ikon Phone
@@ -8,6 +8,13 @@ import { Phone } from 'lucide-react' // Import ikon Phone
 export default function PrintLayout({ data }) {
   const barcodeRef = useRef(null)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null); 
+  const addressRef = useRef(null);
+  const addressContainerRef = useRef(null);
+  const senderNameRef = useRef(null);
+  const senderPhoneRef = useRef(null);
+  const barangRef = useRef(null);
+  const receiverNameRef = useRef(null);
+  const receiverPhoneRef = useRef(null);
 
   // Add a mapping for wilayah to airport codes
   const airportCodes = {
@@ -29,6 +36,20 @@ export default function PrintLayout({ data }) {
     BKS: "BKS",
     DPK: "DPK",
     BGR: "BGR",
+    // Tambahan untuk cabang Bangka ke Jabodetabek
+    "JAKARTA BARAT": "JKB",
+    "JAKARTA PUSAT": "JKP", 
+    "JAKARTA SELATAN": "JKS",
+    "JAKARTA TIMUR": "JKT",
+    "JAKARTA UTARA": "JKU",
+    "TANGERANG": "TGR",
+    "TANGERANG SELATAN": "TGS",
+    "TANGERANG KABUPATEN": "TGK",
+    "BEKASI KOTA": "BKK",
+    "BEKASI KABUPATEN": "BKB",
+    "DEPOK": "DPK",
+    "BOGOR KOTA": "BGR",
+    "BOGOR KABUPATEN": "BGB",
   };
 
   // Get the airport code based on the wilayah
@@ -164,6 +185,113 @@ export default function PrintLayout({ data }) {
     return methodUpper
   };
 
+  // Fungsi untuk menyesuaikan ukuran font berdasarkan panjang teks
+  const adjustFontSize = (element, text, baseSize = 11) => {
+    if (!element || !text) return;
+    
+    // Reset ukuran font
+    element.style.fontSize = `${baseSize}px`;
+    
+    const contentLength = text.length;
+    
+    // Menyesuaikan ukuran font berdasarkan panjang teks
+    if (contentLength > 25) element.style.fontSize = `${baseSize - 1}px`;
+    if (contentLength > 35) element.style.fontSize = `${baseSize - 2}px`;
+    if (contentLength > 45) element.style.fontSize = `${baseSize - 3}px`;
+    if (contentLength > 55) element.style.fontSize = `${baseSize - 4}px`;
+    
+    // Tambahkan font smoothing untuk ukuran font kecil
+    if (contentLength > 35) {
+      element.style.webkitFontSmoothing = 'antialiased';
+      element.style.mozOsxFontSmoothing = 'grayscale';
+    }
+  };
+  
+  // Efek untuk menyesuaikan ukuran font untuk semua field
+  useLayoutEffect(() => {
+    // Menyesuaikan ukuran font untuk semua field
+    if (senderNameRef.current) adjustFontSize(senderNameRef.current, data?.nama_pengirim);
+    if (senderPhoneRef.current) adjustFontSize(senderPhoneRef.current, data?.nomor_pengirim);
+    if (barangRef.current) adjustFontSize(barangRef.current, data?.isi_barang);
+    if (receiverNameRef.current) adjustFontSize(receiverNameRef.current, data?.nama_penerima);
+    if (receiverPhoneRef.current) adjustFontSize(receiverPhoneRef.current, data?.nomor_penerima);
+  }, [data]);
+
+  // Fungsi untuk mengecilkan font alamat berdasarkan panjang teks dan overflow
+  useLayoutEffect(() => {
+    if (addressRef.current && addressContainerRef.current && data?.alamat_penerima) {
+      const addressElement = addressRef.current;
+      const containerElement = addressContainerRef.current;
+      const contentLength = data.alamat_penerima.length;
+      
+      // Reset font size dulu
+      addressElement.style.fontSize = '11px';
+      
+      // Fungsi untuk memeriksa apakah teks overflow
+      const checkOverflow = () => {
+        // Hitung tinggi maksimal yang tersedia (dari parent)
+        const availableHeight = containerElement.clientHeight;
+        // Hitung tinggi content saat ini
+        const currentHeight = addressElement.scrollHeight;
+        
+        return currentHeight > availableHeight;
+      };
+      
+      // Cek jika teks terlalu panjang, sesuaikan ukuran font dengan peningkatan lebih halus
+      if (contentLength > 70) {
+        addressElement.style.fontSize = '10px';
+      }
+      if (contentLength > 90) {
+        addressElement.style.fontSize = '9.5px';
+      }
+      if (contentLength > 110) {
+        addressElement.style.fontSize = '9px';
+      }
+      if (contentLength > 130) {
+        addressElement.style.fontSize = '8.5px';
+      }
+      if (contentLength > 150) {
+        addressElement.style.fontSize = '8px';
+      }
+      if (contentLength > 170) {
+        addressElement.style.fontSize = '7.5px';
+      }
+      if (contentLength > 190) {
+        addressElement.style.fontSize = '7px';
+      }
+      if (contentLength > 210) {
+        addressElement.style.fontSize = '6.5px';
+      }
+      if (contentLength > 230) {
+        addressElement.style.fontSize = '6px';
+      }
+      if (contentLength > 250) {
+        addressElement.style.fontSize = '5.5px';
+      }
+      if (contentLength > 270) {
+        addressElement.style.fontSize = '5px';
+      }
+      
+      // Lakukan penyesuaian ukuran font tambahan jika masih overflow
+      let currentSize = parseFloat(window.getComputedStyle(addressElement).fontSize);
+      let steps = 0;
+      
+      // Kurangi ukuran font secara bertahap jika masih overflow
+      while (checkOverflow() && currentSize > 4 && steps < 10) {
+        currentSize -= 0.5;
+        addressElement.style.fontSize = `${currentSize}px`;
+        steps++;
+      }
+      
+      // Tambahkan efek font smoothing untuk ukuran kecil agar tetap terbaca
+      if (currentSize < 8) {
+        addressElement.style.webkitFontSmoothing = 'antialiased';
+        addressElement.style.mozOsxFontSmoothing = 'grayscale';
+        addressElement.style.textRendering = 'optimizeLegibility';
+      }
+    }
+  }, [data?.alamat_penerima]);
+
   if (!data) return null
 
   return (
@@ -179,7 +307,7 @@ export default function PrintLayout({ data }) {
           </div>
           <div className="top-header-right">
             <div className="airport-code">
-              {data.wilayah && getAirportCode(data.wilayah)}
+              {data.wilayah ? getAirportCode(data.wilayah) : (data.kota_tujuan ? getAirportCode(data.kota_tujuan) : "")}
             </div>
           </div>
         </div>
@@ -207,16 +335,16 @@ export default function PrintLayout({ data }) {
         </div>
 
         <div className="content-section">
-          <div className="address-box">
+          <div className="address-box" ref={addressContainerRef}>
             <div className="sender-info">
-              <div>Pengirim: {data.nama_pengirim || 'Nama pengirim'}</div>
-              <div>No. Pengirim: {data.nomor_pengirim || 'no pengirim'}</div>
-              <div>Isi Barang: {data.isi_barang || '-'}</div>
+              <div ref={senderNameRef}>Pengirim: {data.nama_pengirim || 'Nama pengirim'}</div>
+              <div ref={senderPhoneRef}>No. Pengirim: {data.nomor_pengirim || 'no pengirim'}</div>
+              <div ref={barangRef}>Isi Barang: {data.isi_barang || '-'}</div>
             </div>
             <div className="recipient-info">
-              <div>Penerima: {data.nama_penerima || 'nama penerima'}</div>
-              <div>No. Penerima: {data.nomor_penerima || 'no penerima'}</div>
-              <div>Alamat: {data.alamat_penerima || 'alamat'}</div>
+              <div ref={receiverNameRef}>Penerima: {data.nama_penerima || 'nama penerima'}</div>
+              <div ref={receiverPhoneRef}>No. Penerima: {data.nomor_penerima || 'no penerima'}</div>
+              <div ref={addressRef} className="address-content">Alamat: {data.alamat_penerima || 'alamat'}</div>
             </div>
           </div>
 
@@ -407,6 +535,11 @@ export default function PrintLayout({ data }) {
           padding-bottom: 0.6mm;
           margin-bottom: 0mm;
           line-height: 1.4;
+          white-space: normal;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .address-box .recipient-info > div:last-child {
           border-bottom: none;
@@ -486,6 +619,21 @@ export default function PrintLayout({ data }) {
           text-align: right;
           margin-right: 2mm;
           margin-top: -3mm;
+        }
+
+        .address-box .recipient-info > div.address-content {
+          border-bottom: none;
+          word-wrap: break-word;
+          word-break: break-word;
+          hyphens: auto;
+          white-space: normal;
+          overflow-wrap: break-word;
+          text-overflow: ellipsis;
+          display: -webkit-box;
+          -webkit-line-clamp: 10; /* Naikkan batas baris */
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          max-height: 18mm; /* Tambahkan max-height */
         }
 
         @media print {
@@ -622,6 +770,21 @@ export default function PrintLayout({ data }) {
 
           .total-bold {
             font-weight: bold;
+          }
+
+          .address-box .recipient-info > div.address-content {
+            border-bottom: none;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+            white-space: normal;
+            overflow-wrap: break-word;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 10; /* Naikkan batas baris */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            max-height: 18mm; /* Tambahkan max-height */
           }
         }
       `}</style>

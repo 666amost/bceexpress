@@ -4,6 +4,9 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import BranchNavbar from "@/components/branch-navbar"
 import AwbForm from "@/components/AwbForm"
+import BulkAwbForm from "@/components/BulkAwbForm"
+import BangkaAwbForm from "@/components/BangkaAwbForm"
+import BangkaBulkAwbForm from "@/components/BangkaBulkAwbForm"
 import HistoryManifest from "@/components/HistoryManifest"
 import PelunasanResi from "@/components/PelunasanResi"
 import { FaPlus, FaTruck, FaUser, FaMapMarkerAlt, FaCalendarDay, FaCalendarWeek, FaHistory } from "react-icons/fa"
@@ -17,6 +20,7 @@ import { Oval as LoadingIcon } from 'react-loading-icons'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import BranchDashboard from "@/components/branchdashboard";
+import { supabaseClient } from "../../lib/auth"
 
 ChartJS.register(
   CategoryScale,
@@ -35,14 +39,26 @@ export default function BranchPage() {
   const [showAwbForm, setShowAwbForm] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [branchOrigin, setBranchOrigin] = useState<string | null>(null)
+  const [showBulkForm, setShowBulkForm] = useState(false)
+  const [selectedAwb, setSelectedAwb] = useState<any>(null)
+  const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabaseClient.auth.getSession()
+        if (!data.session) {
+          router.push("/branch/login")
+        }
+      } catch (error) {
+        router.push("/branch/login")
+      }
+    }
     setIsClient(true)
     checkAuth()
     const fetchUserRole = async () => {
       try {
-        const { supabaseClient } = await import("@/lib/auth")
         const { data: { user } } = await supabaseClient.auth.getUser()
         if (user) {
           const { data: userData } = await supabaseClient.from('users').select('role, origin_branch').eq('id', user.id).single()
@@ -56,19 +72,7 @@ export default function BranchPage() {
       }
     }
     fetchUserRole()
-  }, [])
-
-  const checkAuth = async () => {
-    try {
-      const { supabaseClient } = await import("@/lib/auth")
-      const { data } = await supabaseClient.auth.getSession()
-      if (!data.session) {
-        router.push("/branch/login")
-      }
-    } catch (error) {
-      router.push("/branch/login")
-    }
-  }
+  }, [router])
 
   const handleMenuChange = (menu: string, submenu?: string) => {
     setSelectedMenu(menu)
@@ -82,6 +86,16 @@ export default function BranchPage() {
         setSelectedSubMenu("daily_report")
       }
     }
+  }
+
+  const handleSuccess = () => {
+    setSelectedAwb(null)
+    setIsEditing(false)
+  }
+
+  const handleCancel = () => {
+    setSelectedAwb(null)
+    setIsEditing(false)
   }
 
   if (!isClient) {
@@ -104,14 +118,25 @@ export default function BranchPage() {
           <>
             {selectedSubMenu === "input_resi" && (
               showAwbForm ? (
-                <AwbForm 
-                  onSuccess={() => setShowAwbForm(false)} 
-                  onCancel={() => setShowAwbForm(false)} 
-                  initialData={null}
-                  isEditing={false}
-                  userRole={userRole}
-                  branchOrigin={branchOrigin}
-                />
+                branchOrigin === "bangka" ? (
+                  <BangkaAwbForm
+                    onSuccess={handleSuccess}
+                    onCancel={handleCancel}
+                    initialData={selectedAwb}
+                    isEditing={isEditing}
+                    userRole={userRole}
+                    branchOrigin={branchOrigin}
+                  />
+                ) : (
+                  <AwbForm 
+                    onSuccess={handleSuccess}
+                    onCancel={handleCancel}
+                    initialData={selectedAwb}
+                    isEditing={isEditing}
+                    userRole={userRole}
+                    branchOrigin={branchOrigin}
+                  />
+                )
               ) : (
                 <BranchDashboard 
                   userRole={userRole}
@@ -157,6 +182,24 @@ export default function BranchPage() {
             </div>
           ) : (
             <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
+          )
+        )}
+        {/* Hanya tampilkan form bulk jika tombol di dashboard diklik */}
+        {showBulkForm && selectedMenu === "transaction" && selectedSubMenu === "input_resi" && (
+          branchOrigin === "bangka" ? (
+            <BangkaBulkAwbForm
+              onSuccess={handleSuccess}
+              onCancel={handleCancel}
+              userRole={userRole}
+              branchOrigin={branchOrigin}
+            />
+          ) : (
+            <BulkAwbForm
+              onSuccess={handleSuccess}
+              onCancel={handleCancel}
+              userRole={userRole}
+              branchOrigin={branchOrigin}
+            />
           )
         )}
       </div>

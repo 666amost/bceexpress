@@ -90,7 +90,10 @@ const hargaPerKgTanjungPandan = {
 };
 
 const agentListTanjungPandan = [
-  "COD", "TRANSFER", "CASH"
+  "COD",
+  "TRANSFER",
+  "CASH",
+  "Wijaya Crab"
 ];
 
 const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"];

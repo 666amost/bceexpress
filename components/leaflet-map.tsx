@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabaseClient } from '@/lib/auth'
+import React from 'react'
 
 // Fix for default icon issues with Leaflet and Webpack/Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -51,18 +52,58 @@ interface LeafletMapProps {
 }
 
 export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
-  const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<Record<string, L.Marker>>({})
-  const [courierLocations, setCourierLocations] = useState<CourierLocation[]>([])
-  const [mapKey, setMapKey] = useState(0) // Add key to force re-render
-  const lastFetchTime = useRef<number>(0) // Track last successful fetch time
-  const isFetching = useRef<boolean>(false) // Prevent concurrent fetches
-  const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null); // Track when map data was last updated
+  const [courierLocations, setCourierLocations] = React.useState<CourierLocation[]>([])
+  const [mapKey, setMapKey] = React.useState<number>(Date.now()) // Add key to force re-render
+  const lastFetchTime = React.useRef<number>(0) // Track last successful fetch time
+  const isFetching = React.useRef<boolean>(false) // Prevent concurrent fetches
+  const [lastMapUpdateTime, setLastMapUpdateTime] = React.useState<string | null>(null); // Track when map data was last updated
+  const [lastRealtimeUpdate, setLastRealtimeUpdate] = React.useState<string | null>(null); // Track realtime updates
+  const subscriptionRef = React.useRef<any>(null); // Reference to store subscription
 
-  const fetchCourierLocations = async () => {
-    // Prevent concurrent fetches and rate limiting
-    const now = Date.now();
-    if (isFetching.current || (lastFetchTime.current !== 0 && (now - lastFetchTime.current < 4 * 60 * 1000))) { // 4 minutes minimum between fetches, bypass for initial fetch
+  const mapRef = React.useRef<L.Map | null>(null)
+  const markersRef = React.useRef<Record<string, L.Marker>>({})
+
+  // Tentukan semua nama tabel yang mungkin digunakan untuk lokasi kurir
+  const possibleTableNames = React.useMemo(() => [
+    'courier_current_locations',
+    'courier_locations',
+    'shipment_history' // Karena mungkin lokasi tersimpan di sini
+  ], []);
+
+  const processLocations = React.useCallback(async (locations: any[], couriers: any[]) => {
+    // Define an inactivity threshold (e.g., 30 minutes for active couriers - diperpanjang)
+    const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+    const currentTime = Date.now();
+
+    // Filter out locations older than the inactivity threshold and map to include courier names
+    const mergedData = locations
+      .filter(loc => {
+        const updatedTime = new Date(loc.updated_at || loc.created_at).getTime();
+        return (currentTime - updatedTime) <= INACTIVITY_THRESHOLD_MS;
+      })
+      .map(loc => {
+        const courier = couriers?.find(c => c.id === loc.courier_id);
+        return {
+          ...loc,
+          courier_name: courier?.name || 'Unknown Courier',
+          updated_at: loc.updated_at || loc.created_at
+        };
+      });
+
+    setCourierLocations(mergedData);
+    const currentUpdateTime = new Date().toISOString();
+    setLastMapUpdateTime(currentUpdateTime);
+
+    if (onCouriersUpdated) {
+      onCouriersUpdated(currentUpdateTime, mergedData.length > 0);
+    }
+    
+    lastFetchTime.current = Date.now();
+  }, [onCouriersUpdated]);
+
+  const fetchCourierLocations = React.useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetching.current) {
       return;
     }
 
@@ -79,48 +120,101 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         return;
       }
 
-      // Fetch latest locations for all couriers
-      const { data: locations, error: locationsError } = await supabaseClient
+      // Coba cek tabel courier_current_locations
+      const { data: currentLocations, error: currentLocationsError } = await supabaseClient
         .from('courier_current_locations')
         .select('*')
-        .order('updated_at', { ascending: false }); // Order by most recent first
+        .order('updated_at', { ascending: false });
 
-      if (locationsError) {
-        return;
-      }
+      // Jika tabel courier_current_locations tidak ditemukan, coba ambil dari shipment_history
+      if (currentLocationsError || !currentLocations || currentLocations.length === 0) {
+        // Fetch dari shipment_history sebagai fallback
+        const { data: shipmentHistory, error: historyError } = await supabaseClient
+          .from('shipment_history')
+          .select('courier_id, latitude, longitude, created_at')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-      // Define an inactivity threshold (e.g., 5 minutes for active couriers)
-      const INACTIVITY_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
-      const currentTime = Date.now();
-
-      // Filter out locations older than the inactivity threshold and map to include courier names
-      const mergedData = locations.filter(loc => {
-        const updatedTime = new Date(loc.updated_at).getTime();
-        return (currentTime - updatedTime) <= INACTIVITY_THRESHOLD_MS;
-      }).map(loc => {
-        const courier = couriers?.find(c => c.id === loc.courier_id);
-        return {
-          ...loc,
-          courier_name: courier?.name || 'Unknown Courier'
-        };
-      });
-
-      setCourierLocations(mergedData);
-      lastFetchTime.current = now; // Update last successful fetch time
-      const currentUpdateTime = new Date().toISOString();
-      setLastMapUpdateTime(currentUpdateTime); // Update last map update time
-
-      if (onCouriersUpdated) {
-          onCouriersUpdated(currentUpdateTime, mergedData.length > 0);
+        if (!historyError && shipmentHistory && shipmentHistory.length > 0) {
+          // Ambil lokasi terbaru untuk setiap kurir dari shipment_history
+          const latestLocationByCourier = new Map();
+          
+          shipmentHistory.forEach(entry => {
+            if (entry.courier_id && !latestLocationByCourier.has(entry.courier_id)) {
+              latestLocationByCourier.set(entry.courier_id, {
+                courier_id: entry.courier_id,
+                latitude: entry.latitude,
+                longitude: entry.longitude,
+                updated_at: entry.created_at
+              });
+            }
+          });
+          
+          const locations = Array.from(latestLocationByCourier.values());
+          await processLocations(locations, couriers);
+        }
+      } else {
+        // Gunakan data dari courier_current_locations
+        await processLocations(currentLocations, couriers);
       }
 
     } catch (error) {
+      // Error handling
     } finally {
       isFetching.current = false;
     }
-  };
+  }, [processLocations]);
 
-  useEffect(() => {
+  // Function to set up real-time subscription
+  const setupRealtimeSubscription = React.useCallback(() => {
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+    }
+
+    // Coba setup subscription untuk semua tabel yang mungkin
+    possibleTableNames.forEach(tableName => {
+      const channel = supabaseClient.channel(`realtime-${tableName}`);
+      
+      channel
+        .on('postgres_changes', {
+          event: '*', // Listen for all events (insert, update, delete)
+          schema: 'public',
+          table: tableName
+        }, (payload) => {
+          // Update status
+          const currentTime = new Date().toISOString();
+          setLastRealtimeUpdate(currentTime);
+          
+          // Force refresh lokasi
+          fetchCourierLocations();
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            // console.log(`Successfully subscribed to ${tableName}`);
+          }
+        });
+      
+      // Simpan satu subscription saja untuk dibersihkan nanti
+      if (tableName === possibleTableNames[0]) {
+        subscriptionRef.current = channel;
+      }
+    });
+  }, [fetchCourierLocations, possibleTableNames]);
+
+  // Fungsi untuk polling manual (backup untuk realtime)
+  const startPolling = React.useCallback(() => {
+    // Set interval polling yang lebih sering (1 menit)
+    const intervalId = setInterval(() => {
+      fetchCourierLocations();
+    }, 60 * 1000); // 60 seconds = 1 minute
+    
+    return intervalId;
+  }, [fetchCourierLocations]);
+
+  React.useEffect(() => {
     // Clean up existing map if it exists
     if (mapRef.current) {
       mapRef.current.remove();
@@ -136,23 +230,30 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     // Initial fetch
     fetchCourierLocations();
 
-    // Set up interval for refreshing locations (every 5 minutes to match courier update frequency)
-    const intervalId = setInterval(() => {
-      fetchCourierLocations();
-    }, 5 * 60 * 1000); // 300 seconds = 5 minutes (reduced from 2 minutes)
+    // Set up realtime subscription
+    setupRealtimeSubscription();
+
+    // Set up polling interval as fallback
+    const intervalId = startPolling();
 
     return () => {
-      // Clear interval on component unmount
+      // Clean up on component unmount
       clearInterval(intervalId);
-      // Clean up map if needed (optional, as modal handles its unmount)
+      
+      // Unsubscribe from all channels
+      possibleTableNames.forEach(tableName => {
+        supabaseClient.removeChannel(supabaseClient.channel(`realtime-${tableName}`));
+      });
+      
+      // Clean up map if needed
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, [mapKey]); // Add mapKey as dependency to force re-initialization
+  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (mapRef.current) {
       // Clear existing markers
       Object.values(markersRef.current).forEach(marker => {

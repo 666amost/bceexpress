@@ -46,9 +46,25 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     });
   };
 
+  // Validasi format AWB harus dimulai dengan BCE atau BE
+  const validateAwb = (awb: string): boolean => {
+    const cleanAwb = awb.trim().toUpperCase()
+    return cleanAwb.startsWith('BCE') || cleanAwb.startsWith('BE')
+  }
+
   const handleQRScan = (result: string) => {
     if (result) {
-      const newAwb = result.trim();
+      const newAwb = result.trim().toUpperCase();
+      
+      // Validasi format AWB
+      if (!validateAwb(newAwb)) {
+        toast.error("Invalid AWB format", { 
+          description: "AWB number must start with BCE or BE",
+          duration: 2000
+        });
+        return;
+      }
+      
       const currentAwbs = awbNumbers.split(/\s*,\s*|\s+|\n/).filter(Boolean);
 
       if (!currentAwbs.includes(newAwb)) {
@@ -192,38 +208,59 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         setTimeout(() => reject(new Error('Timeout')), 500)
       );
 
-      // Check central manifest first (no retry for speed)
-      try {
-        const centralPromise = client
-          .from("manifest")
-          .select("nama_pengirim,alamat_pengirim,nomor_pengirim,nama_penerima,alamat_penerima,nomor_penerima,berat_kg,dimensi")
-          .eq("awb_no", awb)
-          .maybeSingle();
-
-        const centralResult = await Promise.race([centralPromise, timeoutPromise]) as any;
-        
-        if (!centralResult.error && centralResult.data) {
-          return { ...centralResult.data, manifest_source: "central" }
-        }
-      } catch (e) {
-        // Ignore central manifest errors for speed
+      // Bersihkan AWB number dari karakter tidak perlu
+      const cleanAwb = awb.trim().toUpperCase();
+      
+      // Beberapa kemungkinan format AWB (dengan atau tanpa prefix)
+      let awbsToCheck = [cleanAwb];
+      
+      // Jika AWB dimulai dengan BCE atau BE, tambahkan versi tanpa prefix
+      if (cleanAwb.startsWith('BCE')) {
+        awbsToCheck.push(cleanAwb.substring(3)); // Tanpa 'BCE'
+      } else if (cleanAwb.startsWith('BE')) {
+        awbsToCheck.push(cleanAwb.substring(2)); // Tanpa 'BE'
+      } 
+      // Jika AWB adalah angka saja, tambahkan versi dengan prefix
+      else if (/^\d+$/.test(cleanAwb)) {
+        awbsToCheck.push('BCE' + cleanAwb);
+        awbsToCheck.push('BE' + cleanAwb);
       }
+      
+      // Coba semua format AWB yang mungkin dengan timeout
+      for (const awbFormat of awbsToCheck) {
+        // Check central manifest first (no retry for speed)
+        try {
+          const centralPromise = client
+            .from("manifest")
+            .select("nama_penerima,alamat_penerima,nomor_penerima")
+            .ilike("awb_no", awbFormat)
+            .maybeSingle();
 
-      // Quick check branch manifest
-      try {
-        const branchPromise = client
-          .from("manifest_cabang")
-          .select("nama_pengirim,alamat_pengirim,nomor_pengirim,nama_penerima,alamat_penerima,nomor_penerima,berat_kg,dimensi")
-          .eq("awb_no", awb)
-          .maybeSingle();
-
-        const branchResult = await Promise.race([branchPromise, timeoutPromise]) as any;
-        
-        if (!branchResult.error && branchResult.data) {
-          return { ...branchResult.data, manifest_source: "cabang" }
+          const centralResult = await Promise.race([centralPromise, timeoutPromise]) as any;
+          
+          if (!centralResult.error && centralResult.data) {
+            return { ...centralResult.data, manifest_source: "central" }
+          }
+        } catch (e) {
+          // Ignore central manifest errors for speed
         }
-      } catch (e) {
-        // Ignore branch manifest errors for speed
+
+        // Quick check branch manifest
+        try {
+          const branchPromise = client
+            .from("manifest_cabang")
+            .select("nama_penerima,alamat_penerima,nomor_penerima")
+            .ilike("awb_no", awbFormat)
+            .maybeSingle();
+
+          const branchResult = await Promise.race([branchPromise, timeoutPromise]) as any;
+          
+          if (!branchResult.error && branchResult.data) {
+            return { ...branchResult.data, manifest_source: "cabang" }
+          }
+        } catch (e) {
+          // Ignore branch manifest errors for speed
+        }
       }
 
       return null
@@ -288,23 +325,31 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             };
 
             // Wait for manifest check (with timeout)
-            const manifestData = await Promise.race([
+            let manifestData = await Promise.race([
               manifestPromise,
               new Promise(resolve => setTimeout(() => resolve(null), 500)) // Increased timeout for manifest
             ]);
+            
+            // Validasi data penerima ada sebelum menggunakan data manifest
+            if (manifestData && (!manifestData.nama_penerima || !manifestData.alamat_penerima)) {
+              manifestData = null;
+            }
 
             // Use manifest data if available, otherwise use basic data
+            
+            // Pastikan data valid sebelum membuat shipment
+            if (manifestData && (!manifestData.nama_penerima || !manifestData.alamat_penerima)) {
+              manifestData = null;
+            }
+            
             const shipmentData = manifestData ? {
               ...basicShipmentData,
-              sender_name: manifestData.nama_pengirim || "Auto Generated",
-              sender_address: manifestData.alamat_pengirim || "Auto Generated",
-              sender_phone: manifestData.nomor_pengirim || "Auto Generated", 
               receiver_name: manifestData.nama_penerima || "Auto Generated",
               receiver_address: manifestData.alamat_penerima || "Auto Generated",
               receiver_phone: manifestData.nomor_penerima || "Auto Generated",
-              weight: manifestData.berat_kg || 1,
-              dimensions: manifestData.dimensi || "10x10x10",
             } : basicShipmentData;
+            
+
 
             // Create shipment with retry
             try {
@@ -432,6 +477,8 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       setError("Please enter at least one AWB number.")
       return
     }
+    
+    // Input manual tidak perlu validasi format AWB, bisa menerima format apapun
 
     setError(null)
     setIsLoading(true)

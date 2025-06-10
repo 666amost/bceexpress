@@ -88,24 +88,47 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
 
   const checkManifestAwb = async (awb: string) => {
     try {
-      const { data: centralData, error: centralError } = await supabaseClient
-        .from("manifest")
-        .select("*")
-        .eq("awb_no", awb)
-        .single()
-
-      if (!centralError && centralData) {
-        return { ...centralData, manifest_source: "central" }
+      // Bersihkan AWB number dari karakter tidak perlu
+      const cleanAwb = awb.trim().toUpperCase();
+      
+      // Beberapa kemungkinan format AWB (dengan atau tanpa prefix)
+      let awbsToCheck = [cleanAwb];
+      
+      // Jika AWB dimulai dengan BCE atau BE, tambahkan versi tanpa prefix
+      if (cleanAwb.startsWith('BCE')) {
+        awbsToCheck.push(cleanAwb.substring(3)); // Tanpa 'BCE'
+      } else if (cleanAwb.startsWith('BE')) {
+        awbsToCheck.push(cleanAwb.substring(2)); // Tanpa 'BE'
+      } 
+      // Jika AWB adalah angka saja, tambahkan versi dengan prefix
+      else if (/^\d+$/.test(cleanAwb)) {
+        awbsToCheck.push('BCE' + cleanAwb);
+        awbsToCheck.push('BE' + cleanAwb);
       }
+      
+      // Coba semua format AWB yang mungkin
+      for (const awbFormat of awbsToCheck) {
+        // Cek di tabel manifest dulu
+        const { data: centralData, error: centralError } = await supabaseClient
+          .from("manifest")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", awbFormat)
+          .maybeSingle()
 
-      const { data: branchData, error: branchError } = await supabaseClient
-        .from("manifest_cabang")
-        .select("*")
-        .eq("awb_no", awb)
-        .single()
+        if (!centralError && centralData) {
+          return { ...centralData, manifest_source: "central" }
+        }
 
-      if (!branchError && branchData) {
-        return { ...branchData, manifest_source: "cabang" }
+        // Jika tidak ditemukan di manifest, cek di manifest_cabang
+        const { data: branchData, error: branchError } = await supabaseClient
+          .from("manifest_cabang")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", awbFormat)
+          .maybeSingle()
+
+        if (!branchError && branchData) {
+          return { ...branchData, manifest_source: "cabang" }
+        }
       }
 
       return null
@@ -116,24 +139,25 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
 
   const createShipmentWithManifestData = async (awb: string, manifestData: any, courierId: string) => {
     try {
-      await supabaseClient.from("shipments").insert([
-        {
-          awb_number: awb,
-          sender_name: manifestData.nama_pengirim || "Auto Generated",
-          sender_address: manifestData.alamat_pengirim || "Auto Generated",
-          sender_phone: manifestData.nomor_pengirim || "Auto Generated",
-          receiver_name: manifestData.nama_penerima || "Auto Generated",
-          receiver_address: manifestData.alamat_penerima || "Auto Generated",
-          receiver_phone: manifestData.nomor_penerima || "Auto Generated",
-          weight: manifestData.berat_kg || 1,
-          dimensions: manifestData.dimensi || "10x10x10",
-          service_type: "Standard",
-          current_status: "out_for_delivery",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          courier_id: courierId,
-        },
-      ])
+      // Pastikan data lengkap dan valid
+      const shipmentData = {
+        awb_number: awb,
+        sender_name: "Auto Generated",
+        sender_address: "Auto Generated",
+        sender_phone: "Auto Generated",
+        receiver_name: manifestData.nama_penerima || "Auto Generated",
+        receiver_address: manifestData.alamat_penerima || "Auto Generated",
+        receiver_phone: manifestData.nomor_penerima || "Auto Generated",
+        weight: 1, // Default weight
+        dimensions: "10x10x10", // Default dimensions
+        service_type: "Standard",
+        current_status: "out_for_delivery",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        courier_id: courierId,
+      };
+      
+      await supabaseClient.from("shipments").insert([shipmentData])
       
       const source = manifestData.manifest_source === "central" ? "manifest pusat" : "manifest cabang"
       return { success: true, message: `Created from ${source}` }
@@ -236,8 +260,13 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
             const manifestData = await checkManifestAwb(awb)
             
             if (manifestData) {
-              result = await createShipmentWithManifestData(awb, manifestData, courierId)
-              if (!result.success) {
+              // Periksa apakah data penerima tersedia 
+              if (manifestData.nama_penerima && manifestData.alamat_penerima) {
+                result = await createShipmentWithManifestData(awb, manifestData, courierId)
+                if (!result.success) {
+                  result = await createBasicShipment(awb, courierId)
+                }
+              } else {
                 result = await createBasicShipment(awb, courierId)
               }
             } else {

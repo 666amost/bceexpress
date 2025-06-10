@@ -13,6 +13,8 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar, Doughnut } from 'react-chartjs-2';
 import AwbForm from "./AwbForm";
 import BulkAwbForm from "./BulkAwbForm";
+import BangkaAwbForm from "./BangkaAwbForm";
+import BangkaBulkAwbForm from "./BangkaBulkAwbForm";
 
 ChartJS.register(
   CategoryScale,
@@ -47,6 +49,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
   const [allManifestData, setAllManifestData] = useState<RecentAwbItem[]>([]);
   const [activeChart, setActiveChart] = useState<'kota' | 'agent' | 'trend'>('kota');
   const [showBulkAwbForm, setShowBulkAwbForm] = useState(false);
+  const [showAwbForm, setShowAwbForm] = useState(false);
 
   const { toast } = useToast();
 
@@ -237,7 +240,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
         <Button
           className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
           onClick={() => {
-            onShowAwbForm(true);
+            setShowAwbForm(true);
             setShowBulkAwbForm(false);
           }}
         >
@@ -247,7 +250,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded font-bold hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
           onClick={() => {
             setShowBulkAwbForm(true);
-            onShowAwbForm(false);
+            setShowAwbForm(false);
           }}
         >
           <FaPlus /> Tambahkan Resi (Bulk)
@@ -255,17 +258,54 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
       </div>
 
       {showBulkAwbForm && (
-        <BulkAwbForm
-          onSuccess={() => {
-            setShowBulkAwbForm(false);
-          }}
-          onCancel={() => setShowBulkAwbForm(false)}
-          userRole={userRole}
-          branchOrigin={branchOrigin}
-        />
+        branchOrigin === 'bangka' ? (
+          <BangkaBulkAwbForm
+            onSuccess={() => {
+              setShowBulkAwbForm(false);
+            }}
+            onCancel={() => setShowBulkAwbForm(false)}
+            userRole={userRole}
+            branchOrigin={branchOrigin}
+          />
+        ) : (
+          <BulkAwbForm
+            onSuccess={() => {
+              setShowBulkAwbForm(false);
+            }}
+            onCancel={() => setShowBulkAwbForm(false)}
+            userRole={userRole}
+            branchOrigin={branchOrigin}
+          />
+        )
       )}
 
-      {!showBulkAwbForm && (
+      {showAwbForm && (
+        branchOrigin === 'bangka' ? (
+          <BangkaAwbForm
+            onSuccess={() => {
+              setShowAwbForm(false);
+            }}
+            onCancel={() => setShowAwbForm(false)}
+            userRole={userRole}
+            branchOrigin={branchOrigin}
+            initialData={null}
+            isEditing={false}
+          />
+        ) : (
+          <AwbForm
+            onSuccess={() => {
+              setShowAwbForm(false);
+            }}
+            onCancel={() => setShowAwbForm(false)}
+            userRole={userRole}
+            branchOrigin={branchOrigin}
+            initialData={null}
+            isEditing={false}
+          />
+        )
+      )}
+
+      {!showBulkAwbForm && !showAwbForm && (
         <>
           {/* Main content area: Stats and Recent AWBs in a two-column layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

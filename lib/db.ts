@@ -125,27 +125,92 @@ export async function uploadImage(file: File, awbNumber: string): Promise<string
 
 // Check if AWB exists in manifest
 export async function checkManifestAwb(awbNumber: string): Promise<any> {
-  const { data, error } = await supabase.from("manifest").select("*").eq("awb_no", awbNumber).single()
+  try {
+    // Bersihkan AWB number dari karakter tidak perlu
+    const cleanAwb = awbNumber.trim().toUpperCase();
+    
+    // Beberapa kemungkinan format AWB (dengan atau tanpa prefix)
+    let awbsToCheck = [cleanAwb];
+    
+    // Jika AWB dimulai dengan BCE atau BE, tambahkan versi tanpa prefix
+    if (cleanAwb.startsWith('BCE')) {
+      awbsToCheck.push(cleanAwb.substring(3)); // Tanpa 'BCE'
+    } else if (cleanAwb.startsWith('BE')) {
+      awbsToCheck.push(cleanAwb.substring(2)); // Tanpa 'BE'
+    } 
+    // Jika AWB adalah angka saja, tambahkan versi dengan prefix
+    else if (/^\d+$/.test(cleanAwb)) {
+      awbsToCheck.push('BCE' + cleanAwb);
+      awbsToCheck.push('BE' + cleanAwb);
+    }
+    
+    // Coba semua format AWB yang mungkin
+    for (const awbFormat of awbsToCheck) {
+      // Cek di tabel manifest dulu - hanya ambil data yang diperlukan kurir
+      const { data: manifestData, error: manifestError } = await supabase
+        .from("manifest")
+        .select("nama_penerima,alamat_penerima,nomor_penerima")
+        .ilike("awb_no", awbFormat)
+        .maybeSingle();
 
-  if (error) {
-    return null
+      if (!manifestError && manifestData) {
+        return { ...manifestData, manifest_source: "central" };
+      }
+
+      // Jika tidak ditemukan di manifest, cek di manifest_cabang
+      const { data: branchData, error: branchError } = await supabase
+        .from("manifest_cabang")
+        .select("nama_penerima,alamat_penerima,nomor_penerima")
+        .ilike("awb_no", awbFormat)
+        .maybeSingle();
+
+      if (!branchError && branchData) {
+        return { ...branchData, manifest_source: "cabang" };
+      }
+    }
+
+    // Jika tidak ditemukan di keduanya dengan semua format yang dicoba
+    return null;
+  } catch (err) {
+    return null;
   }
-
-  return data
 }
 
 // Create shipment from manifest
 export async function createShipmentFromManifest(awbNumber: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase.rpc("create_shipment_from_manifest", { awb_number: awbNumber })
-
-    if (error) {
-      return false
+    // Cek apakah data tersedia di manifest
+    const manifestData = await checkManifestAwb(awbNumber);
+    
+    if (!manifestData) {
+      return false;
     }
-
-    return true
+    
+    // Pastikan data penerima tersedia
+    if (!manifestData.nama_penerima || !manifestData.alamat_penerima) {
+      return false;
+    }
+    
+    // Buat shipment dengan data yang tersedia, Auto Generate untuk sisanya
+    const { error } = await supabase.from("shipments").insert([{
+      awb_number: awbNumber,
+      sender_name: "Auto Generated",
+      sender_address: "Auto Generated",
+      sender_phone: "Auto Generated",
+      receiver_name: manifestData.nama_penerima || "Auto Generated",
+      receiver_address: manifestData.alamat_penerima || "Auto Generated",
+      receiver_phone: manifestData.nomor_penerima || "Auto Generated",
+      weight: 1, // Default weight
+      dimensions: "10x10x10", // Default dimensions
+      service_type: "Standard",
+      current_status: "processed",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }]);
+    
+    return !error;
   } catch (error) {
-    return false
+    return false;
   }
 }
 

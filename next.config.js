@@ -85,6 +85,15 @@ const nextConfig = {
         destination: '/api/:path*'
       }
     ]
+  },
+  turbopack: {
+    rules: {
+      // Konfigurasi loader jika diperlukan
+    },
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
+    resolveAlias: {
+      // Konfigurasi alias jika diperlukan
+    }
   }
 }
 

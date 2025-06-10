@@ -76,6 +76,8 @@ export function LeaderDashboard() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">('asc') // Default sort ascending
   const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null); // State for last map update time
   const [hasActiveCouriers, setHasActiveCouriers] = useState<boolean>(false); // State for active couriers status
+  const [highPriorityThreshold, setHighPriorityThreshold] = useState(5); // Kurir dengan > 5 pending dianggap prioritas tinggi
+  const [prioritySort, setPrioritySort] = useState<boolean>(false); // Auto-sort by priority
 
   const getDateRange = useCallback((days: number) => {
     const now = new Date()
@@ -220,6 +222,26 @@ export function LeaderDashboard() {
 
   const sortedCouriers = useMemo(() => {
     const sortableCouriers = [...couriers];
+    
+    // First sort by priority if enabled
+    if (prioritySort) {
+      sortableCouriers.sort((a, b) => {
+        const pendingA = courierStats[a.id]?.pending || 0;
+        const pendingB = courierStats[b.id]?.pending || 0;
+        
+        // High priority couriers at the top
+        if (pendingA > highPriorityThreshold && pendingB <= highPriorityThreshold) return -1;
+        if (pendingA <= highPriorityThreshold && pendingB > highPriorityThreshold) return 1;
+        
+        // Then sort by pending count if both are high priority or both are not
+        return pendingB - pendingA;
+      });
+      
+      // Return early if prioritySort is enabled
+      return sortableCouriers;
+    }
+    
+    // Otherwise use normal sorting
     sortableCouriers.sort((a, b) => {
       let valA: any;
       let valB: any;
@@ -251,7 +273,7 @@ export function LeaderDashboard() {
       return 0;
     });
     return sortableCouriers;
-  }, [couriers, courierStats, sortOption, sortOrder]);
+  }, [couriers, courierStats, sortOption, sortOrder, prioritySort, highPriorityThreshold]);
 
   const loadUserProfile = useCallback(async () => {
     setIsLoading(true)
@@ -492,11 +514,16 @@ export function LeaderDashboard() {
           </div>
           
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-red-200 dark:border-red-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-100 dark:bg-red-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-100 dark:bg-red-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3 relative">
               <WarningIcon className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" style={{ fontWeight: 'bold' }} />
+              {totalPending > 0 && (
+                <span className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping top-0 right-0" />
+              )}
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending</span>
-            <span className="text-2xl sm:text-4xl font-black text-red-600 dark:text-red-400 block">{totalPending}</span>
+            <span className="text-2xl sm:text-4xl font-black text-red-600 dark:text-red-400 block">
+              {totalPending}
+            </span>
             <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm" className="text-xs p-0 h-auto text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mt-1">
               (view details)
             </Button>
@@ -519,7 +546,7 @@ export function LeaderDashboard() {
                 <UserMultipleIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
                 Couriers
               </TabsTrigger>
-              <TabsTrigger value="shipments" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+              <TabsTrigger value="shipments" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 relative">
                 <PackageIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
                 Shipments
               </TabsTrigger>
@@ -531,6 +558,13 @@ export function LeaderDashboard() {
 
             <TabsContent value="couriers">
               <div className="flex justify-end mb-4 gap-2">
+                <Button
+                  variant={prioritySort ? "default" : "outline"}
+                  onClick={() => setPrioritySort(!prioritySort)}
+                  className={`h-8 px-3 text-xs font-bold ${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'} shadow-sm`}
+                >
+                  {prioritySort ? "Priority Sort: ON" : "Priority Sort: OFF"}
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm">
@@ -564,6 +598,8 @@ export function LeaderDashboard() {
                     className={`bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border-2 p-4 transition-all duration-300 cursor-pointer hover:shadow-lg ${
                       selectedCourier === courier.id 
                         ? "border-gray-500 bg-gray-100 dark:bg-gray-700 dark:border-gray-500 shadow-lg" 
+                        : courierStats[courier.id]?.pending > highPriorityThreshold
+                        ? "border-red-300 dark:border-red-800"
                         : "border-transparent hover:border-gray-300 dark:hover:border-gray-600"
                     }`}
                     onClick={() => setSelectedCourier(courier.id)}
@@ -573,11 +609,26 @@ export function LeaderDashboard() {
                     }}
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <UserMultipleIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${
+                        courierStats[courier.id]?.pending > highPriorityThreshold
+                        ? 'bg-red-100 dark:bg-red-900/50'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                      } flex items-center justify-center`}>
+                        <UserMultipleIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${
+                          courierStats[courier.id]?.pending > highPriorityThreshold
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-700 dark:text-gray-300'
+                        }`} style={{ fontWeight: 'bold' }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-sm sm:text-base text-gray-800 dark:text-gray-100 truncate">{courier.name}</h3>
+                        <h3 className="font-bold text-sm sm:text-base text-gray-800 dark:text-gray-100 truncate">
+                          {courier.name}
+                          {courierStats[courier.id]?.pending > highPriorityThreshold && (
+                            <span className="inline-flex items-center ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                              Priority
+                            </span>
+                          )}
+                        </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{courier.email}</p>
                       </div>
                     </div>
@@ -588,9 +639,11 @@ export function LeaderDashboard() {
                         <span className="text-sm sm:text-base font-black text-gray-900 dark:text-white block">{courierStats[courier.id]?.total || 0}</span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
                       </div>
-                      <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-2 relative">
                         <WarningIcon className="h-4 w-4 text-red-600 dark:text-red-400 mx-auto mb-1" style={{ fontWeight: 'bold' }} />
-                        <span className="text-sm sm:text-base font-black text-red-600 dark:text-red-400 block">{courierStats[courier.id]?.pending || 0}</span>
+                        <span className="text-sm sm:text-base font-black text-red-600 dark:text-red-400 block">
+                          {courierStats[courier.id]?.pending || 0}
+                        </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">Pending</span>
                       </div>
                       <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
@@ -727,8 +780,18 @@ export function LeaderDashboard() {
           <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
             <DialogHeader>
               <DialogTitle className="text-red-600 dark:text-red-400 font-bold flex items-center gap-2">
-                <WarningIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
+                <div className="relative">
+                  <WarningIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
+                  {pendingShipments.length > 0 && (
+                    <span className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping -top-1 -right-1" />
+                  )}
+                </div>
                 Pending Deliveries (Top 100)
+                {pendingShipments.length > 0 && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                    {pendingShipments.length} Items
+                  </span>
+                )}
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-auto max-h-[60vh]">
@@ -760,23 +823,35 @@ export function LeaderDashboard() {
                   <LocationPointIcon className="h-5 w-5" style={{ fontWeight: 'bold' }} />
                   Live Courier Locations
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMapRefreshKey(prev => prev + 1)}
-                  className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
-                  Refresh Map
-                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                    <span className="w-2 h-2 mr-1 bg-green-500 rounded-full animate-pulse"></span>
+                    Auto-update
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMapRefreshKey(prev => prev + 1)}
+                    className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
+                    Refresh Now
+                  </Button>
+                </div>
               </DialogTitle>
             </DialogHeader>
             <div className="h-[60vh] w-full">
               {isLocationMapOpen && <LeafletMap key={mapRefreshKey} onCouriersUpdated={handleCouriersUpdated} />}
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {lastMapUpdateTime ? `Last Updated: ${new Date(lastMapUpdateTime).toLocaleTimeString()}` : 'Loading map data...'}
-            </p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {lastMapUpdateTime ? `Last Updated: ${new Date(lastMapUpdateTime).toLocaleTimeString()}` : 'Loading map data...'}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
+                <span className="w-2 h-2 mr-1 bg-blue-500 rounded-full animate-pulse"></span>
+                Data diperbarui Jika ada aktifitas
+              </p>
+            </div>
             {!hasActiveCouriers && (lastMapUpdateTime !== null) && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Tidak ada kurir aktif saat ini.

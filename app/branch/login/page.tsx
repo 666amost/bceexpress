@@ -40,7 +40,7 @@ export default function BranchLogin() {
           userData.role === 'admin' ||
           userData.role === 'cabang'
         )) {
-          if (userData.role === 'cabang' && userData.origin_branch === 'tanjung_pandan') {
+          if (userData.role === 'cabang' && (userData.origin_branch === 'tanjung_pandan' || userData.origin_branch === 'bangka')) {
             router.push('/branch');
           } else if (userData.role === 'branch' || userData.role === 'admin' || userData.role === 'couriers, branch' || userData.role === 'couriers') {
             router.push('/branch');

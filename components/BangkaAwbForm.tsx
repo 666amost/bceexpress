@@ -2,9 +2,9 @@
 
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
-import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
+import PrintLayout from "./PrintLayout"
 
-interface AwbFormProps {
+interface BangkaAwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
   initialData: any | null;
@@ -13,29 +13,103 @@ interface AwbFormProps {
   branchOrigin: string | null;
 }
 
-const kotaWilayahPusat = {
-  bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
-  "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
-  belitung: ["Tj Pandan"],
-  bali: ["Denpasar"],
+// Data untuk wilayah Jabodetabek
+const kotaWilayahJabodetabek = {
+  "JAKARTA BARAT": {
+    kecamatan: [
+      "Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan",
+      "Taman sari", "Tambora"
+    ],
+    harga: 27000
+  },
+  "JAKARTA PUSAT": {
+    kecamatan: [
+      "Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", 
+      "Sawah besar", "Senen", "Tanah abang"
+    ],
+    harga: 27000
+  },
+  "JAKARTA SELATAN": {
+    kecamatan: [
+      "Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", 
+      "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"
+    ],
+    harga: 29000
+  },
+  "JAKARTA TIMUR": {
+    kecamatan: [
+      "Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati",
+      "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"
+    ],
+    harga: 29000
+  },
+  "JAKARTA UTARA": {
+    kecamatan: [
+      "Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok"
+    ],
+    harga: 27000
+  },
+  "TANGERANG": {
+    kecamatan: [
+      "Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", 
+      "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"
+    ],
+    harga: 27000
+  },
+  "TANGERANG SELATAN": {
+    kecamatan: [
+      "Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"
+    ],
+    harga: 30000
+  },
+  "TANGERANG KABUPATEN": {
+    kecamatan: [
+      "Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", 
+      "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", 
+      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"
+    ],
+    harga: 35000
+  },
+  "BEKASI KOTA": {
+    kecamatan: [
+      "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara",
+      "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede",
+      "pondokmelati", "Rawalumbu"
+    ],
+    harga: 32000
+  },
+  "BEKASI KABUPATEN": {
+    kecamatan: [
+      "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat",
+      "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia",
+      "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"
+    ],
+    harga: 32000
+  },
+  "DEPOK": {
+    kecamatan: [
+      "Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung",
+      "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"
+    ],
+    harga: 35000
+  },
+  "BOGOR KOTA": {
+    kecamatan: [
+      "Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"
+    ],
+    harga: 35000
+  },
+  "BOGOR KABUPATEN": {
+    kecamatan: [
+      "Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", 
+      "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang",
+      "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"
+    ],
+    harga: 35000
+  }
 }
 
-const hargaPerKg = {
-  "Pangkal Pinang": 28000,
-  Sungailiat: 30000,
-  Belinyu: 28000,
-  Jebus: 28000,
-  Koba: 31000,
-  Toboali: 32000,
-  Mentok: 32000,
-  Pontianak: 32000,
-  Singkawang: 35000,
-  "Sungai Pinyuh": 35000,
-  "Tj Pandan": 28000,
-  "Denpasar": 30000,
-}
-
-const agentList = [
+const agentListJabodetabek = [
   "UDR CASH",
   "SEA CASH",
   "GLC UDR TRF",
@@ -73,34 +147,6 @@ const agentList = [
 
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
-const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"]
-
-// Data spesifik untuk cabang Tanjung Pandan (origin_branch = 'tanjung_pandan')
-const kotaWilayahTanjungPandan = {
-  jakarta: ["JKT"], // Simplified wilayah for Jakarta area
-  tangerang: ["TGT"],
-  bekasi: ["BKS"],
-  depok: ["DPK"],
-  bogor: ["BGR"],
-};
-
-const hargaPerKgTanjungPandan = {
-  JKT: 20000,
-  TGT: 23000,
-  BKS: 23000,
-  DPK: 27000,
-  BGR: 23000,
-};
-
-const agentListTanjungPandan = [
-  "COD",
-  "TRANSFER",
-  "CASH",
-  "Wijaya Crab"
-];
-
-const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"]; // Same as pusat for now
-const kirimViaTanjungPandan = ["udara", "darat"]; // Same as pusat for now
 
 function generateAwbNo() {
   const timestamp = Date.now().toString()
@@ -108,14 +154,14 @@ function generateAwbNo() {
   return "BCE" + lastSixDigits
 }
 
-export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: AwbFormProps) {
+export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: BangkaAwbFormProps) {
   const [form, setForm] = useState(
     initialData || {
       awb_no: "",
       awb_date: new Date().toISOString().slice(0, 10),
       kirim_via: "",
       kota_tujuan: "",
-      wilayah: "",
+      kecamatan: "",
       metode_pembayaran: "",
       agent_customer: "",
       nama_pengirim: "",
@@ -136,23 +182,19 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
   )
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [showPrintPreview, setShowPrintPreview] = useState(false) // State ini mungkin tidak digunakan secara langsung untuk pencetakan iframe
-  const printFrameRef = useRef<HTMLDivElement>(null) // Ref untuk div tersembunyi yang merender PrintLayout
-  // Determine which data source to use based on userRole and branchOrigin
-  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
-  const currentHargaPerKg = userRole === 'cabang' ? hargaPerKgTanjungPandan : hargaPerKg;
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
-  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaran;
-  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimVia;
-  const currentKotaTujuan = Object.keys(currentKotaWilayah);
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const wilayahOptions = useMemo(() => currentKotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan, currentKotaWilayah])
+  const kecamatanOptions = useMemo(() => 
+    form.kota_tujuan ? kotaWilayahJabodetabek[form.kota_tujuan]?.kecamatan || [] : [], 
+    [form.kota_tujuan]
+  )
 
   React.useEffect(() => {
-    if (form.wilayah && currentHargaPerKg[form.wilayah]) {
-      setForm((f) => ({ ...f, harga_per_kg: currentHargaPerKg[form.wilayah] }))
+    if (form.kota_tujuan && kotaWilayahJabodetabek[form.kota_tujuan]) {
+      setForm((f) => ({ ...f, harga_per_kg: kotaWilayahJabodetabek[form.kota_tujuan].harga }))
     }
-  }, [form.wilayah, currentHargaPerKg])
+  }, [form.kota_tujuan])
 
   React.useEffect(() => {
     const sub_total = form.berat_kg * form.harga_per_kg
@@ -182,22 +224,16 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
     e.preventDefault()
     setError("")
     setSuccess("")
-    if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
+    if (!form.awb_no || !form.kota_tujuan || !form.kecamatan || !form.nama_pengirim || !form.nama_penerima) {
       setError("Mohon lengkapi semua field wajib.")
       return
     }
 
-    // Determine the target table
-    const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
-
-    // Add origin_branch if inserting into manifest_cabang
-    const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
-
     try {
       if (isEditing && initialData?.awb_no) {
         const { error: sbError } = await supabaseClient
-          .from(targetTable)
-          .update(dataToSave)
+          .from('manifest_cabang')
+          .update({ ...form, origin_branch: branchOrigin })
           .eq("awb_no", initialData.awb_no)
 
         if (sbError) {
@@ -212,7 +248,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 awb_date: new Date().toISOString().slice(0, 10),
                 kirim_via: "",
                 kota_tujuan: "",
-                wilayah: "",
+                kecamatan: "",
                 metode_pembayaran: "",
                 agent_customer: "",
                 nama_pengirim: "",
@@ -234,7 +270,10 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           }, 100);
         }
       } else {
-        const { error: sbError } = await supabaseClient.from(targetTable).insert([dataToSave])
+        const { error: sbError } = await supabaseClient
+          .from('manifest_cabang')
+          .insert([{ ...form, origin_branch: branchOrigin }])
+
         if (sbError) {
           setError("Gagal menyimpan data: " + sbError.message)
           return
@@ -247,7 +286,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 awb_date: new Date().toISOString().slice(0, 10),
                 kirim_via: "",
                 kota_tujuan: "",
-                wilayah: "",
+                kecamatan: "",
                 metode_pembayaran: "",
                 agent_customer: "",
                 nama_pengirim: "",
@@ -278,27 +317,25 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
     e.preventDefault && e.preventDefault();
     setError("");
     setSuccess("");
-    if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
+    if (!form.awb_no || !form.kota_tujuan || !form.kecamatan || !form.nama_pengirim || !form.nama_penerima) {
       setError("Mohon lengkapi semua field wajib.");
       return;
     }
 
     try {
-      const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
-      const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
+      const { error: sbError } = await supabaseClient
+        .from('manifest_cabang')
+        .insert([{ ...form, origin_branch: branchOrigin }]);
 
-      const { error: sbError } = await supabaseClient.from(targetTable).insert([dataToSave]);
       if (sbError) {
         setError("Gagal menyimpan data: " + sbError.message);
         return;
       } else {
         setSuccess("Data berhasil disimpan!");
         
-        // Tunggu sebentar untuk memastikan PrintLayout ter-render
         setTimeout(async () => {
           if (printFrameRef.current) {
             try {
-              // Tambahkan CSS khusus untuk PDF yang menaikkan posisi payment method code
               const pdfSpecificStyle = document.createElement('style');
               pdfSpecificStyle.innerHTML = `
                 .payment-method-code {
@@ -314,22 +351,18 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 .logo-qr {
                   padding-top: 0mm !important;
                 }
-                /* CSS untuk menaikkan detail pengiriman */
                 .shipping-details {
                   margin-top: -2mm !important;
                 }
-                /* CSS untuk menaikkan teks agent di dalam kotaknya */
                 .agent-code-box .agent-abbr-left {
                   position: relative !important;
-                  top: -3mm !important; /* Sesuaikan nilai ini jika perlu */
+                  top: -3mm !important;
                 }
               `;
               printFrameRef.current.appendChild(pdfSpecificStyle);
 
-              // Import html2pdf
               const html2pdf = await import('html2pdf.js');
               
-              // Konfigurasi untuk PDF yang lebih baik
               const options = {
                 filename: form.awb_no + '.pdf',
                 margin: 0,
@@ -342,7 +375,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                   useCORS: true,
                   allowTaint: true,
                   backgroundColor: '#ffffff',
-                  width: 378, // 100mm * 3.78 (96 DPI to mm conversion * scale)
+                  width: 378,
                   height: 378,
                   scrollX: 0,
                   scrollY: 0
@@ -355,22 +388,19 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 }
               };
               
-              // Generate PDF langsung dari element yang sudah ter-render
               await html2pdf.default()
                 .set(options)
                 .from(printFrameRef.current)
                 .save();
 
-              // Hapus style khusus PDF setelah selesai
               printFrameRef.current.removeChild(pdfSpecificStyle);
                 
-              // Reset form setelah PDF selesai didownload
               setForm({
                 awb_no: "",
                 awb_date: new Date().toISOString().slice(0, 10),
                 kirim_via: "",
                 kota_tujuan: "",
-                wilayah: "",
+                kecamatan: "",
                 metode_pembayaran: "",
                 agent_customer: "",
                 nama_pengirim: "",
@@ -389,22 +419,18 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 isi_barang: "",
               });
             } catch (error) {
-              // console.error('Error generating PDF:', error);
               alert('Gagal membuat PDF. Silakan coba lagi.');
             }
           }
-        }, 600); // Tunggu lebih lama untuk memastikan rendering selesai
+        }, 600);
       }
     } catch (err) {
       setError("Terjadi kesalahan: " + err.message);
     }
   }
 
-  // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
   const handlePrint = (onAfterPrint) => {
-    // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
     const printLayoutCss = `
-      /* === START: CSS disinkronkan dari PrintLayout.jsx === */
       .print-only {
         display: block;
         width: 100mm;
@@ -782,7 +808,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           font-weight: bold;
         }
       }
-      /* === END: CSS disinkronkan dari PrintLayout.jsx === */
     `;
 
     setTimeout(() => {
@@ -813,12 +838,9 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
       }
     }, 100);
   };
-  // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
   return (
     <>
-      {/* Hidden print frame */}
-      {/* Ini adalah tempat di mana PrintLayout dirender agar kontennya bisa diambil oleh fungsi cetak */}
       <div className="hidden">
         <div ref={printFrameRef}>
           <PrintLayout data={form} />
@@ -827,15 +849,13 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
 
       <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-0 px-0 py-6 bg-transparent">
         <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
-          {isEditing ? "Edit AWB Manifest" : "Input AWB Manifest"}
+          {isEditing ? "Edit AWB Manifest Bangka" : "Input AWB Manifest Bangka"}
         </h2>
         {error && <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-semibold shadow border border-red-200 dark:border-red-800">{error}</div>}
         {success && (
           <div className="mb-2 p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-semibold shadow border border-green-200 dark:border-green-800">{success}</div>
         )}
-        {/* Section 1: Data Pengiriman - Improved spacing for landscape mode */}
         <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-col md:flex-row gap-6 items-end mb-2">
-          {/* AWB Number with Generate button - Fixed width to prevent overlap */}
           <div className="flex flex-col w-full md:w-64">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nomor Resi (AWB)</label>
             <div className="flex w-full gap-2 items-center">
@@ -858,7 +878,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               </button>
             </div>
           </div>
-          {/* Geser field lain ke kanan di desktop */}
           <div className="flex flex-col w-full md:w-40 md:ml-4">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Tanggal AWB</label>
             <input
@@ -880,7 +899,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
-              {currentKirimVia.map((opt) => (
+              {kirimVia.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt.toUpperCase()}
                 </option>
@@ -897,25 +916,25 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
-              {currentKotaTujuan.map((opt) => (
+              {Object.keys(kotaWilayahJabodetabek).map((opt) => (
                 <option key={opt} value={opt}>
-                  {opt.replace(/\b\w/g, (l) => l.toUpperCase())}
+                  {opt}
                 </option>
               ))}
             </select>
           </div>
           <div className="flex flex-col w-full md:w-36 md:ml-4">
-            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Wilayah</label>
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kecamatan</label>
             <select
-              name="wilayah"
-              value={form.wilayah}
+              name="kecamatan"
+              value={form.kecamatan}
               onChange={handleChange}
               required
               disabled={!form.kota_tujuan}
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
             >
               <option value="">Pilih</option>
-              {wilayahOptions.map((opt) => (
+              {kecamatanOptions.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -932,7 +951,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
-              {currentAgentList.map((opt) => (
+              {agentListJabodetabek.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -940,7 +959,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
             </select>
           </div>
         </section>
-        {/* Section 2: Data Penerima */}
         <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-wrap gap-4 items-end mb-2">
           <div className="flex flex-col w-40 min-w-[140px]">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Nama Pengirim</label>
@@ -986,7 +1004,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
-          {/* FIELD ALAMAT PENERIMA FULL WIDTH */}
           <div className="flex flex-col w-full">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Alamat Penerima</label>
             <textarea
@@ -1010,7 +1027,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
-          {/* Moved Isi Barang field here */}
           <div className="flex flex-col w-40 min-w-[140px]">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Isi Barang</label>
             <textarea
@@ -1022,7 +1038,6 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
             />
           </div>
         </section>
-        {/* Section 3: Ongkos & Biaya - Made responsive */}
         <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-col md:flex-wrap md:flex-row gap-4 items-end mb-2">
           <div className="flex flex-col w-full md:w-28">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Berat (kg)</label>
@@ -1107,7 +1122,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             >
               <option value="">Pilih</option>
-              {currentMetodePembayaran.map((opt) => (
+              {metodePembayaran.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt.toUpperCase()}
                 </option>
@@ -1140,4 +1155,4 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
       </form>
     </>
   )
-}
+} 
