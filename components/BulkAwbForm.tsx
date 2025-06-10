@@ -577,6 +577,9 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
 
       // Import JsBarcode
       const JsBarcode = (await import('jsbarcode')).default;
+      
+      // Import QRCode
+      const QRCode = (await import('qrcode')).default;
 
       // Fungsi untuk membuat singkatan dari nama agent (sama seperti di PrintLayout.jsx)
       const generateAbbreviation = (agentName) => {
@@ -634,13 +637,24 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
           margin: 0
         });
         
+        // Buat QR code canvas
+        const qrCanvas = document.createElement('canvas');
+        await QRCode.toCanvas(qrCanvas, entry.awb_no, {
+          width: 150,
+          margin: 0,
+          color: {
+            dark: "#000000",
+            light: "#ffffff"
+          }
+        });
+        
         // Buat HTML untuk AWB
         tempContainer.innerHTML = `
           <div style="width:100mm; height:100mm; padding:0; margin:0; box-sizing:border-box; font-family:Arial, sans-serif; font-size:10px; border:none; overflow:hidden;">
             <div style="width:100%; height:100%; border:1px solid #000; padding:3mm; box-sizing:border-box; position:relative; background-color:#ffffff;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2mm;">
-                <div style="font-weight:bold; font-size:12px;">
-                  <img src="https://i.ibb.co/j81Ybsq/bce-logo.png" alt="BCE EXPRESS" style="width:25mm; height:auto;" crossorigin="anonymous" />
+                <div style="font-weight:bold; font-size:16px;">
+                  BCE EXPRESS
                 </div>
                 <div style="font-weight:bold; font-size:20px; text-align:right;">
                   ${entry.wilayah ? entry.wilayah.substring(0, 3).toUpperCase() : entry.kota_tujuan.substring(0, 3).toUpperCase()}
@@ -681,7 +695,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
                   </div>
                 </div>
                 <div style="width:30mm; height:45mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:1mm; min-height:35mm;">
-                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${entry.awb_no}" style="width:30mm; height:30mm; display:block; box-sizing:border-box;" alt="QR Code" />
+                  <img src="${qrCanvas.toDataURL()}" style="width:30mm; height:30mm; display:block; box-sizing:border-box;" alt="QR Code" />
                   <div style="font-size:15px; font-weight:bold; width:100%; text-align:center; margin-top:1mm;">
                     ${templateForm.metode_pembayaran.toUpperCase()}
                   </div>
@@ -737,11 +751,11 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         pdf.addImage(imgData, 'JPEG', 0, 0, 100, 100, undefined, 'NONE', 0);
         
-        // Tambahkan halaman baru setelah entry pertama
-        if (i > 0) {
+        // Tambahkan halaman baru jika bukan entry terakhir
+        if (i < awbEntries.length - 1) {
           pdf.addPage([100, 100], 'portrait');
           // Reset margin halaman ke 0
-          pdf.setPage(i + 1);
+          pdf.setPage(i + 2); // Pindah ke halaman yang baru dibuat
           pdf.internal.pageSize.width = 100;
           pdf.internal.pageSize.height = 100;
           pdf.internal.pageSize.getWidth = function() { return 100; };
@@ -1131,6 +1145,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
                 agent_customer: templateForm.agent_customer,
                 nama_pengirim: templateForm.nama_pengirim,
                 nomor_pengirim: templateForm.nomor_pengirim,
+                usePlainText: true, // Pass flag to use text instead of logo
               }} />
             </div>
           ))}

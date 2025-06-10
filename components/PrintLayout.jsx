@@ -171,7 +171,11 @@ export default function PrintLayout({ data }) {
       <div className="shipping-label">
         <div className="top-header-container">
           <div className="top-header-left">
-            <img src="/images/bce-logo.png" alt="BCE Express" className="header-logo" />
+            {data.usePlainText ? (
+              <div className="header-text">BCE EXPRESS</div>
+            ) : (
+              <img src="/images/bce-logo.png" alt="BCE Express" className="header-logo" />
+            )}
           </div>
           <div className="top-header-right">
             <div className="airport-code">
@@ -299,6 +303,12 @@ export default function PrintLayout({ data }) {
           height: auto;
           display: block;
           box-sizing: border-box;
+        }
+
+        .header-text {
+          font-size: 16px;
+          font-weight: bold;
+          color: #000;
         }
 
         .barcode-container {
