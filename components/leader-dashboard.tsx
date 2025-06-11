@@ -795,20 +795,74 @@ export function LeaderDashboard() {
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-auto max-h-[60vh]">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {pendingShipments.map((shipment) => (
-                  <div key={shipment.awb_number} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono font-bold text-sm text-gray-900 dark:text-gray-100 truncate">
-                        {shipment.awb_number}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'}
-                      </p>
-                    </div>
-                    <WarningIcon className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0" style={{ fontWeight: 'bold' }} />
-                  </div>
+                  <Card key={shipment.awb_number} className="overflow-hidden dark:border-gray-800 dark:bg-gray-900 shadow-lg hover:shadow-xl transition-shadow duration-200">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col">
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                          <div className="flex justify-between items-center">
+                            <p className="font-mono text-sm font-bold text-gray-800 dark:text-gray-200">{shipment.awb_number}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(shipment.created_at).toLocaleDateString()}
+                              </span>
+                              <WarningIcon className="h-4 w-4 text-red-500 dark:text-red-400" style={{ fontWeight: 'bold' }} />
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-700 dark:text-gray-300">
+                            Courier: {couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        
+                        <div className="p-3">
+                          <div className="grid grid-cols-1 gap-2 text-sm">
+                            <div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                              <p className="font-medium text-gray-800 dark:text-gray-200">
+                                {shipment.current_status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                              </p>
+                            </div>
+                            
+                            {/* Try to find related location data */}
+                            {couriers.find(c => c.id === shipment.courierId)?.latestAwb === shipment.awb_number && (
+                              <div className="mt-1">
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Last Known Location</p>
+                                <div className="mt-1">
+                                  {couriers.find(c => c.id === shipment.courierId)?.latestLatitude && (
+                                    <a
+                                      href={`https://www.google.com/maps/place/${couriers.find(c => c.id === shipment.courierId)?.latestLatitude},${couriers.find(c => c.id === shipment.courierId)?.latestLongitude}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-mono bg-blue-50 dark:bg-blue-900/30 rounded px-2 py-1 border border-blue-200 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-400 transition-colors shadow-sm"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <LocationPointIcon className="h-3 w-3 mr-1 text-blue-600 dark:text-blue-400" /> 
+                                      {couriers.find(c => c.id === shipment.courierId)?.latestLatitude?.toFixed(6)}, 
+                                      {couriers.find(c => c.id === shipment.courierId)?.latestLongitude?.toFixed(6)}
+                                    </a>
+                                  )}
+                                </div>
+                                {couriers.find(c => c.id === shipment.courierId)?.latestLocationTime && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {new Date(couriers.find(c => c.id === shipment.courierId)?.latestLocationTime || '').toLocaleString()}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
+
+                {pendingShipments.length === 0 && (
+                  <div className="text-center py-8">
+                    <CheckmarkIcon className="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-4" style={{ fontWeight: 'bold' }} />
+                    <p className="text-gray-500 dark:text-gray-400 font-semibold">No pending deliveries</p>
+                  </div>
+                )}
               </div>
             </div>
           </DialogContent>
