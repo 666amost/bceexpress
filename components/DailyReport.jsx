@@ -16,7 +16,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [error, setError] = useState("")
 
   const agentList = userRole === 'cabang'
-    ? ["COD", "TRANSFER", "CASH"]
+    ? ["COD", "TRANSFER", "CASH", "Wijaya Crab"]
     : [
       "GLC COD UDR",
       "GLC COD DRT",

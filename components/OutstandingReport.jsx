@@ -8,7 +8,8 @@ import { createStyledExcelWithHTML } from "../lib/excel-utils"
 const agentListTanjungPandan = [
   "COD",
   "TRANSFER",
-  "CASH"
+  "CASH",
+  "Wijaya Crab"
 ];
 
 /**
