@@ -23,19 +23,17 @@ const createCourierIcon = (courierName: string) => {
   const imageUrl = '/leaflet/images/courier_map.png'; // Corrected path
   return L.divIcon({
     html: `
-      <div style="text-align: center; white-space: nowrap;">
-        <div style="background-color: white; border-radius: 50%; padding: 4px; border: 2px solid #3b82f6; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.2); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-          <img src="${imageUrl}" style="width: 32px; height: 32px; object-fit: contain;" />
+      <div class="courier-marker-container">
+        <div class="courier-marker-icon">
+          <img src="${imageUrl}" alt="${courierName}" />
         </div>
-        <div style="font-size: 0.7rem; font-weight: bold; color: #333; margin-top: 2px;">
-          ${courierName}
-        </div>
+        <div class="courier-marker-label">${courierName}</div>
       </div>
     `,
     className: 'custom-courier-marker',
-    iconSize: L.point(48, 48), // Adjust size based on content
-    iconAnchor: L.point(24, 48), // Anchor to the bottom-middle of the icon
-    popupAnchor: L.point(0, -60) // Adjust popup position (X: centered, Y: up from iconAnchor)
+    iconSize: [48, 60],
+    iconAnchor: [24, 48],
+    popupAnchor: [0, -50]
   });
 };
 
@@ -62,6 +60,63 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
 
   const mapRef = React.useRef<L.Map | null>(null)
   const markersRef = React.useRef<Record<string, L.Marker>>({})
+
+  // Add CSS styles to the document head for better marker rendering
+  React.useEffect(() => {
+    // Add custom CSS to document head
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .courier-marker-container {
+        text-align: center;
+        position: relative;
+        width: 48px;
+      }
+      .courier-marker-icon {
+        background-color: white;
+        border-radius: 50%;
+        padding: 4px;
+        border: 2px solid #3b82f6;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+      }
+      .courier-marker-icon img {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+      }
+      .courier-marker-label {
+        font-size: 0.7rem;
+        font-weight: bold;
+        color: #333;
+        margin-top: 2px;
+        background-color: rgba(255,255,255,0.8);
+        border-radius: 3px;
+        padding: 0 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80px;
+        margin: 2px auto 0;
+      }
+      .leaflet-div-icon {
+        background: transparent;
+        border: none;
+      }
+      .leaflet-marker-icon {
+        filter: drop-shadow(0 0 1px rgba(0,0,0,0.5));
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   // Tentukan semua nama tabel yang mungkin digunakan untuk lokasi kurir
   const possibleTableNames = React.useMemo(() => [
@@ -131,23 +186,30 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         // Fetch dari shipment_history sebagai fallback
         const { data: shipmentHistory, error: historyError } = await supabaseClient
           .from('shipment_history')
-          .select('courier_id, latitude, longitude, created_at')
+          .select('courier_id, latitude, longitude, created_at, notes')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(200);
 
         if (!historyError && shipmentHistory && shipmentHistory.length > 0) {
           // Ambil lokasi terbaru untuk setiap kurir dari shipment_history
           const latestLocationByCourier = new Map();
           
+          // Pastikan hanya mengambil data dengan courier_id yang valid
           shipmentHistory.forEach(entry => {
-            if (entry.courier_id && !latestLocationByCourier.has(entry.courier_id)) {
+            if (
+              entry.courier_id && 
+              entry.latitude && 
+              entry.longitude && 
+              !latestLocationByCourier.has(entry.courier_id)
+            ) {
               latestLocationByCourier.set(entry.courier_id, {
                 courier_id: entry.courier_id,
                 latitude: entry.latitude,
                 longitude: entry.longitude,
-                updated_at: entry.created_at
+                updated_at: entry.created_at,
+                notes: entry.notes
               });
             }
           });
@@ -157,7 +219,18 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         }
       } else {
         // Gunakan data dari courier_current_locations
-        await processLocations(currentLocations, couriers);
+        // Ambil hanya lokasi terbaru untuk setiap kurir
+        const latestLocationByCourier = new Map();
+        
+        currentLocations.forEach(loc => {
+          if (!latestLocationByCourier.has(loc.courier_id) || 
+              new Date(loc.updated_at) > new Date(latestLocationByCourier.get(loc.courier_id).updated_at)) {
+            latestLocationByCourier.set(loc.courier_id, loc);
+          }
+        });
+        
+        const uniqueLocations = Array.from(latestLocationByCourier.values());
+        await processLocations(uniqueLocations, couriers);
       }
 
     } catch (error) {
@@ -214,17 +287,35 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     return intervalId;
   }, [fetchCourierLocations]);
 
+  // Fungsi untuk membersihkan semua marker
+  const clearAllMarkers = React.useCallback(() => {
+    if (mapRef.current) {
+      Object.values(markersRef.current).forEach(marker => {
+        mapRef.current?.removeLayer(marker);
+      });
+      markersRef.current = {};
+    }
+  }, []);
+
   React.useEffect(() => {
     // Clean up existing map if it exists
     if (mapRef.current) {
+      clearAllMarkers();
       mapRef.current.remove();
       mapRef.current = null;
     }
 
     // Initialize map with new default coordinates
-    mapRef.current = L.map('map-container').setView([DEFAULT_LAT, DEFAULT_LNG], 10);
+    mapRef.current = L.map('map-container', {
+      attributionControl: true,
+      zoomControl: true,
+      minZoom: 5,
+      maxZoom: 18,
+    }).setView([DEFAULT_LAT, DEFAULT_LNG], 10);
+    
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
+      maxZoom: 18,
     }).addTo(mapRef.current);
 
     // Initial fetch
@@ -247,11 +338,12 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
       
       // Clean up map if needed
       if (mapRef.current) {
+        clearAllMarkers();
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames]);
+  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers]);
 
   React.useEffect(() => {
     if (mapRef.current) {
@@ -264,11 +356,46 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
       let bounds = new L.LatLngBounds([]);
 
       if (courierLocations.length > 0) {
-        courierLocations.forEach((loc) => {
-          const newMarker = L.marker([loc.latitude, loc.longitude], { icon: createCourierIcon(loc.courier_name || 'Kurir') })
-            .bindPopup(`<b>${loc.courier_name}</b><br>Lat: ${loc.latitude.toFixed(4)}<br>Lon: ${loc.longitude.toFixed(4)}<br>Updated: ${new Date(loc.updated_at).toLocaleTimeString()}`);
+        // Create a unique set of courier IDs to prevent duplicates
+        const uniqueCouriers = new Map();
+        
+        // Only keep the most recent location for each courier
+        courierLocations.forEach(loc => {
+          const existingLoc = uniqueCouriers.get(loc.courier_id);
+          if (!existingLoc || new Date(loc.updated_at) > new Date(existingLoc.updated_at)) {
+            uniqueCouriers.set(loc.courier_id, loc);
+          }
+        });
+        
+        // Create markers for unique couriers
+        Array.from(uniqueCouriers.values()).forEach((loc) => {
+          // Remove existing marker for this courier if it exists
+          if (markersRef.current[loc.courier_id]) {
+            mapRef.current?.removeLayer(markersRef.current[loc.courier_id]);
+          }
+          
+          // Add a small random offset to prevent exact overlapping markers
+          const jitter = 0.00002; // Small coordinate offset
+          const jitteredLat = loc.latitude + (Math.random() - 0.5) * jitter;
+          const jitteredLng = loc.longitude + (Math.random() - 0.5) * jitter;
+          
+          const newMarker = L.marker([jitteredLat, jitteredLng], { 
+            icon: createCourierIcon(loc.courier_name || 'Kurir'),
+            riseOnHover: true, // Rise above other markers on hover
+            zIndexOffset: 1000 // Ensure higher z-index
+          }).bindPopup(`
+            <div style="text-align: center;">
+              <b>${loc.courier_name}</b><br>
+              <span style="font-size: 0.8rem;">Lat: ${loc.latitude.toFixed(4)}<br>
+              Lon: ${loc.longitude.toFixed(4)}</span><br>
+              <span style="font-size: 0.8rem; color: #666;">
+                ${new Date(loc.updated_at).toLocaleTimeString()}
+              </span>
+            </div>
+          `);
           
           newMarker.addTo(mapRef.current!);
+          
           // Add click listener to zoom in on the marker
           newMarker.on('click', () => {
             mapRef.current?.setView([loc.latitude, loc.longitude], 15); // Zoom to level 15
