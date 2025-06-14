@@ -242,30 +242,24 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
 
   const handleAwbEntryChange = (id: string, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
     setAwbEntries(prev => prev.map(entry => {
       if (entry.id === id) {
         const updatedEntry = { ...entry, [name]: value };
-        
-        // Jika yang diubah adalah wilayah, update harga dan biaya transit
         if (name === 'wilayah') {
           const newPrice = getPriceByArea(value);
-          const transitFee = getTransitFee(value);
           updatedEntry.harga_per_kg = newPrice;
-          updatedEntry.biaya_transit = transitFee;
           updatedEntry.sub_total = newPrice * (updatedEntry.berat_kg || 0);
           updatedEntry.total = updatedEntry.sub_total + 
                              (updatedEntry.biaya_admin || 0) + 
                              (updatedEntry.biaya_packaging || 0) + 
-                             transitFee;
+                             (updatedEntry.biaya_transit || 0);
         }
-        
         return updatedEntry;
       }
       return entry;
     }));
-    setError("")
-    setSuccess("")
+    setError("");
+    setSuccess("");
   }
 
   const addAwbEntry = () => {

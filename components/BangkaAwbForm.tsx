@@ -148,6 +148,12 @@ const agentListJabodetabek = [
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
 
+// Daftar kecamatan khusus Jakarta Utara
+const kecamatanJakutKhusus = [
+  'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas',
+  'Sunter Jaya', 'Sunter Agung'
+];
+
 function generateAwbNo() {
   const timestamp = Date.now().toString()
   const lastSixDigits = timestamp.slice(-6)
@@ -176,7 +182,15 @@ function getPriceByArea(wilayah: string): number {
     } else if (wilayah.includes('KABUPATEN')) {
       price = 35000;
     } else {
-      price = 27000;
+      // Kecamatan khusus di Tangerang dengan harga 30000
+      if (wilayah.includes('NEGLASARI') || 
+          wilayah.includes('BENDA') || 
+          wilayah.includes('JATIUWUNG') || 
+          wilayah.includes('CIBODAS')) {
+        price = 30000;
+      } else {
+        price = 27000;
+      }
     }
   }
   // Harga untuk wilayah Bekasi
@@ -287,10 +301,15 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const kecamatanOptions = useMemo(() => 
-    form.kota_tujuan ? kotaWilayahJabodetabek[form.kota_tujuan]?.kecamatan || [] : [], 
-    [form.kota_tujuan]
-  )
+  const kecamatanOptions = useMemo(() => {
+    if (form.kota_tujuan === 'JAKARTA UTARA') {
+      return [
+        ...kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan,
+        ...kecamatanJakutKhusus.filter(k => !kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan.includes(k))
+      ];
+    }
+    return form.kota_tujuan ? kotaWilayahJabodetabek[form.kota_tujuan]?.kecamatan || [] : [];
+  }, [form.kota_tujuan]);
 
   React.useEffect(() => {
     if (form.kota_tujuan && kotaWilayahJabodetabek[form.kota_tujuan]) {
@@ -306,22 +325,64 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let wilayahValue = name === 'kecamatan' ? value : (form.kecamatan || '');
+    let kotaTujuan = name === 'kota_tujuan' ? value : form.kota_tujuan;
+    let kecamatan = name === 'kecamatan' ? value : form.kecamatan;
 
-    // Jika field yang diubah adalah kecamatan atau wilayah/kota tujuan
-    if (name === 'wilayah' || name === 'kecamatan') {
-      // Gabungkan nama kota tujuan dan kecamatan untuk pencarian biaya transit
-      const searchWilayah = `${form.kota_tujuan || ''} ${value}`.toUpperCase();
-      const newPrice = getPriceByArea(form.kota_tujuan || '');
-      const transitFee = getTransitFee(searchWilayah);
+    // Jika field yang diubah adalah kota_tujuan atau kecamatan
+    if (name === 'kota_tujuan' || name === 'kecamatan') {
+      let harga = form.harga_per_kg;
+      let transit = form.biaya_transit;
+      
+      // Logika harga khusus Jakarta Utara
+      if (kotaTujuan === 'JAKARTA UTARA') {
+        if ([
+          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas'
+        ].includes(kecamatan)) {
+          harga = 30000;
+        } else if ([
+          'Sunter Jaya', 'Sunter Agung'
+        ].includes(kecamatan)) {
+          harga = 27000;
+        } else {
+          harga = 27000;
+        }
+      } 
+      // Logika harga khusus Tangerang
+      else if (kotaTujuan === 'TANGERANG') {
+        if (['Neglasari', 'Benda', 'Jatiuwung', 'Cibodas'].includes(kecamatan)) {
+          harga = 30000;
+        } else {
+          harga = 27000;
+        }
+      }
+      // Logika harga khusus Tangerang Selatan
+      else if (kotaTujuan === 'TANGERANG SELATAN') {
+        if (kecamatan === 'Serpong Utara') {
+          harga = 27000;
+        } else {
+          harga = 30000;
+        }
+      }
+      // Logika harga khusus Tangerang Kabupaten
+      else if (kotaTujuan === 'TANGERANG KABUPATEN') {
+        if (['Kelapa Dua', 'Curug', 'Kosambi', 'Pagedangan'].includes(kecamatan)) {
+          harga = 30000;
+        } else {
+          harga = 35000;
+        }
+      }
+      else {
+        harga = getPriceByArea(kotaTujuan);
+      }
+      
+      transit = getTransitFee(`${kotaTujuan} ${kecamatan}`.toUpperCase());
       setForm(prev => ({
         ...prev,
         [name]: value,
-        harga_per_kg: newPrice,
-        biaya_transit: transitFee,
-        // Recalculate total
-        sub_total: newPrice * (prev.berat_kg || 0),
-        total: (newPrice * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + transitFee
+        harga_per_kg: harga,
+        biaya_transit: transit,
+        sub_total: harga * (prev.berat_kg || 0),
+        total: (harga * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + transit
       }));
     } else {
       setForm(prev => ({

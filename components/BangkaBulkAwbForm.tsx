@@ -183,10 +183,108 @@ const agentListJabodetabek = [
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
 
+// Daftar kecamatan khusus Jakarta Utara
+const kecamatanJakutKhusus = [
+  'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas',
+  'Sunter Jaya', 'Sunter Agung'
+];
+
 function generateAwbNo() {
   const timestamp = Date.now().toString()
   const lastSixDigits = timestamp.slice(-6)
   return "BCE" + lastSixDigits
+}
+
+function getPriceByArea(kotaTujuan: string, kecamatan: string): number {
+  // Logika harga khusus Jakarta Utara
+  if (kotaTujuan === 'JAKARTA UTARA') {
+    if ([
+      'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas'
+    ].includes(kecamatan)) {
+      return 30000;
+    } else if ([
+      'Sunter Jaya', 'Sunter Agung'
+    ].includes(kecamatan)) {
+      return 27000;
+    } else {
+      return 27000;
+    }
+  }
+  // Harga default sesuai wilayah
+  let wilayah = kotaTujuan.toUpperCase();
+  if (wilayah.includes('JAKARTA')) {
+    if (wilayah.includes('BARAT') || wilayah.includes('PUSAT')) {
+      return 27000;
+    } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
+      return 29000;
+    } else if (wilayah.includes('UTARA')) {
+      return 27000;
+    }
+  } else if (wilayah.includes('TANGERANG')) {
+    if (wilayah.includes('SELATAN')) {
+      return 30000;
+    } else if (wilayah.includes('KABUPATEN')) {
+      return 35000;
+    } else {
+      return 27000;
+    }
+  } else if (wilayah.includes('BEKASI')) {
+    return 32000;
+  } else if (wilayah.includes('DEPOK')) {
+    return 35000;
+  } else if (wilayah.includes('BOGOR')) {
+    return 35000;
+  }
+  return 27000;
+}
+
+function getTransitFee(kotaTujuan: string, kecamatan: string): number {
+  const wilayah = `${kotaTujuan} ${kecamatan}`.toUpperCase();
+  if (wilayah.includes('TELUKNAGA')) return 20000;
+  if (wilayah.includes('BALARAJA')) return 50000;
+  if (wilayah.includes('PAKUHAJI')) return 50000;
+  if (wilayah.includes('RAJEG')) return 50000;
+  if (wilayah.includes('SEPATAN TIMUR')) return 30000;
+  if (wilayah.includes('SEPATAN')) return 30000;
+  if (wilayah.includes('SINDANG JAYA')) return 20000;
+  if (wilayah.includes('SOLEAR')) return 100000;
+  if (wilayah.includes('TIGARAKSA')) return 75000;
+  if (wilayah.includes('JATISAMPURNA')) return 30000;
+  if (wilayah.includes('TARUMAJAYA')) return 30000;
+  if (wilayah.includes('BABELAN')) return 30000;
+  if (wilayah.includes('CIBARUSAH')) return 30000;
+  if (wilayah.includes('CIBITUNG')) return 50000;
+  if (wilayah.includes('CIKARANG BARAT')) return 75000;
+  if (wilayah.includes('CIKARANG PUSAT')) return 75000;
+  if (wilayah.includes('CIKARANG UTARA')) return 75000;
+  if (wilayah.includes('CIKARANG SELATAN')) return 100000;
+  if (wilayah.includes('CIKARANG TIMUR')) return 100000;
+  if (wilayah.includes('KARANGBAHAGIA')) return 75000;
+  if (wilayah.includes('KEDUNGWARINGIN')) return 100000;
+  if (wilayah.includes('SERANG BARU')) return 100000;
+  if (wilayah.includes('SETU') && wilayah.includes('BEKASI')) return 100000;
+  if (wilayah.includes('TAMBUN SELATAN')) return 50000;
+  if (wilayah.includes('TAMBUN UTARA')) return 50000;
+  if (wilayah.includes('TAPOS')) return 30000;
+  if (wilayah.includes('BOGOR BARAT')) return 100000;
+  if (wilayah.includes('BOGOR SELATAN')) return 100000;
+  if (wilayah.includes('BOGOR TENGAH')) return 100000;
+  if (wilayah.includes('BOGOR TIMUR')) return 100000;
+  if (wilayah.includes('BOGOR UTARA')) return 100000;
+  if (wilayah.includes('TANAH SEREAL')) return 100000;
+  if (wilayah.includes('GUNUNG SINDUR')) return 100000;
+  if (wilayah.includes('BABAKAN MADANG')) return 100000;
+  if (wilayah.includes('BOJONG GEDE')) return 75000;
+  if (wilayah.includes('CIBINONG')) return 50000;
+  if (wilayah.includes('CILEUNGSI')) return 75000;
+  if (wilayah.includes('GUNUNG PUTRI')) return 75000;
+  const kecamatanBogor100k = [
+    'CITEUREUP', 'JONGGOL', 'CIOMAS', 'CISEENG', 'TAJURHALANG',
+    'CARINGIN', 'DRAMAGA', 'CARIU', 'KLAPANUNGGAL', 'RUMPIN'
+  ];
+  if (kecamatanBogor100k.some(kec => wilayah.includes(kec))) return 100000;
+  if (wilayah.includes('CIAWI') || wilayah.includes('TAMANSARI')) return 150000;
+  return 0;
 }
 
 export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin, initialData = null, isEditing = false }: BangkaBulkAwbFormProps) {
@@ -212,10 +310,15 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const kecamatanOptions = useMemo(() => 
-    template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan]?.kecamatan || [] : [], 
-    [template.kota_tujuan]
-  )
+  const kecamatanOptions = useMemo(() => {
+    if (template.kota_tujuan === 'JAKARTA UTARA') {
+      return [
+        ...kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan,
+        ...kecamatanJakutKhusus.filter(k => !kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan.includes(k))
+      ];
+    }
+    return template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan]?.kecamatan || [] : [];
+  }, [template.kota_tujuan]);
 
   React.useEffect(() => {
     if (template.kota_tujuan && kotaWilayahJabodetabek[template.kota_tujuan]) {
@@ -247,11 +350,30 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
   }, [template.berat_kg, template.harga_per_kg, template.biaya_admin, template.biaya_packaging, template.biaya_transit])
 
   const handleTemplateChange = (e) => {
-    const { name, value } = e.target
-    setTemplate((prev) => ({ ...prev, [name]: value }))
-    setError("")
-    setSuccess("")
-  }
+    const { name, value } = e.target;
+    let kotaTujuan = name === 'kota_tujuan' ? value : template.kota_tujuan;
+    let kecamatan = name === 'kecamatan' ? value : template.kecamatan;
+
+    if (name === 'kota_tujuan' || name === 'kecamatan') {
+      const harga = getPriceByArea(kotaTujuan, kecamatan);
+      const transit = getTransitFee(kotaTujuan, kecamatan);
+      setTemplate(prev => ({
+        ...prev,
+        [name]: value,
+        harga_per_kg: harga,
+        biaya_transit: transit,
+        sub_total: harga * (prev.berat_kg || 0),
+        total: (harga * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + transit
+      }));
+    } else {
+      setTemplate(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    setError("");
+    setSuccess("");
+  };
 
   const handleAwbEntryChange = (id: string, e) => {
     const { name, value } = e.target
