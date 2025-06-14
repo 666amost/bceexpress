@@ -154,6 +154,108 @@ function generateAwbNo() {
   return "BCE" + lastSixDigits
 }
 
+// Fungsi untuk mendapatkan harga berdasarkan wilayah
+function getPriceByArea(wilayah: string): number {
+  // Harga default
+  let price = 27000;
+
+  // Harga untuk wilayah Jakarta
+  if (wilayah.includes('JAKARTA')) {
+    if (wilayah.includes('BARAT') || wilayah.includes('PUSAT')) {
+      price = 27000;
+    } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
+      price = 29000;
+    } else if (wilayah.includes('UTARA')) {
+      price = 30000;
+    }
+  }
+  // Harga untuk wilayah Tangerang
+  else if (wilayah.includes('TANGERANG')) {
+    if (wilayah.includes('SELATAN')) {
+      price = 30000;
+    } else if (wilayah.includes('KABUPATEN')) {
+      price = 35000;
+    } else {
+      price = 27000;
+    }
+  }
+  // Harga untuk wilayah Bekasi
+  else if (wilayah.includes('BEKASI')) {
+    price = 32000;
+  }
+  // Harga untuk wilayah Depok
+  else if (wilayah.includes('DEPOK')) {
+    price = 35000;
+  }
+  // Harga untuk wilayah Bogor
+  else if (wilayah.includes('BOGOR')) {
+    price = 35000;
+  }
+
+  return price;
+}
+
+// Fungsi untuk mendapatkan biaya transit berdasarkan wilayah
+function getTransitFee(wilayah: string): number {
+  // Tangerang Kabupaten
+  if (wilayah.includes('TELUKNAGA')) return 20000;
+  if (wilayah.includes('BALARAJA')) return 50000;
+  if (wilayah.includes('PAKUHAJI')) return 50000;
+  if (wilayah.includes('RAJEG')) return 50000;
+  if (wilayah.includes('SEPATAN TIMUR')) return 30000;
+  if (wilayah.includes('SEPATAN')) return 30000;
+  if (wilayah.includes('SINDANG JAYA')) return 20000;
+  if (wilayah.includes('SOLEAR')) return 100000;
+  if (wilayah.includes('TIGARAKSA')) return 75000;
+
+  // Bekasi
+  if (wilayah.includes('JATISAMPURNA')) return 30000;
+  if (wilayah.includes('TARUMAJAYA')) return 30000;
+  if (wilayah.includes('BABELAN')) return 30000;
+  if (wilayah.includes('CIBARUSAH')) return 30000;
+  if (wilayah.includes('CIBITUNG')) return 50000;
+  if (wilayah.includes('CIKARANG BARAT')) return 75000;
+  if (wilayah.includes('CIKARANG PUSAT')) return 75000;
+  if (wilayah.includes('CIKARANG UTARA')) return 75000;
+  if (wilayah.includes('CIKARANG SELATAN')) return 100000;
+  if (wilayah.includes('CIKARANG TIMUR')) return 100000;
+  if (wilayah.includes('KARANGBAHAGIA')) return 75000;
+  if (wilayah.includes('KEDUNGWARINGIN')) return 100000;
+  if (wilayah.includes('SERANG BARU')) return 100000;
+  if (wilayah.includes('SETU') && wilayah.includes('BEKASI')) return 100000;
+  if (wilayah.includes('TAMBUN SELATAN')) return 50000;
+  if (wilayah.includes('TAMBUN UTARA')) return 50000;
+
+  // Depok
+  if (wilayah.includes('TAPOS')) return 30000;
+
+  // Bogor
+  if (wilayah.includes('BOGOR BARAT')) return 100000;
+  if (wilayah.includes('BOGOR SELATAN')) return 100000;
+  if (wilayah.includes('BOGOR TENGAH')) return 100000;
+  if (wilayah.includes('BOGOR TIMUR')) return 100000;
+  if (wilayah.includes('BOGOR UTARA')) return 100000;
+  if (wilayah.includes('TANAH SEREAL')) return 100000;
+  if (wilayah.includes('GUNUNG SINDUR')) return 100000;
+  if (wilayah.includes('BABAKAN MADANG')) return 100000;
+  if (wilayah.includes('BOJONG GEDE')) return 75000;
+  if (wilayah.includes('CIBINONG')) return 50000;
+  if (wilayah.includes('CILEUNGSI')) return 75000;
+  if (wilayah.includes('GUNUNG PUTRI')) return 75000;
+
+  // Kecamatan Bogor dengan transit 100.000
+  const kecamatanBogor100k = [
+    'CITEUREUP', 'JONGGOL', 'CIOMAS', 'CISEENG', 'TAJURHALANG',
+    'CARINGIN', 'DRAMAGA', 'CARIU', 'KLAPANUNGGAL', 'RUMPIN'
+  ];
+  if (kecamatanBogor100k.some(kec => wilayah.includes(kec))) return 100000;
+
+  // Kecamatan Bogor dengan transit 150.000
+  if (wilayah.includes('CIAWI') || wilayah.includes('TAMANSARI')) return 150000;
+
+  return 0; // Default jika tidak ada biaya transit
+}
+
 export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: BangkaAwbFormProps) {
   const [form, setForm] = useState(
     initialData || {
@@ -203,10 +305,32 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
-    setError("")
-    setSuccess("")
+    const { name, value } = e.target;
+    let wilayahValue = name === 'kecamatan' ? value : (form.kecamatan || '');
+
+    // Jika field yang diubah adalah kecamatan atau wilayah/kota tujuan
+    if (name === 'wilayah' || name === 'kecamatan') {
+      // Gabungkan nama kota tujuan dan kecamatan untuk pencarian biaya transit
+      const searchWilayah = `${form.kota_tujuan || ''} ${value}`.toUpperCase();
+      const newPrice = getPriceByArea(form.kota_tujuan || '');
+      const transitFee = getTransitFee(searchWilayah);
+      setForm(prev => ({
+        ...prev,
+        [name]: value,
+        harga_per_kg: newPrice,
+        biaya_transit: transitFee,
+        // Recalculate total
+        sub_total: newPrice * (prev.berat_kg || 0),
+        total: (newPrice * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + transitFee
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    setError("");
+    setSuccess("");
   }
 
   const handleSelectChange = (name, value) => {
@@ -923,7 +1047,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               ))}
             </select>
           </div>
-          <div className="flex flex-col w-full md:w-36 md:ml-4">
+          <div className="flex flex-col w-36 md:ml-4">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kecamatan</label>
             <select
               name="kecamatan"

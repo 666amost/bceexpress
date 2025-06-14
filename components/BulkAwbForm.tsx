@@ -105,6 +105,108 @@ function generateAwbNo() {
   return "BCE" + lastSixDigits
 }
 
+// Fungsi untuk mendapatkan harga berdasarkan wilayah
+function getPriceByArea(wilayah: string): number {
+  // Harga default
+  let price = 27000;
+
+  // Harga untuk wilayah Jakarta
+  if (wilayah.includes('JAKARTA')) {
+    if (wilayah.includes('BARAT') || wilayah.includes('PUSAT')) {
+      price = 27000;
+    } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
+      price = 29000;
+    } else if (wilayah.includes('UTARA')) {
+      price = 30000;
+    }
+  }
+  // Harga untuk wilayah Tangerang
+  else if (wilayah.includes('TANGERANG')) {
+    if (wilayah.includes('SELATAN')) {
+      price = 30000;
+    } else if (wilayah.includes('KABUPATEN')) {
+      price = 35000;
+    } else {
+      price = 27000;
+    }
+  }
+  // Harga untuk wilayah Bekasi
+  else if (wilayah.includes('BEKASI')) {
+    price = 32000;
+  }
+  // Harga untuk wilayah Depok
+  else if (wilayah.includes('DEPOK')) {
+    price = 35000;
+  }
+  // Harga untuk wilayah Bogor
+  else if (wilayah.includes('BOGOR')) {
+    price = 35000;
+  }
+
+  return price;
+}
+
+// Fungsi untuk mendapatkan biaya transit berdasarkan wilayah
+function getTransitFee(wilayah: string): number {
+  // Tangerang Kabupaten
+  if (wilayah.includes('TELUKNAGA')) return 20000;
+  if (wilayah.includes('BALARAJA')) return 50000;
+  if (wilayah.includes('PAKUHAJI')) return 50000;
+  if (wilayah.includes('RAJEG')) return 50000;
+  if (wilayah.includes('SEPATAN TIMUR')) return 30000;
+  if (wilayah.includes('SEPATAN')) return 30000;
+  if (wilayah.includes('SINDANG JAYA')) return 20000;
+  if (wilayah.includes('SOLEAR')) return 100000;
+  if (wilayah.includes('TIGARAKSA')) return 75000;
+
+  // Bekasi
+  if (wilayah.includes('JATISAMPURNA')) return 30000;
+  if (wilayah.includes('TARUMAJAYA')) return 30000;
+  if (wilayah.includes('BABELAN')) return 30000;
+  if (wilayah.includes('CIBARUSAH')) return 30000;
+  if (wilayah.includes('CIBITUNG')) return 50000;
+  if (wilayah.includes('CIKARANG BARAT')) return 75000;
+  if (wilayah.includes('CIKARANG PUSAT')) return 75000;
+  if (wilayah.includes('CIKARANG UTARA')) return 75000;
+  if (wilayah.includes('CIKARANG SELATAN')) return 100000;
+  if (wilayah.includes('CIKARANG TIMUR')) return 100000;
+  if (wilayah.includes('KARANGBAHAGIA')) return 75000;
+  if (wilayah.includes('KEDUNGWARINGIN')) return 100000;
+  if (wilayah.includes('SERANG BARU')) return 100000;
+  if (wilayah.includes('SETU') && wilayah.includes('BEKASI')) return 100000;
+  if (wilayah.includes('TAMBUN SELATAN')) return 50000;
+  if (wilayah.includes('TAMBUN UTARA')) return 50000;
+
+  // Depok
+  if (wilayah.includes('TAPOS')) return 30000;
+
+  // Bogor
+  if (wilayah.includes('BOGOR BARAT')) return 100000;
+  if (wilayah.includes('BOGOR SELATAN')) return 100000;
+  if (wilayah.includes('BOGOR TENGAH')) return 100000;
+  if (wilayah.includes('BOGOR TIMUR')) return 100000;
+  if (wilayah.includes('BOGOR UTARA')) return 100000;
+  if (wilayah.includes('TANAH SEREAL')) return 100000;
+  if (wilayah.includes('GUNUNG SINDUR')) return 100000;
+  if (wilayah.includes('BABAKAN MADANG')) return 100000;
+  if (wilayah.includes('BOJONG GEDE')) return 75000;
+  if (wilayah.includes('CIBINONG')) return 50000;
+  if (wilayah.includes('CILEUNGSI')) return 75000;
+  if (wilayah.includes('GUNUNG PUTRI')) return 75000;
+
+  // Kecamatan Bogor dengan transit 100.000
+  const kecamatanBogor100k = [
+    'CITEUREUP', 'JONGGOL', 'CIOMAS', 'CISEENG', 'TAJURHALANG',
+    'CARINGIN', 'DRAMAGA', 'CARIU', 'KLAPANUNGGAL', 'RUMPIN'
+  ];
+  if (kecamatanBogor100k.some(kec => wilayah.includes(kec))) return 100000;
+
+  // Kecamatan Bogor dengan transit 150.000
+  if (wilayah.includes('CIAWI') || wilayah.includes('TAMANSARI')) return 150000;
+
+  return 0; // Default jika tidak ada biaya transit
+}
+
 export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin }: BulkAwbFormProps) {
   const { toast } = useToast();
 
@@ -139,32 +241,29 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
   }
 
   const handleAwbEntryChange = (id: string, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target
-    setAwbEntries((prevEntries) =>
-      prevEntries.map((entry) => {
-        if (entry.id === id) {
-          let updatedValue: string | number = value;
-          if (type === 'number') {
-            updatedValue = parseFloat(value) || 0;
-          }
-          const updatedEntry = { ...entry, [name]: updatedValue };
-
-          // Recalculate if relevant fields change
-          if (name === 'wilayah' && currentHargaPerKg[updatedValue]) {
-            const newHargaPerKg = currentHargaPerKg[updatedValue];
-            const sub_total = updatedEntry.berat_kg * newHargaPerKg;
-            const total = sub_total + Number(updatedEntry.biaya_admin) + Number(updatedEntry.biaya_packaging) + Number(updatedEntry.biaya_transit);
-            return { ...updatedEntry, harga_per_kg: newHargaPerKg, sub_total, total };
-          } else if (['berat_kg', 'harga_per_kg', 'biaya_admin', 'biaya_packaging', 'biaya_transit'].includes(name)) {
-            const sub_total = updatedEntry.berat_kg * updatedEntry.harga_per_kg;
-            const total = sub_total + Number(updatedEntry.biaya_admin) + Number(updatedEntry.biaya_packaging) + Number(updatedEntry.biaya_transit);
-            return { ...updatedEntry, sub_total, total };
-          }
-          return updatedEntry;
+    const { name, value } = e.target;
+    
+    setAwbEntries(prev => prev.map(entry => {
+      if (entry.id === id) {
+        const updatedEntry = { ...entry, [name]: value };
+        
+        // Jika yang diubah adalah wilayah, update harga dan biaya transit
+        if (name === 'wilayah') {
+          const newPrice = getPriceByArea(value);
+          const transitFee = getTransitFee(value);
+          updatedEntry.harga_per_kg = newPrice;
+          updatedEntry.biaya_transit = transitFee;
+          updatedEntry.sub_total = newPrice * (updatedEntry.berat_kg || 0);
+          updatedEntry.total = updatedEntry.sub_total + 
+                             (updatedEntry.biaya_admin || 0) + 
+                             (updatedEntry.biaya_packaging || 0) + 
+                             transitFee;
         }
-        return entry;
-      })
-    )
+        
+        return updatedEntry;
+      }
+      return entry;
+    }));
     setError("")
     setSuccess("")
   }
