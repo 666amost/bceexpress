@@ -110,39 +110,73 @@ const kotaWilayahJabodetabek = {
 }
 
 const agentListJabodetabek = [
-  "UDR CASH",
-  "SEA CASH",
-  "GLC UDR TRF",
-  "GLC SEA TRF",
-  "COD UDR",
-  "COD SEA",
-  "KMY UDR TRF",
-  "KMY SEA TRF",
-  "KARTINI KIKI",
-  "DUTA GARDEN FRENITA",
-  "FELLISIA PORIS EX 3",
-  "OTTY OFFICIAL",
-  "CITRA 3 RENY",
-  "HENDI",
-  "PRALITA",
-  "SALIM",
-  "ISKANDAR",
-  "IMAM",
-  "DONI",
-  "HERFAN",
-  "EZZA",
-  "YANDRI",
-  "DIKY",
-  "YOS",
-  "INDAH SUSHI TIME",
+  "555 in2 PKP",
+  "BELINYU AGEN",
+  "KOLIM SLT",
+  "SUNGAILIAT AGEN",
+  "TOBOALI (ABING)",
+  "KOBA (ABING)",
+  "JEBUS (MARETTA)",
+  "JEBUS (ROBI SAFARI)",
+  "MENTOK (LILY)",
+  "ACHUANG KOBA",
+  "BCE TONI WEN",
+  "7FUN SLT",
+  "ASIONG SAUCU",
+  "AFUK BOM2 SAUCU",
+  "TONI SAUCU",
+  "AFO SAUCU",
+  "KEN KEN SAUCU",
+  "ADI BOB SAUCU",
+  "AFEN SAUCU",
+  "AHEN SAUCU",
+  "AKIUNG SAUCU",
+  "ALIM SAUCU",
+  "ALIONG SAUCU",
+  "APHING SAUCU",
+  "ATER SAUCU",
+  "BULL BULL SAUCU",
+  "CHANDRA SAUCU",
+  "DANIEL SAUCU",
+  "DEDI PEN SAUCU",
+  "EDO SAUCU",
+  "HENDRA ABOY SAUCU",
+  "NYUNNYUN SAUCU",
+  "RIO SAUCU",
+  "YOPY SAUCU",
+  "ACN SNACK",
+  "ACS SNACK",
+  "ADOK RUMAH MAKAN",
+  "JI FUN MESU",
+  "BE YOU",
+  "BEST DURIAN",
+  "BOM BOM BUAH",
+  "TOKO AGUNG",
+  "AINY OTAK OTAK",
+  "APO SPX SLT",
+  "AFUI SPX P3",
+  "ASUN OTAK OTAK",
+  "BANGKA CITRA SNACK",
+  "BANGKA BULIONG SNACK",
+  "BILLY JNE",
+  "TOKO BINTANG 5",
+  "CENTRAL FOOD",
   "CENTRAL NURSERY BANGKA",
-  "MAMAPIA",
-  "AMELIA PEDINDANG",
-  "HENDRY LIMIA",
-  "JESS DOT",
-  "SEPIRING RASA BASO",
-  "CHRISTINE PADEMANGAN",
-  "Amertha / Holai Resto"
+  "CHIKA",
+  "GLORIA MOTOR",
+  "HELDA ASIAT",
+  "HANS KOKO DURIAN",
+  "KIM NYUN AGEN",
+  "AFAT SUBUR",
+  "MR ADOX",
+  "PEMPEK KOKO LINGGAU",
+  "PEMPEK SUMBER RASA",
+  "PEMPEK WONG KITO",
+  "RAJAWALI (AKHIONG)",
+  "THEW FU CAU AWEN",
+  "THEW FU CAU PAULUS",
+  "COD UDARA",
+  "COD LAUT"
 ]
 
 const metodePembayaran = ["cash", "transfer", "cod"]
@@ -172,7 +206,11 @@ function getPriceByArea(wilayah: string): number {
     } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
       price = 29000;
     } else if (wilayah.includes('UTARA')) {
-      price = 30000;
+      if (wilayah.includes('KOJA')) {
+        price = 30000;
+      } else {
+        price = 27000;
+      }
     }
   }
   // Harga untuk wilayah Tangerang
@@ -271,31 +309,41 @@ function getTransitFee(wilayah: string): number {
 }
 
 export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: BangkaAwbFormProps) {
+  const defaultFormData = {
+    awb_no: "",
+    awb_date: new Date().toISOString().slice(0, 10),
+    kirim_via: "",
+    kota_tujuan: "",
+    kecamatan: "",
+    metode_pembayaran: "",
+    agent_customer: "",
+    nama_pengirim: "",
+    nomor_pengirim: "",
+    nama_penerima: "",
+    nomor_penerima: "",
+    alamat_penerima: "",
+    coli: 1,
+    berat_kg: 1,
+    harga_per_kg: 0,
+    sub_total: 0,
+    biaya_admin: 0,
+    biaya_packaging: 0,
+    biaya_transit: 0,
+    total: 0,
+    isi_barang: "",
+  };
+
   const [form, setForm] = useState(
-    initialData || {
-      awb_no: "",
-      awb_date: new Date().toISOString().slice(0, 10),
-      kirim_via: "",
-      kota_tujuan: "",
-      kecamatan: "",
-      metode_pembayaran: "",
-      agent_customer: "",
-      nama_pengirim: "",
-      nomor_pengirim: "",
-      nama_penerima: "",
-      nomor_penerima: "",
-      alamat_penerima: "",
-      coli: 1,
-      berat_kg: 1,
-      harga_per_kg: 0,
-      sub_total: 0,
-      biaya_admin: 0,
-      biaya_packaging: 0,
-      biaya_transit: 0,
-      total: 0,
-      isi_barang: "",
-    },
-  )
+    initialData ? {
+      ...defaultFormData,
+      ...initialData,
+      kirim_via: initialData.kirim_via || "",
+      kota_tujuan: initialData.kota_tujuan || "",
+      kecamatan: initialData.kecamatan || "",
+      metode_pembayaran: initialData.metode_pembayaran || "",
+      agent_customer: initialData.agent_customer || "",
+    } : defaultFormData
+  );
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showPrintPreview, setShowPrintPreview] = useState(false)
@@ -336,7 +384,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       // Logika harga khusus Jakarta Utara
       if (kotaTujuan === 'JAKARTA UTARA') {
         if ([
-          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas'
+          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja'
         ].includes(kecamatan)) {
           harga = 30000;
         } else if ([

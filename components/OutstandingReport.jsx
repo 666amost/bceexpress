@@ -5,6 +5,76 @@ import { supabaseClient } from "../lib/auth"
 import { FaDownload, FaPrint } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
+const agentListBangka = [
+  "555 in2 PKP",
+  "BELINYU AGEN",
+  "KOLIM SLT",
+  "SUNGAILIAT AGEN",
+  "TOBOALI (ABING)",
+  "KOBA (ABING)",
+  "JEBUS (MARETTA)",
+  "JEBUS (ROBI SAFARI)",
+  "MENTOK (LILY)",
+  "ACHUANG KOBA",
+  "BCE TONI WEN",
+  "7FUN SLT",
+  "ASIONG SAUCU",
+  "AFUK BOM2 SAUCU",
+  "TONI SAUCU",
+  "AFO SAUCU",
+  "KEN KEN SAUCU",
+  "ADI BOB SAUCU",
+  "AFEN SAUCU",
+  "AHEN SAUCU",
+  "AKIUNG SAUCU",
+  "ALIM SAUCU",
+  "ALIONG SAUCU",
+  "APHING SAUCU",
+  "ATER SAUCU",
+  "BULL BULL SAUCU",
+  "CHANDRA SAUCU",
+  "DANIEL SAUCU",
+  "DEDI PEN SAUCU",
+  "EDO SAUCU",
+  "HENDRA ABOY SAUCU",
+  "NYUNNYUN SAUCU",
+  "RIO SAUCU",
+  "YOPY SAUCU",
+  "ACN SNACK",
+  "ACS SNACK",
+  "ADOK RUMAH MAKAN",
+  "JI FUN MESU",
+  "BE YOU",
+  "BEST DURIAN",
+  "BOM BOM BUAH",
+  "TOKO AGUNG",
+  "AINY OTAK OTAK",
+  "APO SPX SLT",
+  "AFUI SPX P3",
+  "ASUN OTAK OTAK",
+  "BANGKA CITRA SNACK",
+  "BANGKA BULIONG SNACK",
+  "BILLY JNE",
+  "TOKO BINTANG 5",
+  "CENTRAL FOOD",
+  "CENTRAL NURSERY BANGKA",
+  "CHIKA",
+  "GLORIA MOTOR",
+  "HELDA ASIAT",
+  "HANS KOKO DURIAN",
+  "KIM NYUN AGEN",
+  "AFAT SUBUR",
+  "MR ADOX",
+  "PEMPEK KOKO LINGGAU",
+  "PEMPEK SUMBER RASA",
+  "PEMPEK WONG KITO",
+  "RAJAWALI (AKHIONG)",
+  "THEW FU CAU AWEN",
+  "THEW FU CAU PAULUS",
+  "COD UDARA",
+  "COD LAUT"
+];
+
 const agentListTanjungPandan = [
   "COD",
   "TRANSFER",
@@ -24,7 +94,7 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
+  const currentAgentList = userRole === 'cabang' ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) : agentList;
 
   useEffect(() => {
     fetchAgents()

@@ -20,7 +20,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const kotaTujuanOptionsFinal = userRole === 'cabang' ? ["jakarta", "tangerang", "bekasi", "depok", "bogor"] : ["bangka", "kalimantan barat", "belitung", "bali"];
+  const kotaTujuanOptionsFinal = userRole === 'cabang' ? branchOrigin === 'bangka' ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"] : ["jakarta", "tangerang", "bekasi", "depok", "bogor"] : ["bangka", "kalimantan barat", "belitung", "bali"];
 
   // Fungsi untuk fetch data dengan filter
   async function fetchRecapData() {

@@ -16,7 +16,77 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [error, setError] = useState("")
 
   const agentList = userRole === 'cabang'
-    ? ["COD", "TRANSFER", "CASH", "Wijaya Crab"]
+    ? branchOrigin === 'bangka' 
+        ? [
+            "555 in2 PKP",
+            "BELINYU AGEN",
+            "KOLIM SLT",
+            "SUNGAILIAT AGEN",
+            "TOBOALI (ABING)",
+            "KOBA (ABING)",
+            "JEBUS (MARETTA)",
+            "JEBUS (ROBI SAFARI)",
+            "MENTOK (LILY)",
+            "ACHUANG KOBA",
+            "BCE TONI WEN",
+            "7FUN SLT",
+            "ASIONG SAUCU",
+            "AFUK BOM2 SAUCU",
+            "TONI SAUCU",
+            "AFO SAUCU",
+            "KEN KEN SAUCU",
+            "ADI BOB SAUCU",
+            "AFEN SAUCU",
+            "AHEN SAUCU",
+            "AKIUNG SAUCU",
+            "ALIM SAUCU",
+            "ALIONG SAUCU",
+            "APHING SAUCU",
+            "ATER SAUCU",
+            "BULL BULL SAUCU",
+            "CHANDRA SAUCU",
+            "DANIEL SAUCU",
+            "DEDI PEN SAUCU",
+            "EDO SAUCU",
+            "HENDRA ABOY SAUCU",
+            "NYUNNYUN SAUCU",
+            "RIO SAUCU",
+            "YOPY SAUCU",
+            "ACN SNACK",
+            "ACS SNACK",
+            "ADOK RUMAH MAKAN",
+            "JI FUN MESU",
+            "BE YOU",
+            "BEST DURIAN",
+            "BOM BOM BUAH",
+            "TOKO AGUNG",
+            "AINY OTAK OTAK",
+            "APO SPX SLT",
+            "AFUI SPX P3",
+            "ASUN OTAK OTAK",
+            "BANGKA CITRA SNACK",
+            "BANGKA BULIONG SNACK",
+            "BILLY JNE",
+            "TOKO BINTANG 5",
+            "CENTRAL FOOD",
+            "CENTRAL NURSERY BANGKA",
+            "CHIKA",
+            "GLORIA MOTOR",
+            "HELDA ASIAT",
+            "HANS KOKO DURIAN",
+            "KIM NYUN AGEN",
+            "AFAT SUBUR",
+            "MR ADOX",
+            "PEMPEK KOKO LINGGAU",
+            "PEMPEK SUMBER RASA",
+            "PEMPEK WONG KITO",
+            "RAJAWALI (AKHIONG)",
+            "THEW FU CAU AWEN",
+            "THEW FU CAU PAULUS",
+            "COD UDARA",
+            "COD LAUT"
+          ]
+        : ["COD", "TRANSFER", "CASH", "Wijaya Crab"]
     : [
       "GLC COD UDR",
       "GLC COD DRT",
@@ -54,16 +124,34 @@ export default function DailyReport({ userRole, branchOrigin }) {
       "CHRISTINE PADEMANGAN"
     ];
   const kotaTujuan = userRole === 'cabang'
-    ? ["jakarta", "tangerang", "bekasi", "depok", "bogor"]
+    ? branchOrigin === 'bangka' 
+        ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"]
+        : ["jakarta", "tangerang", "bekasi", "depok", "bogor"]
     : ["bangka", "kalimantan barat", "belitung", "bali"];
   const kotaWilayah = userRole === 'cabang'
-    ? {
-        jakarta: ["JKT"],
-        tangerang: ["TGT"],
-        bekasi: ["BKS"],
-        depok: ["DPK"],
-        bogor: ["BGR"]
-      }
+    ? branchOrigin === 'bangka' 
+        ? {
+            "JAKARTA BARAT": ["Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", "Taman sari", "Tambora"],
+            "JAKARTA PUSAT": ["Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang"],
+            "JAKARTA SELATAN": ["Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"],
+            "JAKARTA TIMUR": ["Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"],
+            "JAKARTA UTARA": ["Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", "Kebon Bawang", "Papanggo", "Sungai Bambu", "Tj Priok", "Warakas", "Sunter Jaya", "Sunter Agung"],
+            "TANGERANG": ["Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"],
+            "TANGERANG SELATAN": ["Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"],
+            "TANGERANG KABUPATEN": ["Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"],
+            "BEKASI KOTA": ["Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede", "pondokmelati", "Rawalumbu"],
+            "BEKASI KABUPATEN": ["Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat", "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia", "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"],
+            "DEPOK": ["Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung", "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"],
+            "BOGOR KOTA": ["Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"],
+            "BOGOR KABUPATEN": ["Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang", "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"]
+          }
+        : {
+            jakarta: ["JKT"],
+            tangerang: ["TGT"],
+            bekasi: ["BKS"],
+            depok: ["DPK"],
+            bogor: ["BGR"]
+          }
     : {
         bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
         "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],

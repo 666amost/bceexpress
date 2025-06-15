@@ -4,13 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { supabaseClient } from '../lib/auth';  // Ganti impor ini
 import { createStyledExcelWithHTML } from '../lib/excel-utils';
 
-const agentListTanjungPandan = [
-  "COD",
-  "TRANSFER",
-  "CASH",
-  "Wijaya Crab"
-];
-
 const SalesReport = ({ userRole, branchOrigin }) => {
   const [agent, setAgent] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -19,11 +12,131 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // Tambahkan state untuk daftar agen
   const [agentList, setAgentList] = useState([]);
 
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
+  const agentListBangka = [
+    "555 in2 PKP",
+    "BELINYU AGEN",
+    "KOLIM SLT",
+    "SUNGAILIAT AGEN",
+    "TOBOALI (ABING)",
+    "KOBA (ABING)",
+    "JEBUS (MARETTA)",
+    "JEBUS (ROBI SAFARI)",
+    "MENTOK (LILY)",
+    "ACHUANG KOBA",
+    "BCE TONI WEN",
+    "7FUN SLT",
+    "ASIONG SAUCU",
+    "AFUK BOM2 SAUCU",
+    "TONI SAUCU",
+    "AFO SAUCU",
+    "KEN KEN SAUCU",
+    "ADI BOB SAUCU",
+    "AFEN SAUCU",
+    "AHEN SAUCU",
+    "AKIUNG SAUCU",
+    "ALIM SAUCU",
+    "ALIONG SAUCU",
+    "APHING SAUCU",
+    "ATER SAUCU",
+    "BULL BULL SAUCU",
+    "CHANDRA SAUCU",
+    "DANIEL SAUCU",
+    "DEDI PEN SAUCU",
+    "EDO SAUCU",
+    "HENDRA ABOY SAUCU",
+    "NYUNNYUN SAUCU",
+    "RIO SAUCU",
+    "YOPY SAUCU",
+    "ACN SNACK",
+    "ACS SNACK",
+    "ADOK RUMAH MAKAN",
+    "JI FUN MESU",
+    "BE YOU",
+    "BEST DURIAN",
+    "BOM BOM BUAH",
+    "TOKO AGUNG",
+    "AINY OTAK OTAK",
+    "APO SPX SLT",
+    "AFUI SPX P3",
+    "ASUN OTAK OTAK",
+    "BANGKA CITRA SNACK",
+    "BANGKA BULIONG SNACK",
+    "BILLY JNE",
+    "TOKO BINTANG 5",
+    "CENTRAL FOOD",
+    "CENTRAL NURSERY BANGKA",
+    "CHIKA",
+    "GLORIA MOTOR",
+    "HELDA ASIAT",
+    "HANS KOKO DURIAN",
+    "KIM NYUN AGEN",
+    "AFAT SUBUR",
+    "MR ADOX",
+    "PEMPEK KOKO LINGGAU",
+    "PEMPEK SUMBER RASA",
+    "PEMPEK WONG KITO",
+    "RAJAWALI (AKHIONG)",
+    "THEW FU CAU AWEN",
+    "THEW FU CAU PAULUS",
+    "COD UDARA",
+    "COD LAUT"
+  ];
+
+  const agentListTanjungPandan = [
+    "COD",
+    "TRANSFER",
+    "CASH",
+    "Wijaya Crab"
+  ];
+
+  const agentListCentral = [
+    "GLC COD UDR",
+    "GLC COD DRT",
+    "OTTY OFFICIAL",
+    "UDR CASH",
+    "SEA CASH",
+    "GLC UDR TRF",
+    "GLC SEA TRF",
+    "COD UDR",
+    "COD SEA",
+    "KMY UDR TRF",
+    "KMY SEA TRF",
+    "KARTINI KIKI",
+    "DUTA GARDEN FRENITA",
+    "FELLISIA PORIS EX 3",
+    "CITRA 3 RENY",
+    "HENDI",
+    "PRALITA",
+    "SALIM",
+    "ISKANDAR",
+    "IMAM",
+    "DONI",
+    "HERFAN",
+    "EZZA",
+    "YANDRI",
+    "DIKY",
+    "YOS",
+    "INDAH SUSHI TIME",
+    "CENTRAL NURSERY BANGKA",
+    "MAMAPIA",
+    "AMELIA PEDINDANG",
+    "HENDRY LIMIA",
+    "JESS DOT",
+    "SEPIRING RASA BASO",
+    "CHRISTINE PADEMANGAN"
+  ];
+
+  const currentAgentList = userRole === 'cabang' 
+    ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) 
+    : agentListCentral;
+
+  const kotaTujuan = userRole === 'cabang'
+    ? branchOrigin === 'bangka' 
+        ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"]
+        : ["jakarta", "tangerang", "bekasi", "depok", "bogor"]
+    : ["bangka", "kalimantan barat", "belitung", "bali"];
 
   useEffect(() => {
     fetchAgents();

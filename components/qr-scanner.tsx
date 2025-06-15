@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -47,7 +47,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     getCurrentUser()
   }, [])
 
-  const updateShipmentStatus = async (awbNumber: string) => {
+  const updateShipmentStatus = useCallback(async (awbNumber: string) => {
     try {
       const currentDate = new Date().toISOString()
       const status = "out_for_delivery"
@@ -113,9 +113,9 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       // Silently handle update errors
       return false
     }
-  }
+  }, [currentUser])
 
-  const startScanning = async () => {
+  const startScanning = useCallback(async () => {
     try {
       const devices = await Html5Qrcode.getCameras()
       const backCamera = devices.find(device => device.label.toLowerCase().includes('back'))
@@ -199,9 +199,9 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       // Silently handle scanner start errors
       toast.error("Gagal memulai kamera. Silakan coba lagi.")
     }
-  }
+  }, [disableAutoUpdate, onScan, updateShipmentStatus])
 
-  const stopScanning = async () => {
+  const stopScanning = useCallback(async () => {
     if (scannerRef.current?.isScanning) {
       // Turn torch off before stopping scanner
       if (isTorchOn && torchFeatureRef.current) {
@@ -216,7 +216,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       await scannerRef.current.stop()
       setIsScanning(false)
     }
-  }
+  }, [isTorchOn])
 
   useEffect(() => {
     // Auto-start scanning when component mounts
@@ -225,7 +225,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     return () => {
       stopScanning()
     }
-  }, [])
+  }, [startScanning, stopScanning])
 
   return (
     <Card className="p-4">

@@ -59,6 +59,76 @@ const agentListTanjungPandan = [
   'CASH'
 ];
 
+const agentListBangka = [
+  "555 in2 PKP",
+  "BELINYU AGEN",
+  "KOLIM SLT",
+  "SUNGAILIAT AGEN",
+  "TOBOALI (ABING)",
+  "KOBA (ABING)",
+  "JEBUS (MARETTA)",
+  "JEBUS (ROBI SAFARI)",
+  "MENTOK (LILY)",
+  "ACHUANG KOBA",
+  "BCE TONI WEN",
+  "7FUN SLT",
+  "ASIONG SAUCU",
+  "AFUK BOM2 SAUCU",
+  "TONI SAUCU",
+  "AFO SAUCU",
+  "KEN KEN SAUCU",
+  "ADI BOB SAUCU",
+  "AFEN SAUCU",
+  "AHEN SAUCU",
+  "AKIUNG SAUCU",
+  "ALIM SAUCU",
+  "ALIONG SAUCU",
+  "APHING SAUCU",
+  "ATER SAUCU",
+  "BULL BULL SAUCU",
+  "CHANDRA SAUCU",
+  "DANIEL SAUCU",
+  "DEDI PEN SAUCU",
+  "EDO SAUCU",
+  "HENDRA ABOY SAUCU",
+  "NYUNNYUN SAUCU",
+  "RIO SAUCU",
+  "YOPY SAUCU",
+  "ACN SNACK",
+  "ACS SNACK",
+  "ADOK RUMAH MAKAN",
+  "JI FUN MESU",
+  "BE YOU",
+  "BEST DURIAN",
+  "BOM BOM BUAH",
+  "TOKO AGUNG",
+  "AINY OTAK OTAK",
+  "APO SPX SLT",
+  "AFUI SPX P3",
+  "ASUN OTAK OTAK",
+  "BANGKA CITRA SNACK",
+  "BANGKA BULIONG SNACK",
+  "BILLY JNE",
+  "TOKO BINTANG 5",
+  "CENTRAL FOOD",
+  "CENTRAL NURSERY BANGKA",
+  "CHIKA",
+  "GLORIA MOTOR",
+  "HELDA ASIAT",
+  "HANS KOKO DURIAN",
+  "KIM NYUN AGEN",
+  "AFAT SUBUR",
+  "MR ADOX",
+  "PEMPEK KOKO LINGGAU",
+  "PEMPEK SUMBER RASA",
+  "PEMPEK WONG KITO",
+  "RAJAWALI (AKHIONG)",
+  "THEW FU CAU AWEN",
+  "THEW FU CAU PAULUS",
+  "COD UDARA",
+  "COD LAUT"
+];
+
 const kotaTujuanPusat = ["bangka", "kalimantan barat", "belitung", "bali"];
 const kirimViaPusat = ["udara", "darat"];
 const metodePembayaranPusat = ["cash", "transfer", "cod"];
@@ -81,6 +151,102 @@ const kotaWilayahTanjungPandan = {
 const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"]; // Same as pusat for now
 const kirimViaTanjungPandan = ["udara", "darat"]; // Same as pusat for now
 const kotaTujuanTanjungPandan = Object.keys(kotaWilayahTanjungPandan);
+
+// Data spesifik untuk cabang Bangka (origin_branch = 'bangka')
+const kotaWilayahBangka = {
+  "JAKARTA BARAT": {
+    kecamatan: [
+      "Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan",
+      "Taman sari", "Tambora"
+    ],
+    harga: 27000
+  },
+  "JAKARTA PUSAT": {
+    kecamatan: [
+      "Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", 
+      "Sawah besar", "Senen", "Tanah abang"
+    ],
+    harga: 27000
+  },
+  "JAKARTA SELATAN": {
+    kecamatan: [
+      "Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", 
+      "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"
+    ],
+    harga: 29000
+  },
+  "JAKARTA TIMUR": {
+    kecamatan: [
+      "Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati",
+      "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"
+    ],
+    harga: 29000
+  },
+  "JAKARTA UTARA": {
+    kecamatan: [
+      "Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok"
+    ],
+    harga: 27000
+  },
+  "TANGERANG": {
+    kecamatan: [
+      "Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", 
+      "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"
+    ],
+    harga: 27000
+  },
+  "TANGERANG SELATAN": {
+    kecamatan: [
+      "Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"
+    ],
+    harga: 30000
+  },
+  "TANGERANG KABUPATEN": {
+    kecamatan: [
+      "Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", 
+      "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", 
+      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"
+    ],
+    harga: 35000
+  },
+  "BEKASI KOTA": {
+    kecamatan: [
+      "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara",
+      "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede",
+      "pondokmelati", "Rawalumbu"
+    ],
+    harga: 32000
+  },
+  "BEKASI KABUPATEN": {
+    kecamatan: [
+      "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat",
+      "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia",
+      "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"
+    ],
+    harga: 32000
+  },
+  "DEPOK": {
+    kecamatan: [
+      "Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung",
+      "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"
+    ],
+    harga: 35000
+  },
+  "BOGOR KOTA": {
+    kecamatan: [
+      "Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"
+    ],
+    harga: 35000
+  },
+  "BOGOR KABUPATEN": {
+    kecamatan: [
+      "Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", 
+      "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang",
+      "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"
+    ],
+    harga: 35000
+  }
+};
 
 interface ManifestData {
   id?: string;
@@ -123,9 +289,15 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
-  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
-  const currentKotaTujuan = userRole === 'cabang' ? kotaTujuanTanjungPandan : kotaTujuanPusat;
+  const currentAgentList = userRole === 'cabang' 
+    ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan)
+    : agentList;
+  const currentKotaWilayah = userRole === 'cabang' 
+    ? (branchOrigin === 'bangka' ? kotaWilayahBangka : kotaWilayahTanjungPandan) 
+    : kotaWilayahPusat;
+  const currentKotaTujuan = userRole === 'cabang' 
+    ? (branchOrigin === 'bangka' ? Object.keys(kotaWilayahBangka) : kotaTujuanTanjungPandan) 
+    : kotaTujuanPusat;
   const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimViaPusat;
   const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
@@ -601,7 +773,22 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
   const handleEditAwb = (item) => {
-    setSelectedItem(item);
+    setSelectedItem({
+      ...item,
+      kirim_via: item.kirim_via || "",
+      kota_tujuan: item.kota_tujuan || "",
+      wilayah: item.wilayah || "",
+      metode_pembayaran: item.metode_pembayaran || "",
+      agent_customer: item.agent_customer || "",
+      nomor_pengirim: item.nomor_pengirim || "",
+      nomor_penerima: item.nomor_penerima || "",
+      berat_kg: item.berat_kg || 0,
+      harga_per_kg: item.harga_per_kg || 0,
+      biaya_admin: item.biaya_admin || 0,
+      biaya_packaging: item.biaya_packaging || 0,
+      biaya_transit: item.biaya_transit || 0,
+      total: item.total || 0,
+    });
     setShowEditForm(true);
   }
 
@@ -745,7 +932,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   };
 
   if (showEditForm && selectedItem) {
-    const wilayahOptions = currentKotaWilayah[selectedItem.kota_tujuan] || [];
+    const wilayahOptions = currentKotaWilayah[selectedItem.kota_tujuan]?.kecamatan || currentKotaWilayah[selectedItem.kota_tujuan] || [];
 
     return (
       <div className="mt-6">
