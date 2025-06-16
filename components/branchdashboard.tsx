@@ -65,11 +65,12 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
 
         setIsLoading(true);
 
-        const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
+        const isCabangTable = userRole === 'cabang' || (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
+        const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
         
         let query = supabaseClient.from(targetTable).select('awb_no, awb_date, kota_tujuan, nama_penerima, agent_customer, wilayah, kirim_via');
         
-        if (userRole === 'cabang' && branchOrigin) {
+        if (isCabangTable && branchOrigin) {
           query = query.eq('origin_branch', branchOrigin);
         }
         

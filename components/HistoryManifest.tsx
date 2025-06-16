@@ -275,7 +275,26 @@ interface ManifestData {
   status_pelunasan?: string;
 }
 
-export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode: string, userRole: string, branchOrigin: string }) {
+type UserRole = 'admin' | 'cabang' | 'courier' | 'branch';
+
+interface HistoryManifestProps {
+  mode: string;
+  userRole: UserRole;
+  branchOrigin: string;
+}
+
+const canEdit = (role: UserRole): boolean => {
+  return role === 'admin' || role === 'cabang';
+};
+
+const canDelete = (role: UserRole): boolean => {
+  return role === 'admin';
+};
+
+export default function HistoryManifest({ mode, userRole, branchOrigin }: HistoryManifestProps) {
+  // DEBUG: log userRole dan branchOrigin
+  console.log('DEBUG userRole:', userRole, 'branchOrigin:', branchOrigin);
+
   const [data, setData] = useState<ManifestData[]>([])
   const [loading, setLoading] = useState(true)
   const [editData, setEditData] = useState<ManifestData | null>(null)
@@ -301,6 +320,10 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimViaPusat;
   const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
+  // Penentuan tabel yang benar (harus di sini, agar bisa diakses semua handler)
+  const isCabangTable = (userRole === 'cabang') || (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
+  const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
+
   useEffect(() => {
     if (selectedItem) {
       const sub_total = (parseFloat(String(selectedItem.berat_kg) || '0')) * (parseFloat(String(selectedItem.harga_per_kg) || '0'));
@@ -315,23 +338,18 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
   useEffect(() => {
     setLoading(true)
     let query;
-    
-    // Central users (admin, courier, branch pusat): use central tables without branch filtering
-    // Branch users (role 'cabang'): use branch tables with branch filtering
-    if (userRole === 'cabang') {
+    if (isCabangTable) {
       query = supabaseClient
         .from('manifest_cabang')
         .select('*')
         .eq('origin_branch', branchOrigin)
         .order('awb_date', { ascending: false });
     } else {
-      // Central users always query central table without any branch filtering
       query = supabaseClient
         .from('manifest')
         .select('*')
         .order('awb_date', { ascending: false });
     }
-    
     query.then(({ data }) => {
       setData(data || [])
       setLoading(false)
@@ -352,7 +370,6 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
 
   const handleEditSave = async () => {
     setSaving(true)
-    const targetTable = userRole === 'cabang' ? "manifest_cabang" : "manifest"
     await supabaseClient
       .from(targetTable)
       .update({ status_pelunasan: editStatus, potongan: editPotongan })
@@ -797,7 +814,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
     setSaving(true);
     try {
       const { error } = await supabaseClient
-        .from(userRole === 'cabang' ? "manifest_cabang" : "manifest")
+        .from(targetTable)
         .update({
           awb_no: selectedItem.awb_no,
           awb_date: selectedItem.awb_date,
@@ -827,7 +844,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
       } else {
         alert("Data berhasil diperbarui!");
         supabaseClient
-          .from(userRole === 'cabang' ? "manifest_cabang" : "manifest")
+          .from(targetTable)
           .select("*")
           .order("awb_date", { ascending: false })
           .then(({ data }) => {
@@ -1055,6 +1072,25 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
               />
             </div>
             <div>
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Coli</label>
+              <input
+                type="number"
+                value={selectedItem.coli || 0}
+                onChange={(e) => setSelectedItem({ ...selectedItem, coli: Number(e.target.value) })}
+                min={0}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Alamat Penerima</label>
+              <textarea
+                value={selectedItem.alamat_penerima || ''}
+                onChange={(e) => setSelectedItem({ ...selectedItem, alamat_penerima: e.target.value })}
+                rows={3}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+              />
+            </div>
+            <div>
               <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Metode Pembayaran</label>
               <select
                 name="metode_pembayaran"
@@ -1210,12 +1246,14 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                     <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.total}</td>
                     {mode === "pelunasan" && (
                       <td className="px-2 py-1 flex gap-2 whitespace-nowrap">
-                        <button
-                          className="bg-black dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600 text-xs px-2 py-1 rounded transition-colors"
-                          onClick={() => handleEditAwb(m)}
-                        >
-                          Edit
-                        </button>
+                        {canEdit(userRole) && (
+                          <button
+                            className="bg-black dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600 text-xs px-2 py-1 rounded transition-colors"
+                            onClick={() => handleEditAwb(m)}
+                          >
+                            Edit
+                          </button>
+                        )}
                         <button
                           className="bg-green-500 dark:bg-green-600 text-white hover:bg-green-600 dark:hover:bg-green-700 text-xs px-2 py-1 rounded transition-colors"
                           onClick={() => handlePrint(m)}
@@ -1228,13 +1266,12 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: { mode
                         >
                           PDF
                         </button>
-                        {(userRole === 'admin' || userRole === 'branch' || userRole === 'cabang') && (
+                        {canDelete(userRole) && (
                           <button
                             className="bg-red-500 dark:bg-red-600 text-white hover:bg-red-600 dark:hover:bg-red-700 text-xs px-2 py-1 rounded transition-colors"
                             onClick={async () => {
                               if (confirm(`Hapus resi ini (AWB: ${m.awb_no})? Karena ini akan menghapus permanen.`)) {
                                 try {
-                                  const targetTable = userRole === 'cabang' ? "manifest_cabang" : "manifest"
                                   const { error } = await supabaseClient
                                     .from(targetTable)
                                     .delete()
