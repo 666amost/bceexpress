@@ -433,9 +433,11 @@ export function LeaderDashboard() {
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-4 sm:p-6 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                BCE Express
-              </h1>
+              <a href="https://www.bcexp.id/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                  BCE Express
+                </h1>
+              </a>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Monitoring For Couriers BCE Express
               </p>
