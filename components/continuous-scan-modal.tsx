@@ -108,18 +108,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
       
       // Coba semua format AWB yang mungkin
       for (const awbFormat of awbsToCheck) {
-        // Cek di tabel manifest dulu
-        const { data: centralData, error: centralError } = await supabaseClient
-          .from("manifest")
-          .select("nama_penerima,alamat_penerima,nomor_penerima")
-          .ilike("awb_no", awbFormat)
-          .maybeSingle()
-
-        if (!centralError && centralData) {
-          return { ...centralData, manifest_source: "central" }
-        }
-
-        // Jika tidak ditemukan di manifest, cek di manifest_cabang
+        // 1. Cek di tabel manifest_cabang dulu
         const { data: branchData, error: branchError } = await supabaseClient
           .from("manifest_cabang")
           .select("nama_penerima,alamat_penerima,nomor_penerima")
@@ -128,6 +117,17 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
 
         if (!branchError && branchData) {
           return { ...branchData, manifest_source: "cabang" }
+        }
+
+        // 2. Jika tidak ditemukan di manifest_cabang, cek di manifest pusat
+        const { data: centralData, error: centralError } = await supabaseClient
+          .from("manifest")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", awbFormat)
+          .maybeSingle()
+
+        if (!centralError && centralData) {
+          return { ...centralData, manifest_source: "central" }
         }
       }
 
@@ -324,7 +324,9 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
   const handleQRScan = (result: string) => {
     if (!isProcessing) {
       const cleanAwb = result.trim().toUpperCase();
-      processAwb(cleanAwb)
+      setTimeout(() => {
+        processAwb(cleanAwb)
+      }, 300); // delay 300ms
     }
   }
 
