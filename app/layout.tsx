@@ -10,8 +10,24 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "BCE EXPRESS - Better Cargo Experience",
   description: "Track your shipments in real-time with BCE EXPRESS's advanced tracking system",
+  metadataBase: new URL('https://bcexp.id'),
   icons: {
     icon: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
+  manifest: "/manifest.json",
+  openGraph: {
+    title: "BCE EXPRESS - Better Cargo Experience",
+    description: "Track your shipments in real-time with BCE EXPRESS's advanced tracking system",
+    siteName: "BCE EXPRESS",
+    type: "website"
+  },
+  robots: {
+    index: true,
+    follow: true
+  },
+  verification: {
+    google: "YOUR-GOOGLE-VERIFICATION-ID" // Anda perlu mengganti ini dengan ID verifikasi Google Search Console
   },
   generator: 'v0.dev'
 }

@@ -1,21 +1,26 @@
 {
-  "name": "BCE Express",
+  "name": "BCE Express - Better Cargo Experience",
   "short_name": "BCE Express",
+  "description": "Track your shipments in real-time with BCE EXPRESS's advanced tracking system",
+  "start_url": "/",
   "icons": [
     {
-      "src": "/https://www.bcexp.id/favicon.ico/web-app-manifest-192x192.png",
+      "src": "/web-app-manifest-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     },
     {
-      "src": "/https://www.bcexp.id/favicon.ico/web-app-manifest-512x512.png",
+      "src": "/web-app-manifest-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
-  "display": "standalone"
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "prefer_related_applications": false
 }

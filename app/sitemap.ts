@@ -18,7 +18,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.8,
     },
-    // Rute internal lainnya telah dihapus sesuai permintaan
+    {
+      url: `${baseUrl}/track`,
+      lastModified: new Date(),
+      changeFrequency: 'always',
+      priority: 0.9,
+    }
   ]
 
   // Hanya mengembalikan rute statis publik
