@@ -5,7 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getCurrentUser, type UserSession } from "@/lib/auth"
-import { Loader2 } from "lucide-react"
+import { Loader } from "lucide-react"
 
 export function LeaderAuthGuard({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
@@ -21,7 +21,7 @@ export function LeaderAuthGuard({ children }: { children: React.ReactNode }) {
         return
       }
 
-      if (currentUser.role !== "leader" && currentUser.role !== "admin") {
+      if ((currentUser.role as string) !== "leader" && (currentUser.role as string) !== "admin" && (currentUser.role as string) !== "branch") {
         router.push("/admin")
         return
       }
@@ -36,7 +36,7 @@ export function LeaderAuthGuard({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }

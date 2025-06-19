@@ -56,7 +56,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
       let query;
-      if (userRole === 'cabang') {
+      if (userRole === 'cabang' || userRole === 'couriers') {
         query = supabaseClient
           .from("pelunasan_cabang")
           .select("*")
@@ -88,7 +88,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
       let query;
-      if (userRole === 'cabang') {
+      if (userRole === 'cabang' || userRole === 'couriers') {
         query = supabaseClient
           .from("manifest_cabang")
           .select("awb_no, awb_date, nama_pengirim, nama_penerima, total, buktimembayar, potongan, agent_customer")
@@ -134,7 +134,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
       let query;
-      if (userRole === 'cabang') {
+      if (userRole === 'cabang' || userRole === 'couriers') {
         query = supabaseClient
           .from("manifest_cabang")
           .select("agent_customer")
@@ -202,8 +202,8 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       // Process each selected row
       for (const row of selectedRows) {
         // Determine tables based on user role
-        const pelunasanTable = userRole === 'cabang' ? "pelunasan_cabang" : "pelunasan"
-        const manifestTable = userRole === 'cabang' ? "manifest_cabang" : "manifest"
+        const pelunasanTable = userRole === 'cabang' || userRole === 'couriers' ? "pelunasan_cabang" : "pelunasan"
+        const manifestTable = userRole === 'cabang' || userRole === 'couriers' ? "manifest_cabang" : "manifest"
         
         // 1. Insert into pelunasan table
         const pelunasanData: any = {
@@ -219,7 +219,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         }
         
         // Add origin_branch for branch users
-        if (userRole === 'cabang') {
+        if (userRole === 'cabang' || userRole === 'couriers') {
           pelunasanData.origin_branch = branchOrigin
         }
         

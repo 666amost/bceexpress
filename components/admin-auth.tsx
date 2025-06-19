@@ -37,7 +37,7 @@ export function AdminAuth() {
             .eq("id", session.user.id)
             .single()
 
-          if (userData?.role === "admin" || userData?.role === "leader") {
+          if (userData?.role === "admin" || userData?.role === "leader" || userData?.role === "branch") {
             router.push("/admin/dashboard")
           } else {
             // If user is not admin/leader, sign them out so they can login as admin
@@ -109,8 +109,8 @@ export function AdminAuth() {
         return
       }
 
-      if (userData.role !== "admin" && userData.role !== "leader") {
-        setError("Access denied. Admin or Leader privileges required.")
+      if (userData.role !== "admin" && userData.role !== "leader" && userData.role !== "branch") {
+        setError("Access denied. Admin, Leader, or Branch privileges required.")
         await supabaseClient.auth.signOut()
         setIsLoading(false)
         return

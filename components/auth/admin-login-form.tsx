@@ -50,8 +50,8 @@ export function AdminLoginForm() {
         .eq("id", data.user.id)
         .single()
 
-      if (userError || userData?.role !== "admin") {
-        setError("Unauthorized access. This portal is for administrators only.")
+      if (userError || (userData?.role !== "admin" && userData?.role !== "leader" && userData?.role !== "branch")) {
+        setError("Unauthorized access. This portal is for administrators, leaders, and branch managers only.")
         await supabaseClient.auth.signOut()
         return
       }

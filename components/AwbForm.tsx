@@ -139,11 +139,11 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
   const [showPrintPreview, setShowPrintPreview] = useState(false) // State ini mungkin tidak digunakan secara langsung untuk pencetakan iframe
   const printFrameRef = useRef<HTMLDivElement>(null) // Ref untuk div tersembunyi yang merender PrintLayout
   // Determine which data source to use based on userRole and branchOrigin
-  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
-  const currentHargaPerKg = userRole === 'cabang' ? hargaPerKgTanjungPandan : hargaPerKg;
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
-  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaran;
-  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimVia;
+  const currentKotaWilayah = userRole === 'cabang' || userRole === 'couriers' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
+  const currentHargaPerKg = userRole === 'cabang' || userRole === 'couriers' ? hargaPerKgTanjungPandan : hargaPerKg;
+  const currentAgentList = userRole === 'cabang' || userRole === 'couriers' ? agentListTanjungPandan : agentList;
+  const currentMetodePembayaran = userRole === 'cabang' || userRole === 'couriers' ? metodePembayaranTanjungPandan : metodePembayaran;
+  const currentKirimVia = userRole === 'cabang' || userRole === 'couriers' ? kirimViaTanjungPandan : kirimVia;
   const currentKotaTujuan = Object.keys(currentKotaWilayah);
 
   const wilayahOptions = useMemo(() => currentKotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan, currentKotaWilayah])
@@ -188,10 +188,10 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
     }
 
     // Determine the target table
-    const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
+    const targetTable = userRole === 'cabang' || userRole === 'couriers' ? 'manifest_cabang' : 'manifest';
 
     // Add origin_branch if inserting into manifest_cabang
-    const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
+    const dataToSave = userRole === 'cabang' || userRole === 'couriers' ? { ...form, origin_branch: branchOrigin } : form;
 
     try {
       if (isEditing && initialData?.awb_no) {
@@ -284,8 +284,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
     }
 
     try {
-      const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
-      const dataToSave = userRole === 'cabang' ? { ...form, origin_branch: branchOrigin } : form;
+      const targetTable = userRole === 'cabang' || userRole === 'couriers' ? 'manifest_cabang' : 'manifest';
+      const dataToSave = userRole === 'cabang' || userRole === 'couriers' ? { ...form, origin_branch: branchOrigin } : form;
 
       const { error: sbError } = await supabaseClient.from(targetTable).insert([dataToSave]);
       if (sbError) {

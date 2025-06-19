@@ -33,7 +33,16 @@ interface RecentAwbItem {
   nama_penerima?: string;
   agent_customer?: string;
   wilayah?: string;
+  kecamatan?: string;
   kirim_via?: string;
+}
+
+interface UserInfo {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  origin_branch?: string;
 }
 
 interface BranchDashboardProps {
@@ -50,10 +59,41 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
   const [activeChart, setActiveChart] = useState<'kota' | 'agent' | 'trend'>('kota');
   const [showBulkAwbForm, setShowBulkAwbForm] = useState(false);
   const [showAwbForm, setShowAwbForm] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   const { toast } = useToast();
 
   let delayed: boolean;
+
+  // Fetch user information
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+          const { data: userData } = await supabaseClient
+            .from('users')
+            .select('id, email, name, role, origin_branch')
+            .eq('id', user.id)
+            .single();
+          
+          if (userData) {
+            setUserInfo({
+              id: userData.id,
+              email: userData.email || user.email || '',
+              name: userData.name || 'Unknown User',
+              role: userData.role,
+              origin_branch: userData.origin_branch
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
 
   useEffect(() => {
     const fetchDashboardStats = async () => {
@@ -65,10 +105,18 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
 
         setIsLoading(true);
 
-        const isCabangTable = userRole === 'cabang' || (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
+        const isCabangTable = userRole === 'cabang' || 
+                             (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) ||
+                             (userRole === 'couriers' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
         const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
         
-        let query = supabaseClient.from(targetTable).select('awb_no, awb_date, kota_tujuan, nama_penerima, agent_customer, wilayah, kirim_via');
+        // Pilih field berdasarkan cabang
+        let selectFields = 'awb_no, awb_date, kota_tujuan, nama_penerima, agent_customer, wilayah, kirim_via';
+        if (branchOrigin === 'bangka') {
+          selectFields = 'awb_no, awb_date, kota_tujuan, nama_penerima, agent_customer, kecamatan, kirim_via';
+        }
+        
+        let query = supabaseClient.from(targetTable).select(selectFields);
         
         if (isCabangTable && branchOrigin) {
           query = query.eq('origin_branch', branchOrigin);
@@ -89,7 +137,16 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           
           const uniqueAWB = Array.from(new Set(manifestData.map(item => item.awb_no).filter(Boolean))).length;
           const uniqueAgents = Array.from(new Set(manifestData.map(item => item.agent_customer).filter(Boolean))).length;
-          const uniqueWilayah = Array.from(new Set(manifestData.map(item => item.wilayah).filter(Boolean))).length;
+          
+          // Perhitungan total wilayah berdasarkan cabang
+          let uniqueWilayah = 0;
+          if (branchOrigin === 'bangka') {
+            // Untuk cabang bangka, gunakan field kecamatan
+            uniqueWilayah = Array.from(new Set(manifestData.map(item => item.kecamatan).filter(Boolean))).length;
+          } else {
+            // Untuk cabang lain, gunakan field wilayah
+            uniqueWilayah = Array.from(new Set(manifestData.map(item => item.wilayah).filter(Boolean))).length;
+          }
           
           const manifestDataWithDate = manifestData.filter(item => item.awb_date);
 
@@ -236,6 +293,29 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
+      {/* User Info Section */}
+      {userInfo && (
+        <div className="mb-6 bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Selamat Datang, {userInfo.name}!
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <Badge variant="outline" className="text-xs">
+                  {userInfo.email}
+                </Badge>
+                {userInfo.origin_branch && (
+                  <Badge variant="outline" className="text-xs">
+                    {userInfo.origin_branch.replace(/_/g, ' ').toUpperCase()}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tombol Tambahkan Resi */}
       <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center mb-4 gap-2">
         <Button
@@ -474,7 +554,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                           legend: {
                             position: 'top' as const,
                             labels: {
-                              color: userRole === 'cabang' ? '#E5E7EB' : '#1F2937',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#E5E7EB' : '#1F2937',
                             }
                           },
                           title: {
@@ -498,17 +578,17 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                         scales: {
                           x: {
                             ticks: {
-                              color: userRole === 'cabang' ? '#D1D5DB' : '#4B5563',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#D1D5DB' : '#4B5563',
                             },
                           },
                           y: {
                             beginAtZero: true,
                             ticks: {
                               precision: 0,
-                              color: userRole === 'cabang' ? '#D1D5DB' : '#4B5563',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#D1D5DB' : '#4B5563',
                             },
                             grid: {
-                               color: userRole === 'cabang' ? 'rgba(107, 114, 128, 0.3)' : 'rgba(229, 231, 235, 0.8)',
+                               color: userRole === 'cabang' || userRole === 'couriers' ? 'rgba(107, 114, 128, 0.3)' : 'rgba(229, 231, 235, 0.8)',
                             }
                           },
                         },
@@ -585,7 +665,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                           legend: {
                             position: 'top' as const,
                             labels: {
-                              color: userRole === 'cabang' ? '#E5E7EB' : '#1F2937',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#E5E7EB' : '#1F2937',
                             }
                           },
                           title: {
@@ -610,7 +690,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                           x: {
                             stacked: true,
                             ticks: {
-                              color: userRole === 'cabang' ? '#D1D5DB' : '#4B5563',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#D1D5DB' : '#4B5563',
                             },
                           },
                           y: {
@@ -618,10 +698,10 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                             beginAtZero: true,
                             ticks: {
                               precision: 0,
-                              color: userRole === 'cabang' ? '#D1D5DB' : '#4B5563',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? '#D1D5DB' : '#4B5563',
                             },
                             grid: {
-                              color: userRole === 'cabang' ? 'rgba(107, 114, 128, 0.3)' : 'rgba(229, 231, 235, 0.8)',
+                              color: userRole === 'cabang' || userRole === 'couriers' ? 'rgba(107, 114, 128, 0.3)' : 'rgba(229, 231, 235, 0.8)',
                             }
                           },
                         },

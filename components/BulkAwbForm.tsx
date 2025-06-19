@@ -226,11 +226,11 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
   const allPrintsContainerRef = useRef<HTMLDivElement>(null);
 
   // Determine which data source to use based on userRole
-  const currentKotaWilayah = userRole === 'cabang' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
-  const currentHargaPerKg = userRole === 'cabang' ? hargaPerKgTanjungPandan : hargaPerKg;
-  const currentAgentList = userRole === 'cabang' ? agentListTanjungPandan : agentList;
-  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaran;
-  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimVia;
+  const currentKotaWilayah = userRole === 'cabang' || userRole === 'couriers' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
+  const currentHargaPerKg = userRole === 'cabang' || userRole === 'couriers' ? hargaPerKgTanjungPandan : hargaPerKg;
+  const currentAgentList = userRole === 'cabang' || userRole === 'couriers' ? agentListTanjungPandan : agentList;
+  const currentMetodePembayaran = userRole === 'cabang' || userRole === 'couriers' ? metodePembayaranTanjungPandan : metodePembayaran;
+  const currentKirimVia = userRole === 'cabang' || userRole === 'couriers' ? kirimViaTanjungPandan : kirimVia;
   const currentKotaTujuan = Object.keys(currentKotaWilayah);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -330,7 +330,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
       }
     }
 
-    const targetTable = userRole === 'cabang' ? 'manifest_cabang' : 'manifest';
+    const targetTable = userRole === 'cabang' || userRole === 'couriers' ? 'manifest_cabang' : 'manifest';
 
     try {
       const recordsToInsert = awbEntries.map(entry => ({
@@ -342,7 +342,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         nama_pengirim: templateForm.nama_pengirim,
         nomor_pengirim: templateForm.nomor_pengirim,
         isi_barang: entry.isi_barang || "",
-        origin_branch: userRole === 'cabang' ? branchOrigin : null,
+        origin_branch: userRole === 'cabang' || userRole === 'couriers' ? branchOrigin : null,
       }));
 
       // Remove the temporary 'id' field before inserting to Supabase

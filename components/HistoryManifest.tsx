@@ -275,7 +275,7 @@ interface ManifestData {
   status_pelunasan?: string;
 }
 
-type UserRole = 'admin' | 'cabang' | 'courier' | 'branch';
+type UserRole = 'admin' | 'cabang' | 'couriers' | 'branch';
 
 interface HistoryManifestProps {
   mode: string;
@@ -308,20 +308,22 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const currentAgentList = userRole === 'cabang' 
+  const currentAgentList = userRole === 'cabang' || userRole === 'couriers'
     ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan)
     : agentList;
-  const currentKotaWilayah = userRole === 'cabang' 
+  const currentKotaWilayah = userRole === 'cabang' || userRole === 'couriers'
     ? (branchOrigin === 'bangka' ? kotaWilayahBangka : kotaWilayahTanjungPandan) 
     : kotaWilayahPusat;
-  const currentKotaTujuan = userRole === 'cabang' 
+  const currentKotaTujuan = userRole === 'cabang' || userRole === 'couriers'
     ? (branchOrigin === 'bangka' ? Object.keys(kotaWilayahBangka) : kotaTujuanTanjungPandan) 
     : kotaTujuanPusat;
-  const currentKirimVia = userRole === 'cabang' ? kirimViaTanjungPandan : kirimViaPusat;
-  const currentMetodePembayaran = userRole === 'cabang' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
+  const currentKirimVia = userRole === 'cabang' || userRole === 'couriers' ? kirimViaTanjungPandan : kirimViaPusat;
+  const currentMetodePembayaran = userRole === 'cabang' || userRole === 'couriers' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
   // Penentuan tabel yang benar (harus di sini, agar bisa diakses semua handler)
-  const isCabangTable = (userRole === 'cabang') || (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
+  const isCabangTable = (userRole === 'cabang') || 
+                       (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) ||
+                       (userRole === 'couriers' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
   const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
 
   useEffect(() => {
@@ -1181,130 +1183,227 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
         <div ref={printFrameRef}>{printData && <PrintLayout data={printData} />}</div>
       </div>
 
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-gray-700 dark:text-gray-300">Search:</span>
-        <input
-          className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by AWB, customer, etc."
-        />
-      </div>
-      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-blue-600 dark:bg-blue-700 text-white">
-              <th className="px-2 py-2">No STTB</th>
-              <th className="px-2 py-2">Tgl STTB</th>
-              <th className="px-2 py-2">Kirim Via</th>
-              <th className="px-2 py-2">Tujuan</th>
-              <th className="px-2 py-2">Agen/Customer</th>
-              <th className="px-2 py-2">Bayar</th>
-              <th className="px-2 py-2">Pengirim</th>
-              <th className="px-2 py-2">Penerima</th>
-              <th className="px-2 py-2">Kg</th>
-              <th className="px-2 py-2">Isi Barang</th>
-              <th className="px-2 py-2">Total STTB</th>
-              {mode === "pelunasan" && <th className="px-2 py-2">Aksi</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
-                  Loading...
-                </td>
-              </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
-                  Belum ada data manifest.
-                </td>
-              </tr>
-            ) : (
-              data
-                .filter(
-                  (item) =>
-                    item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
-                    item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
-                    item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
-                    item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
-                    item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((m, idx) => (
-                  <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50 dark:even:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 transition-colors">
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_no}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_date}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kirim_via}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kota_tujuan}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.agent_customer}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.metode_pembayaran}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_pengirim}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_penerima}</td>
-                    <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.berat_kg}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.isi_barang || '-'}</td>
-                    <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.total}</td>
-                    {mode === "pelunasan" && (
-                      <td className="px-2 py-1 flex gap-2 whitespace-nowrap">
-                        {canEdit(userRole) && (
-                          <button
-                            className="bg-black dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600 text-xs px-2 py-1 rounded transition-colors"
-                            onClick={() => handleEditAwb(m)}
-                          >
-                            Edit
-                          </button>
-                        )}
-                        <button
-                          className="bg-green-500 dark:bg-green-600 text-white hover:bg-green-600 dark:hover:bg-green-700 text-xs px-2 py-1 rounded transition-colors"
-                          onClick={() => handlePrint(m)}
-                        >
-                          Print
-                        </button>
-                        <button
-                          className="bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-700 text-xs px-2 py-1 rounded transition-colors"
-                          onClick={() => handleDownloadPDF(m)}
-                        >
-                          PDF
-                        </button>
-                        {canDelete(userRole) && (
-                          <button
-                            className="bg-red-500 dark:bg-red-600 text-white hover:bg-red-600 dark:hover:bg-red-700 text-xs px-2 py-1 rounded transition-colors"
-                            onClick={async () => {
-                              if (confirm(`Hapus resi ini (AWB: ${m.awb_no})? Karena ini akan menghapus permanen.`)) {
-                                try {
-                                  const { error } = await supabaseClient
-                                    .from(targetTable)
-                                    .delete()
-                                    .eq("awb_no", m.awb_no);
-                                  if (error) {
-                                    alert("Gagal menghapus item: " + error.message);
-                                  } else {
-                                    setData(data.filter((item) => item.awb_no !== m.awb_no));
-                                    supabaseClient
-                                      .from(targetTable)
-                                      .select("*")
-                                      .order("awb_date", { ascending: false })
-                                      .then(({ data: freshData }) => {
-                                        setData(freshData || []);
-                                      });
-                                  }
-                                } catch (err) {
-                                  alert("Terjadi kesalahan saat menghapus item.");
-                                }
-                              }
-                            }}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </td>
-                    )}
+      {/* Sembunyikan search dan tabel untuk couriers */}
+      {userRole !== 'couriers' ? (
+        <>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-gray-700 dark:text-gray-300">Search:</span>
+            <input
+              className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by AWB, customer, etc."
+            />
+          </div>
+          <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-blue-600 dark:bg-blue-700 text-white">
+                  <th className="px-2 py-2">No STTB</th>
+                  <th className="px-2 py-2">Tgl STTB</th>
+                  <th className="px-2 py-2">Kirim Via</th>
+                  <th className="px-2 py-2">Tujuan</th>
+                  <th className="px-2 py-2">Agen/Customer</th>
+                  <th className="px-2 py-2">Bayar</th>
+                  <th className="px-2 py-2">Pengirim</th>
+                  <th className="px-2 py-2">Penerima</th>
+                  <th className="px-2 py-2">Kg</th>
+                  <th className="px-2 py-2">Isi Barang</th>
+                  <th className="px-2 py-2">Total STTB</th>
+                  {mode === "pelunasan" && <th className="px-2 py-2">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
+                      Loading...
+                    </td>
                   </tr>
-                ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                ) : data.length === 0 ? (
+                  <tr>
+                    <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
+                      Belum ada data manifest.
+                    </td>
+                  </tr>
+                ) : (
+                  data
+                    .filter(
+                      (item) =>
+                        item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
+                    )
+                    .map((m, idx) => (
+                      <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50 dark:even:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 transition-colors">
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_no}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_date}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kirim_via}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kota_tujuan}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.agent_customer}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.metode_pembayaran}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_pengirim}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_penerima}</td>
+                        <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.berat_kg}</td>
+                        <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.isi_barang || '-'}</td>
+                        <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.total}</td>
+                        {mode === "pelunasan" && (
+                          <td className="px-2 py-1 flex gap-2 whitespace-nowrap">
+                            {canEdit(userRole) && (
+                              <button
+                                className="bg-black dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600 text-xs px-2 py-1 rounded transition-colors"
+                                onClick={() => handleEditAwb(m)}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              className="bg-green-500 dark:bg-green-600 text-white hover:bg-green-600 dark:hover:bg-green-700 text-xs px-2 py-1 rounded transition-colors"
+                              onClick={() => handlePrint(m)}
+                            >
+                              Print
+                            </button>
+                            <button
+                              className="bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-700 text-xs px-2 py-1 rounded transition-colors"
+                              onClick={() => handleDownloadPDF(m)}
+                            >
+                              PDF
+                            </button>
+                            {canDelete(userRole) && (
+                              <button
+                                className="bg-red-500 dark:bg-red-600 text-white hover:bg-red-600 dark:hover:bg-red-700 text-xs px-2 py-1 rounded transition-colors"
+                                onClick={async () => {
+                                  if (confirm(`Hapus resi ini (AWB: ${m.awb_no})? Karena ini akan menghapus permanen.`)) {
+                                    try {
+                                      const { error } = await supabaseClient
+                                        .from(targetTable)
+                                        .delete()
+                                        .eq("awb_no", m.awb_no);
+                                      if (error) {
+                                        alert("Gagal menghapus item: " + error.message);
+                                      } else {
+                                        setData(data.filter((item) => item.awb_no !== m.awb_no));
+                                        supabaseClient
+                                          .from(targetTable)
+                                          .select("*")
+                                          .order("awb_date", { ascending: false })
+                                          .then(({ data: freshData }) => {
+                                            setData(freshData || []);
+                                          });
+                                      }
+                                    } catch (err) {
+                                      alert("Terjadi kesalahan saat menghapus item.");
+                                    }
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-gray-700 dark:text-gray-300">Cari AWB:</span>
+            <input
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 flex-1"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Masukkan nama Agen untuk mencari..."
+            />
+          </div>
+          
+          {/* Tabel hasil pencarian untuk couriers */}
+          {search && (
+            <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-blue-600 dark:bg-blue-700 text-white">
+                    <th className="px-2 py-2">No STTB</th>
+                    <th className="px-2 py-2">Tgl STTB</th>
+                    <th className="px-2 py-2">Kirim Via</th>
+                    <th className="px-2 py-2">Tujuan</th>
+                    <th className="px-2 py-2">Agen/Customer</th>
+                    <th className="px-2 py-2">Bayar</th>
+                    <th className="px-2 py-2">Pengirim</th>
+                    <th className="px-2 py-2">Penerima</th>
+                    <th className="px-2 py-2">Kg</th>
+                    <th className="px-2 py-2">Isi Barang</th>
+                    <th className="px-2 py-2">Total STTB</th>
+                    {mode === "pelunasan" && <th className="px-2 py-2">Aksi</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : data.length === 0 ? (
+                    <tr>
+                      <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
+                        Belum ada data manifest.
+                      </td>
+                    </tr>
+                  ) : (
+                    data
+                      .filter(
+                        (item) =>
+                          item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
+                      )
+                      .map((m, idx) => (
+                        <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50 dark:even:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 transition-colors">
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_no}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_date}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kirim_via}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.kota_tujuan}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.agent_customer}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.metode_pembayaran}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_pengirim}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.nama_penerima}</td>
+                          <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.berat_kg}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.isi_barang || '-'}</td>
+                          <td className="px-2 py-1 text-right text-gray-900 dark:text-gray-100">{m.total}</td>
+                          {mode === "pelunasan" && (
+                            <td className="px-2 py-1 flex gap-2 whitespace-nowrap">
+                              <button
+                                className="bg-green-500 dark:bg-green-600 text-white hover:bg-green-600 dark:hover:bg-green-700 text-xs px-2 py-1 rounded transition-colors"
+                                onClick={() => handlePrint(m)}
+                              >
+                                Print
+                              </button>
+                              <button
+                                className="bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-700 text-xs px-2 py-1 rounded transition-colors"
+                                onClick={() => handleDownloadPDF(m)}
+                              >
+                                PDF
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

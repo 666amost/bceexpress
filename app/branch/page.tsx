@@ -124,8 +124,8 @@ export default function BranchPage() {
                     onCancel={handleCancel}
                     initialData={selectedAwb}
                     isEditing={isEditing}
-                    userRole={userRole}
-                    branchOrigin={branchOrigin}
+                    userRole={userRole as any}
+                    branchOrigin={branchOrigin as any}
                   />
                 ) : (
                   <AwbForm 
@@ -133,28 +133,28 @@ export default function BranchPage() {
                     onCancel={handleCancel}
                     initialData={selectedAwb}
                     isEditing={isEditing}
-                    userRole={userRole}
-                    branchOrigin={branchOrigin}
+                    userRole={userRole as any}
+                    branchOrigin={branchOrigin as any}
                   />
                 )
               ) : (
                 <BranchDashboard 
-                  userRole={userRole}
-                  branchOrigin={branchOrigin}
+                  userRole={userRole as any}
+                  branchOrigin={branchOrigin as any}
                   onShowAwbForm={setShowAwbForm}
                 />
               )
             )}
             {selectedSubMenu === "search_manifest" && userRole && (
               <HistoryManifest mode="pelunasan" 
-                userRole={userRole}
+                userRole={userRole as any}
                 branchOrigin={branchOrigin || ''}
               />
             )}
             {selectedSubMenu === "pelunasan" && userRole && (
               userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
                 <PelunasanResi 
-                  userRole={userRole}
+                  userRole={userRole as any}
                   branchOrigin={branchOrigin || ''}
                 />
               ) : (
@@ -166,17 +166,17 @@ export default function BranchPage() {
         {selectedMenu === "report" && userRole && (
           userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
             <div className="py-6">
-              {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole} branchOrigin={branchOrigin || ''} />}
+              {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole as any} branchOrigin={branchOrigin || ''} />}
               {selectedSubMenu === "recap" && <RecapManifest 
-                userRole={userRole}
+                userRole={userRole as any}
                 branchOrigin={branchOrigin || ''}
               />}
               {selectedSubMenu === "outstanding" && <OutstandingReport 
-                userRole={userRole}
+                userRole={userRole as any}
                 branchOrigin={branchOrigin || ''}
               />}
               {selectedSubMenu === "sale" && <Salesreport 
-                userRole={userRole}
+                userRole={userRole as any}
                 branchOrigin={branchOrigin || ''}
               />}
             </div>
@@ -190,15 +190,15 @@ export default function BranchPage() {
             <BangkaBulkAwbForm
               onSuccess={handleSuccess}
               onCancel={handleCancel}
-              userRole={userRole}
-              branchOrigin={branchOrigin}
+              userRole={userRole as any}
+              branchOrigin={branchOrigin as any}
             />
           ) : (
             <BulkAwbForm
               onSuccess={handleSuccess}
               onCancel={handleCancel}
-              userRole={userRole}
-              branchOrigin={branchOrigin}
+              userRole={userRole as any}
+              branchOrigin={branchOrigin as any}
             />
           )
         )}

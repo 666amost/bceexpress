@@ -154,7 +154,7 @@ export const supabaseServerClient = createClient(formattedUrl, supabaseAnonKey, 
   }
 })
 
-export type UserRole = "courier" | "admin" | "customer"
+export type UserRole = "courier" | "admin" | "customer" | "branch"
 
 export interface UserSession {
   id: string
