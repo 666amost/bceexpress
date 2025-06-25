@@ -17,11 +17,13 @@ import { faCamera } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 interface ContinuousScanModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  prefillStatus?: string
 }
 
 interface ScannedItem {
@@ -31,13 +33,14 @@ interface ScannedItem {
   timestamp: Date
 }
 
-export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousScanModalProps) {
+export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus }: ContinuousScanModalProps) {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [showScanner, setShowScanner] = useState(false)
   const processedAwbsRef = useRef<string[]>([])
   const { toast } = useToast()
+  const router = useRouter()
 
   const playScanSound = (status: 'success' | 'error' | 'duplicate') => {
     const audio = new Audio(status === 'success' ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3');
@@ -287,6 +290,15 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
               title: "AWB Processed",
               description: `${awb} successfully added to today's assignments`,
             });
+
+            // If this is a delivered scan, redirect to update form
+            if (prefillStatus === 'delivered') {
+              // Close the modal first
+              onClose();
+              // Redirect to update form with pre-filled delivered status
+              router.push(`/courier/update?awb=${awb}&status=delivered`);
+              return; // Exit early to prevent further processing
+            }
           } else {
             status = 'error';
             message = result.message;
@@ -348,10 +360,13 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess }: ContinuousSc
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FontAwesomeIcon icon={faCamera} className="h-5 w-5" />
-            Continuous AWB Scanner
+            {prefillStatus === 'delivered' ? 'Delivered AWB Scanner' : 'Continuous AWB Scanner'}
           </DialogTitle>
           <DialogDescription>
-            Scan Resi Otomatis. Resi akan diproses dan ditambahkan ke daftar hari ini. ( jangan lupa STOP CAMERA untuk menghentikan proses)
+            {prefillStatus === 'delivered' 
+              ? 'Scan resi untuk langsung update status ke Delivered. Resi akan diarahkan ke form update dengan status Delivered yang sudah terisi.'
+              : 'Scan Resi Otomatis. Resi akan diproses dan ditambahkan ke daftar hari ini. ( jangan lupa STOP CAMERA untuk menghentikan proses)'
+            }
           </DialogDescription>
         </DialogHeader>
 

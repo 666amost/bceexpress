@@ -27,9 +27,9 @@ export const metadata: Metadata = {
     follow: true
   },
   verification: {
-    google: "YOUR-GOOGLE-VERIFICATION-ID" // Anda perlu mengganti ini dengan ID verifikasi Google Search Console
+    google: "AQQg35yUc-gZbo5n28AgkWJUVUIvFVCYTfvaHcvGc6g" // Anda perlu mengganti ini dengan ID verifikasi Google Search Console
   },
-  generator: 'v0.dev'
+  generator: 'amost-v0.1.0'
 }
 
 export default function RootLayout({

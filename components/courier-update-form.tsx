@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useRef, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,23 +23,15 @@ import type { ShipmentStatus } from "@/lib/db"
 import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 
-// Create a client component wrapper for the search params
-function CourierUpdateFormWithSearchParams() {
-  const [awbFromUrl, setAwbFromUrl] = useState("")
+function CourierUpdateFormComponent() {
+  const searchParams = useSearchParams()
+  const initialAwb = searchParams.get("awb") || ""
+  const initialStatus = searchParams.get("status") || ""
 
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    setAwbFromUrl(searchParams.get("awb") || "")
-  }, [])
-
-  return <CourierUpdateFormInner initialAwb={awbFromUrl} />
-}
-
-// The inner component that doesn't directly use useSearchParams
-function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const [awbNumber, setAwbNumber] = useState(initialAwb)
-  const [status, setStatus] = useState<ShipmentStatus | "">("")
+  const [status, setStatus] = useState<ShipmentStatus | "">(initialStatus as ShipmentStatus || "")
   const [location, setLocation] = useState("")
   const [notes, setNotes] = useState("")
   const [photo, setPhoto] = useState<File | null>(null)
@@ -75,13 +67,6 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     }
     getCurrentUser()
   }, [])
-
-  useEffect(() => {
-    if (initialAwb) {
-      setAwbNumber(initialAwb)
-      fetchShipmentDetails(initialAwb)
-    }
-  }, [initialAwb])
 
   const playBeep = () => {
     if (!beepTimeoutRef.current) {
@@ -198,65 +183,38 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
         })
       }
     } catch (err) {
-      // Silently handle fetch errors - user will see appropriate toast messages
+      if (err instanceof Error) {
+        toast.error("Gagal mengambil detail shipment", {
+          description: err.message,
+          duration: 3000,
+        })
+      }
     }
   }
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0]
-      
-      // Check if file is already small enough (under 1.5MB)
-      if (file.size <= 1.5 * 1024 * 1024) {
-        // Use original file if it's already under 1.5MB
-        setPhoto(file)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File terlalu besar", { description: "Ukuran file maksimal 5MB." })
+        return
+      }
+
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      }
+      try {
+        const compressedFile = await imageCompression(file, options)
+        setPhoto(compressedFile)
+
         const reader = new FileReader()
         reader.onload = (e) => {
           setPhotoPreview(e.target?.result as string)
         }
-        reader.readAsDataURL(file)
-        return
-      }
-
-      // Only compress if file is larger than 1.5MB
-      const options = { 
-        maxSizeMB: 1.5, 
-        maxWidthOrHeight: 2048, // Increased resolution
-        useWebWorker: true, 
-        quality: 0.9, // Increased quality from 0.85 to 0.9
-        initialQuality: 0.9 // Set initial quality higher
-      }
-      
-      try {
-        const compressedFile = await imageCompression(file, options)
-        
-        // Ensure compressed file is at least 1MB, if too small, use less compression
-        if (compressedFile.size < 1 * 1024 * 1024) {
-          const lessCompressedOptions = { 
-            maxSizeMB: 1.5, 
-            maxWidthOrHeight: 2560, // Even higher resolution
-            useWebWorker: true, 
-            quality: 0.95, // Higher quality
-            initialQuality: 0.95
-          }
-          const lessCompressedFile = await imageCompression(file, lessCompressedOptions)
-          setPhoto(lessCompressedFile)
-          
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            setPhotoPreview(e.target?.result as string)
-          }
-          reader.readAsDataURL(lessCompressedFile)
-        } else {
-          setPhoto(compressedFile)
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            setPhotoPreview(e.target?.result as string)
-          }
-          reader.readAsDataURL(compressedFile)
-        }
+        reader.readAsDataURL(compressedFile)
       } catch (error) {
-        // If compression fails, use original file
         setPhoto(file)
         const reader = new FileReader()
         reader.onload = (e) => {
@@ -295,6 +253,21 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
       // Geolocation not supported - silently handle
     }
   }
+  
+  useEffect(() => {
+    if (initialAwb) {
+      fetchShipmentDetails(initialAwb);
+    }
+  }, [initialAwb]);
+  
+  useEffect(() => {
+    if (initialStatus === 'delivered') {
+      setTimeout(() => {
+        getCurrentLocation();
+      }, 500);
+    }
+  }, [initialStatus]);
+
 
   const uploadImage = async (file: File, awbNumber: string): Promise<string | null> => {
     try {
@@ -460,40 +433,33 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
         const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
-        if (error) {
-          return false
-        }
-        return true
+        return !error
+      } else {
+        // Fallback to basic data if no manifest data found
+        const insertPromise = supabaseClient.from("shipments").upsert([
+          {
+            awb_number: awbNumber,
+            sender_name: "Auto Generated",
+            sender_address: "Auto Generated", 
+            sender_phone: "Auto Generated",
+            receiver_name: "Auto Generated",
+            receiver_address: "Auto Generated",
+            receiver_phone: "Auto Generated",
+            weight: 1,
+            dimensions: "10x10x10",
+            service_type: "Standard",
+            current_status: status as string,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ], { 
+          onConflict: 'awb_number',
+          ignoreDuplicates: false 
+        });
+        
+        const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        return !error
       }
-
-      // Fallback to basic auto-generated shipment
-      const insertPromise = supabaseClient.from("shipments").upsert([
-        {
-          awb_number: awbNumber,
-          sender_name: "Auto Generated",
-          sender_address: "Auto Generated",
-          sender_phone: "Auto Generated",
-          receiver_name: "Auto Generated",
-          receiver_address: "Auto Generated",
-          receiver_phone: "Auto Generated",
-          weight: 1,
-          dimensions: "10x10x10",
-          service_type: "Standard",
-          current_status: status as string,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ], { 
-        onConflict: 'awb_number',
-        ignoreDuplicates: false 
-      });
-
-      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
-
-      if (error) {
-        return false
-      }
-      return true
     } catch (error) {
       return false
     }
@@ -501,21 +467,16 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
   const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 8000)
-      );
-
-      const queryPromise = supabaseClient
+      const { data, error } = await supabaseClient
         .from("shipments")
         .select("awb_number")
         .eq("awb_number", awbNumber)
-        .maybeSingle();
-
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+        .maybeSingle()
 
       if (error) {
-        return false;
+        return false
       }
+
       return !!data
     } catch (error) {
       return false
@@ -532,51 +493,28 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
     longitude: number | null,
   ): Promise<boolean> => {
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Update timeout')), 12000)
-      );
-
-      // Update shipment status first with upsert for safety
-      const updatePromise = supabaseClient
-        .from("shipments")
-        .update({ current_status: status, updated_at: new Date().toISOString() })
-        .eq("awb_number", awbNumber);
-
-      const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as any;
-
-      if (updateError) {
-        return false;
-      }
-
-      let updatedNotes = notes || ""
-      if (!updatedNotes.includes(currentUser || "")) {
-        updatedNotes = updatedNotes ? `${updatedNotes} - Updated by ${currentUser}` : `Updated by ${currentUser}`
-      }
-
-      // Insert history record with conflict handling
+      const historyNotes = currentUser ? `Updated by ${currentUser}. ${notes || ""}` : notes || ""
+      
       const insertPromise = supabaseClient.from("shipment_history").insert([
         {
           awb_number: awbNumber,
           status,
           location,
-          notes: updatedNotes,
+          notes: historyNotes.trim(),
           photo_url: photoUrl,
           latitude,
           longitude,
           created_at: new Date().toISOString(),
         },
-      ]);
+      ])
 
-      const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
-
-      if (insertError) {
-        // Don't fail if it's just a duplicate entry
-        if (insertError.code === '23505') {
-          return true; // Duplicate entry, but operation was successful
-        }
-        return false;
-      }
-      return true
+      // Add timeout for history creation
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('History timeout')), 10000)
+      );
+      
+      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      return !error
     } catch (error) {
       return false
     }
@@ -585,105 +523,81 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setIsLoading(true)
 
+    // Basic validation
     if (!awbNumber || !status || !location) {
       setError("AWB number, status, and location are required")
-      setIsLoading(false)
       return
     }
 
+    if (status === "delivered" && !location) {
+      setError("Location is required for 'Delivered' status.")
+      return
+    }
+
+    setIsLoading(true)
+
+    // Operation timeout for the whole process
+    const operationTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Operation timeout')), 25000)
+    );
+
     try {
-      // Shorter timeout for mobile users
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Operation timeout')), 25000)
-      );
-
-      const shipmentExists = await Promise.race([
-        checkShipmentExists(awbNumber),
-        timeoutPromise
-      ]) as boolean;
-
-      if (!shipmentExists) {
-        // Try to create shipment from manifest first
-        const created = await Promise.race([
-          createShipmentFromManifest(awbNumber),
-          timeoutPromise
-        ]) as boolean;
-
-        if (!created) {
-          setError("Gagal membuat shipment. Silakan coba lagi.")
-          setIsLoading(false)
-          return
-        }
-      }
-
-      let photoUrl: string | null = null
-      if (photo) {
-        try {
-          photoUrl = await Promise.race([
-            uploadImage(photo, awbNumber),
-            timeoutPromise
-          ]) as string | null;
-        } catch (uploadError) {
-          // Continue without photo if upload fails
-          photoUrl = null;
-          toast.warning("Foto gagal diupload, tapi update status tetap dilanjutkan");
-        }
-      }
-
-      const result = await Promise.race([
-        addShipmentHistory(
-          awbNumber,
-          status,
-          location,
-          notes || null,
-          photoUrl,
-          gpsCoords?.lat || null,
-          gpsCoords?.lng || null,
-        ),
-        timeoutPromise
-      ]) as boolean;
-
-      if (result) {
-        setSuccess(true)
-        playBeep()
-
-        // Tambahkan logika trigger sync hanya jika status adalah "delivered"
-        if (status === "delivered") {
-          try {
-            const syncTimeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Sync timeout')), 8000)
-            );
-
-            const response = await Promise.race([
-              fetch(`/api/sync?awb_number=${awbNumber}`, {
-                method: 'GET',
-              }),
-              syncTimeoutPromise
-            ]) as Response;
-
-            if (response.ok) {
-              // Sync successful - silently handle
-              toast.success("Status diperbarui dan disinkronkan ke cabang.")
-            } else {
-              // Sync failed - show error toast
-              toast.error("Update sukses, tapi sinkronisasi gagal.")
+      await Promise.race([
+        (async () => {
+          let imageUrl: string | null = null
+          if (photo) {
+            imageUrl = await uploadImage(photo, awbNumber)
+            if (!imageUrl) {
+              setError("Gagal mengupload gambar. Silakan coba lagi.")
+              setIsLoading(false)
+              return
             }
-          } catch (syncError) {
-            // Sync error - silently handle
           }
-        }
 
-        // Tambahkan jeda singkat dan refresh router untuk memastikan data terbaru
-        setTimeout(() => {
-          router.refresh(); // Memaksa refresh data di halaman tujuan
-          router.push("/courier/dashboard");
-        }, 500); // Jeda 500ms untuk memungkinkan data Supabase konsisten
+          const shipmentExists = await checkShipmentExists(awbNumber)
+          if (!shipmentExists) {
+            const created = await createShipmentFromManifest(awbNumber)
+            if (!created) {
+              setError("Gagal membuat shipment baru. Silakan coba lagi.")
+              setIsLoading(false)
+              return
+            }
+          }
 
-      } else {
-        setError("Gagal mengupdate status shipment. Silakan coba lagi.")
-      }
+          const historyAdded = await addShipmentHistory(
+            awbNumber,
+            status,
+            location,
+            notes,
+            imageUrl,
+            gpsCoords?.lat || null,
+            gpsCoords?.lng || null,
+          )
+
+          if (!historyAdded) {
+            setError("Gagal menambahkan riwayat shipment. Silakan coba lagi.")
+            setIsLoading(false)
+            return
+          }
+
+          const { error: updateError } = await supabaseClient
+            .from("shipments")
+            .update({ current_status: status, updated_at: new Date().toISOString() })
+            .eq("awb_number", awbNumber)
+
+          if (updateError) {
+            setError("Gagal mengupdate status shipment. Silakan coba lagi.")
+            setIsLoading(false)
+            return
+          }
+
+          setSuccess(true)
+          playBeep()
+        })(),
+        operationTimeout
+      ]);
+
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation timeout') {
         setError("Operasi timeout. Periksa koneksi internet dan coba lagi.")
@@ -754,6 +668,14 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
             </Alert>
           )}
 
+          {initialStatus === 'delivered' && (
+            <Alert className="mb-4 sm:mb-6 border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
+              <AlertDescription className="text-green-700 dark:text-green-300 text-sm">
+                <strong>Quick Delivery Mode:</strong> Status telah dikunci ke "Delivered" dan GPS location akan otomatis diambil.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             <div>
               <div className="flex justify-between items-center mb-1.5">
@@ -776,8 +698,8 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
 
             <div>
               <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)}>
-                <SelectTrigger id="shipment-status" className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 h-10 sm:h-11 text-sm sm:text-base">
+              <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
+                <SelectTrigger id="shipment-status" className={`bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 h-10 sm:h-11 text-sm sm:text-base ${initialStatus === 'delivered' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <SelectValue placeholder="Select Status" className="text-gray-400 dark:text-gray-600" />
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
@@ -785,11 +707,17 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
                   <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
               </Select>
+              {initialStatus === 'delivered' && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Status dikunci dalam mode Quick Delivery</p>
+              )}
             </div>
 
             <div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-1.5 gap-2">
-                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Current Location</Label>
+                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">
+                   Current Location
+                   {initialStatus === 'delivered' && <span className="text-green-600 dark:text-green-400 ml-1">(Auto-filling GPS)</span>}
+                 </Label>
                  <Button type="button" onClick={getCurrentLocation} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm h-8 sm:h-9 px-3">
                   <FontAwesomeIcon icon={faMapPin} className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span>Get GPS</span>
@@ -797,11 +725,11 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
               </div>
               <Input
                 id="location"
-                placeholder="Enter location or use GPS"
+                placeholder={initialStatus === 'delivered' ? "GPS location will be auto-filled..." : "Enter location or use GPS"}
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11"
-                required={status === "delivered"} // Require location only for 'delivered' status
+                required={status === "delivered" && !gpsCoords} // Only require if delivered and no GPS coords
               />
               {gpsCoords && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -869,15 +797,15 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
               )}
             </div>
 
-            <Button type="submit" className="w-full font-bold py-3 sm:py-4 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600 text-sm sm:text-base" disabled={isLoading || (status === 'delivered' && !location)}>
+            <Button type="submit" className="w-full font-bold py-3 sm:py-4 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600 text-sm sm:text-base" disabled={isLoading || (status === 'delivered' && !location && !gpsCoords)}>
               {isLoading ? (
                  <><span className="animate-spin"><FontAwesomeIcon icon={faSpinner} className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /></span> Updating...</>
               ) : (
                 "Update Status"
               )}
             </Button>
-             {status === 'delivered' && !location && (
-                 <p className="text-sm text-red-500 mt-2 text-center">* Location is required for 'Delivered' status.</p>
+             {status === 'delivered' && !location && !gpsCoords && (
+                 <p className="text-sm text-red-500 mt-2 text-center">* Location is required for 'Delivered' status. Please wait for GPS or enter manually.</p>
              )}
           </form>
         </CardContent>
@@ -886,7 +814,14 @@ function CourierUpdateFormInner({ initialAwb = "" }: { initialAwb: string }) {
   )
 }
 
-// Export the wrapper component
 export function CourierUpdateForm() {
-  return <CourierUpdateFormWithSearchParams />
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <CourierUpdateFormComponent />
+    </Suspense>
+  )
 }

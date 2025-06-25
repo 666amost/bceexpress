@@ -118,6 +118,7 @@ export function CourierDashboard() {
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const [isContinuousScanOpen, setIsContinuousScanOpen] = useState(false)
+  const [isDeliveredScanOpen, setIsDeliveredScanOpen] = useState(false)
   const [totalBulkShipments, setTotalBulkShipments] = useState(0)
   const [pendingDeliveries, setPendingDeliveries] = useState(0)
   const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
@@ -559,6 +560,14 @@ export function CourierDashboard() {
     }
   }
 
+  const handleDeliveredScanSuccess = () => {
+    if (currentUser) {
+      debouncedRefresh(currentUser)
+      // Re-check delivery status after delivered scan
+      checkFirstDeliveryStatus(currentUser)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await supabaseClient.auth.signOut()
@@ -636,14 +645,24 @@ export function CourierDashboard() {
               <span className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white leading-none block">{totalBulkShipments}</span>
             </div>
             {totalBulkShipments > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkDetails(true)}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-              >
-                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkDetails(true)}
+                  className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
+                >
+                  <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDeliveredScanOpen(true)}
+                  className="h-8 px-3 text-xs font-bold border-green-300 text-green-700 hover:bg-green-100 dark:border-green-600 dark:text-green-300 dark:hover:bg-green-800/50"
+                >
+                  <CheckmarkIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> DLVD
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -729,6 +748,13 @@ export function CourierDashboard() {
         isOpen={isContinuousScanOpen}
         onClose={() => setIsContinuousScanOpen(false)}
         onSuccess={handleContinuousScanSuccess}
+      />
+
+      <ContinuousScanModal
+        isOpen={isDeliveredScanOpen}
+        onClose={() => setIsDeliveredScanOpen(false)}
+        onSuccess={handleDeliveredScanSuccess}
+        prefillStatus="delivered"
       />
 
       {/* Bulk Shipments Details Dialog */}

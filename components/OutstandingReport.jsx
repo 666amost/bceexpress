@@ -134,12 +134,15 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       // Central users: query central tables, Branch users: query branch tables with filtering
       let query;
       if (userRole === 'cabang') {
+        // For bangka branch use kecamatan, for tanjung_pandan use wilayah
+        const locationColumn = branchOrigin === 'bangka' ? 'kecamatan' : 'wilayah';
+        
         query = supabaseClient
           .from("manifest_cabang")
           .select(`
             awb_no,
             awb_date,
-            wilayah,
+            ${locationColumn},
             nama_pengirim,
             nama_penerima,
             total,
@@ -192,8 +195,10 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       const processedData = data.map(item => {
         const totalOngkir = (item.total || 0) + (item.biaya_admin || 0) + (item.biaya_packaging || 0) + (item.biaya_transit || 0)
 
-          return {
-            ...item,
+        return {
+          ...item,
+          // Normalize wilayah field - use kecamatan for bangka, wilayah for others
+          wilayah: userRole === 'cabang' && branchOrigin === 'bangka' ? item.kecamatan : item.wilayah,
           ongkir: item.total,
           kg: item.berat_kg || 0,
           adm: item.biaya_admin || 0,
