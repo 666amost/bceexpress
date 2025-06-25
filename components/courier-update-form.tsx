@@ -23,7 +23,6 @@ import type { ShipmentStatus } from "@/lib/db"
 import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
 
 function CourierUpdateFormComponent() {
   const searchParams = useSearchParams()
@@ -195,6 +194,13 @@ function CourierUpdateFormComponent() {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0]
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("File tidak valid", { description: "Hanya file gambar yang diperbolehkan." })
+        return
+      }
+      
       if (file.size > 5 * 1024 * 1024) {
         toast.error("File terlalu besar", { description: "Ukuran file maksimal 5MB." })
         return
@@ -205,20 +211,51 @@ function CourierUpdateFormComponent() {
         maxWidthOrHeight: 1920,
         useWebWorker: true,
       }
+      
       try {
         const compressedFile = await imageCompression(file, options)
+        
+        // Set photo first
         setPhoto(compressedFile)
-
+        
+        // Create preview
         const reader = new FileReader()
-        reader.onload = (e) => {
-          setPhotoPreview(e.target?.result as string)
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            setPhotoPreview(event.target.result as string)
+            toast.success("Foto berhasil dipilih", { 
+              description: `File: ${compressedFile.name} (${(compressedFile.size / 1024).toFixed(1)}KB)`,
+              duration: 2000
+            })
+          }
+        }
+        reader.onerror = () => {
+          toast.error("Gagal memuat preview foto")
+          setPhoto(null)
+          setPhotoPreview(null)
         }
         reader.readAsDataURL(compressedFile)
-      } catch (error) {
+        
+      } catch (compressionError) {
+        console.warn("Compression failed, using original file:", compressionError)
+        
+        // Fallback to original file if compression fails
         setPhoto(file)
+        
         const reader = new FileReader()
-        reader.onload = (e) => {
-          setPhotoPreview(e.target?.result as string)
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            setPhotoPreview(event.target.result as string)
+            toast.success("Foto berhasil dipilih", { 
+              description: `File: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`,
+              duration: 2000
+            })
+          }
+        }
+        reader.onerror = () => {
+          toast.error("Gagal memuat preview foto")
+          setPhoto(null)
+          setPhotoPreview(null)
         }
         reader.readAsDataURL(file)
       }
@@ -231,6 +268,7 @@ function CourierUpdateFormComponent() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+    toast.info("Foto dihapus", { duration: 1500 })
   }
 
   const getCurrentLocation = () => {
@@ -745,6 +783,7 @@ function CourierUpdateFormComponent() {
                   type="file"
                   id="delivery-photo"
                   accept="image/*"
+                  capture="environment"
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handlePhotoChange}
@@ -818,7 +857,7 @@ export function CourierUpdateForm() {
   return (
     <Suspense fallback={
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
       </div>
     }>
       <CourierUpdateFormComponent />
