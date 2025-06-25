@@ -195,69 +195,134 @@ function CourierUpdateFormComponent() {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0]
       
+      // Reset input value untuk memungkinkan select file yang sama
+      e.target.value = ''
+      
       // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error("File tidak valid", { description: "Hanya file gambar yang diperbolehkan." })
         return
       }
       
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File terlalu besar", { description: "Ukuran file maksimal 5MB." })
+      if (file.size > 10 * 1024 * 1024) { // Increased to 10MB for high resolution photos
+        toast.error("File terlalu besar", { description: "Ukuran file maksimal 10MB." })
         return
       }
 
-      const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
+      // Show loading toast
+      const loadingToast = toast.loading("Memproses foto...", { duration: 10000 })
+
+      // Adaptive compression based on file size and device capabilities
+      const getCompressionOptions = (fileSize: number) => {
+        if (fileSize > 5 * 1024 * 1024) { // > 5MB
+          return {
+            maxSizeMB: 1.5,
+            maxWidthOrHeight: 1600,
+            useWebWorker: false, // Disable web worker for better compatibility
+            initialQuality: 0.7,
+            alwaysKeepResolution: false
+          }
+        } else if (fileSize > 2 * 1024 * 1024) { // > 2MB
+          return {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: false,
+            initialQuality: 0.8,
+            alwaysKeepResolution: false
+          }
+        } else {
+          return {
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 2048,
+            useWebWorker: false,
+            initialQuality: 0.9,
+            alwaysKeepResolution: false
+          }
+        }
       }
-      
+
+      const processFile = (fileToProcess: File) => {
+        return new Promise<void>((resolve, reject) => {
+          const reader = new FileReader()
+          
+          reader.onload = (event) => {
+            if (event.target?.result) {
+              setPhoto(fileToProcess)
+              setPhotoPreview(event.target.result as string)
+              
+              toast.dismiss(loadingToast)
+              toast.success("Foto berhasil dipilih", { 
+                description: `File: ${fileToProcess.name} (${(fileToProcess.size / 1024).toFixed(1)}KB)`,
+                duration: 2000
+              })
+              resolve()
+            } else {
+              reject(new Error("Failed to read file"))
+            }
+          }
+          
+          reader.onerror = () => {
+            reject(new Error("FileReader error"))
+          }
+          
+          // Add timeout for FileReader
+          setTimeout(() => {
+            reject(new Error("FileReader timeout"))
+          }, 10000)
+          
+          reader.readAsDataURL(fileToProcess)
+        })
+      }
+
       try {
-        const compressedFile = await imageCompression(file, options)
+        const options = getCompressionOptions(file.size)
+        let processedFile: File
         
-        // Set photo first
-        setPhoto(compressedFile)
-        
-        // Create preview
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            setPhotoPreview(event.target.result as string)
-            toast.success("Foto berhasil dipilih", { 
-              description: `File: ${compressedFile.name} (${(compressedFile.size / 1024).toFixed(1)}KB)`,
-              duration: 2000
-            })
+        try {
+          // Try compression with retry mechanism
+          processedFile = await imageCompression(file, options)
+          
+          // Validate compressed file
+          if (!processedFile || processedFile.size === 0) {
+            throw new Error("Compression resulted in empty file")
+          }
+          
+        } catch (compressionError) {
+          console.warn("Compression failed, trying with reduced options:", compressionError)
+          
+          // Fallback compression with minimal settings
+          try {
+            const fallbackOptions = {
+              maxSizeMB: 2,
+              maxWidthOrHeight: 1280,
+              useWebWorker: false,
+              initialQuality: 0.6
+            }
+            processedFile = await imageCompression(file, fallbackOptions)
+            
+            if (!processedFile || processedFile.size === 0) {
+              throw new Error("Fallback compression failed")
+            }
+            
+          } catch (fallbackError) {
+            console.warn("All compression attempts failed, using original file:", fallbackError)
+            processedFile = file
           }
         }
-        reader.onerror = () => {
-          toast.error("Gagal memuat preview foto")
-          setPhoto(null)
-          setPhotoPreview(null)
-        }
-        reader.readAsDataURL(compressedFile)
         
-      } catch (compressionError) {
-        console.warn("Compression failed, using original file:", compressionError)
+        await processFile(processedFile)
         
-        // Fallback to original file if compression fails
-        setPhoto(file)
+      } catch (error) {
+        console.error("Photo processing error:", error)
+        toast.dismiss(loadingToast)
+        toast.error("Gagal memproses foto", { 
+          description: "Silakan coba lagi atau pilih foto lain",
+          duration: 3000
+        })
         
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            setPhotoPreview(event.target.result as string)
-            toast.success("Foto berhasil dipilih", { 
-              description: `File: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`,
-              duration: 2000
-            })
-          }
-        }
-        reader.onerror = () => {
-          toast.error("Gagal memuat preview foto")
-          setPhoto(null)
-          setPhotoPreview(null)
-        }
-        reader.readAsDataURL(file)
+        // Reset states
+        setPhoto(null)
+        setPhotoPreview(null)
       }
     }
   }
@@ -265,9 +330,16 @@ function CourierUpdateFormComponent() {
   const removePhoto = () => {
     setPhoto(null)
     setPhotoPreview(null)
+    
+    // Reset both input values
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+    const cameraInput = document.getElementById('delivery-photo-camera') as HTMLInputElement
+    if (cameraInput) {
+      cameraInput.value = ""
+    }
+    
     toast.info("Foto dihapus", { duration: 1500 })
   }
 
@@ -781,9 +853,16 @@ function CourierUpdateFormComponent() {
               <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 sm:p-6 text-center bg-gray-50 dark:bg-gray-800">
                 <input
                   type="file"
-                  id="delivery-photo"
+                  id="delivery-photo-camera"
                   accept="image/*"
                   capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+                <input
+                  type="file"
+                  id="delivery-photo-gallery"
+                  accept="image/*"
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handlePhotoChange}
@@ -811,9 +890,23 @@ function CourierUpdateFormComponent() {
                   <div>
                     <CameraIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2 sm:mb-3" />
                     <p className="text-gray-600 dark:text-gray-400 mb-2 sm:mb-3 text-sm sm:text-base">Upload photo proof of delivery (Optional)</p>
-                    <Button type="button" onClick={() => fileInputRef.current?.click()} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm sm:text-base h-8 sm:h-10">
-                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4 mr-2" /> Select Photo
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
+                      <Button 
+                        type="button" 
+                        onClick={() => document.getElementById('delivery-photo-camera')?.click()} 
+                        className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm sm:text-base h-8 sm:h-10"
+                      >
+                        <CameraIcon className="w-4 h-4 mr-2" /> Camera
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()} 
+                        className="font-bold border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 text-sm sm:text-base h-8 sm:h-10"
+                      >
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4 mr-2" /> Gallery
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
