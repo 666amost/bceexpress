@@ -231,8 +231,24 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       return matchesAgent && matchesDateRange;
     });
 
-    const uniqueData = Array.from(new Set(filtered.map(item => item.awb_no))).map(awb_no => 
-      filtered.find(item => item.awb_no === awb_no)
+    // Map data agar kolom Harga (Ongkir) dan Total benar
+    const mapped = filtered.map(item => {
+      // Harga (Ongkir) ambil dari field harga_per_kg
+      const hargaOngkir = item.harga_per_kg || 0;
+      const berat = item.berat_kg || 0;
+      const adm = item.biaya_admin || 0;
+      const packing = item.biaya_packaging || 0;
+      // Total = (Kg x Harga Ongkir) + Admin + Packaging
+      const total = (berat * hargaOngkir) + adm + packing;
+      return {
+        ...item,
+        harga_ongkir: hargaOngkir,
+        total_fix: total
+      }
+    });
+
+    const uniqueData = Array.from(new Set(mapped.map(item => item.awb_no))).map(awb_no => 
+      mapped.find(item => item.awb_no === awb_no)
     );
     setFilteredData(uniqueData);
   };
@@ -265,10 +281,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       'Pengirim': item.nama_pengirim,
       'Penerima': item.nama_penerima,
       'Kg': item.berat_kg,
-      'Harga (Ongkir)': item.harga_per_kg,
+      'Harga (Ongkir)': item.harga_ongkir,
       'Admin': item.biaya_admin,
       'Packaging': item.biaya_packaging,
-      'Total': item.total
+      'Total': item.total_fix
     }))
 
     const today = new Date().toLocaleDateString('id-ID', { 
@@ -361,10 +377,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                   <td>${item.nama_pengirim}</td>
                   <td>${item.nama_penerima}</td>
                   <td class="text-right">${item.berat_kg}</td>
-                  <td class="text-right">${item.harga_per_kg}</td>
+                  <td class="text-right">${item.harga_ongkir}</td>
                   <td class="text-right">${item.biaya_admin}</td>
                   <td class="text-right">${item.biaya_packaging}</td>
-                  <td class="text-right font-bold">${item.total}</td>
+                  <td class="text-right font-bold">${item.total_fix}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -372,10 +388,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           <div class="totals-section">
             <h3>Total:</h3>
             <p>Total Kg: ${filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Harga (Ongkir): Rp. ${filteredData.reduce((sum, item) => sum + (item.harga_per_kg || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Harga (Ongkir): Rp. ${filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('en-US')}</p>
             <p>Total Admin: Rp. ${filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('en-US')}</p>
             <p>Total Packaging: Rp. ${filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Keseluruhan: Rp. ${filteredData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+            <p>Total Keseluruhan: Rp. ${filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('en-US')}</p>
           </div>
         </body>
       </html>
@@ -448,10 +464,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                 <td className="border p-2 dark:border-gray-600">{item.nama_pengirim}</td>
                 <td className="border p-2 dark:border-gray-600">{item.nama_penerima}</td>
                 <td className="border p-2 text-right dark:border-gray-600">{item.berat_kg}</td>
-                <td className="border p-2 text-right dark:border-gray-600">{item.harga_per_kg}</td>
+                <td className="border p-2 text-right dark:border-gray-600">{item.harga_ongkir}</td>
                 <td className="border p-2 text-right dark:border-gray-600">{item.biaya_admin}</td>
                 <td className="border p-2 text-right dark:border-gray-600">{item.biaya_packaging}</td>
-                <td className="border p-2 text-right font-bold dark:border-gray-600 dark:text-green-400">{item.total}</td>
+                <td className="border p-2 text-right font-bold dark:border-gray-600 dark:text-green-400">{item.total_fix}</td>
               </tr>
             ))}
           </tbody>
@@ -461,10 +477,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-200">
           <h3 className="text-sm font-semibold">Total:</h3>
           <p className="dark:text-gray-300">Total Kg: {filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
-          <p className="dark:text-gray-300">Total Harga (Ongkir): Rp. {filteredData.reduce((sum, item) => sum + (item.harga_per_kg || 0), 0).toLocaleString('en-US')}</p>
+          <p className="dark:text-gray-300">Total Harga (Ongkir): Rp. {filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('en-US')}</p>
           <p className="dark:text-gray-300">Total Admin: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('en-US')}</p>
           <p className="dark:text-gray-300">Total Packaging: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('en-US')}</p>
-          <p className="dark:text-gray-300">Total Keseluruhan: Rp. {filteredData.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+          <p className="dark:text-gray-300">Total Keseluruhan: Rp. {filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('en-US')}</p>
         </div>
       )}
       {loading && <p className="dark:text-gray-300">Loading data...</p>}
