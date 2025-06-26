@@ -191,19 +191,28 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
 
       if (error) throw error
 
-      // Process data with correct Total Ongkir calculation
+      // Process data with correct Total Ongkir calculation (match DailyReport)
       const processedData = data.map(item => {
-        const totalOngkir = (item.total || 0) + (item.biaya_admin || 0) + (item.biaya_packaging || 0) + (item.biaya_transit || 0)
-
+        // Ambil ongkir x kg dari field total jika sudah hasil kali di database, jika tidak, fallback ke harga_per_kg * berat_kg
+        let ongkir = 0;
+        if (item.total != null) {
+          ongkir = item.total - (item.biaya_admin || 0) - (item.biaya_packaging || 0) - (item.biaya_transit || 0);
+        } else if (item.harga_per_kg != null && item.berat_kg != null) {
+          ongkir = item.harga_per_kg * item.berat_kg;
+        }
+        const berat = item.berat_kg || 0;
+        const adm = item.biaya_admin || 0;
+        const packing = item.biaya_packaging || 0;
+        const transit = item.biaya_transit || 0;
+        const totalOngkir = ongkir + adm + packing + transit;
         return {
           ...item,
-          // Normalize wilayah field - use kecamatan for bangka, wilayah for others
           wilayah: userRole === 'cabang' && branchOrigin === 'bangka' ? item.kecamatan : item.wilayah,
-          ongkir: item.total,
-          kg: item.berat_kg || 0,
-          adm: item.biaya_admin || 0,
-          packing: item.biaya_packaging || 0,
-          transit: item.biaya_transit || 0,
+          ongkir: ongkir, // ongkir x kg
+          kg: berat,
+          adm,
+          packing,
+          transit,
           tot_ongkir: totalOngkir
         }
       })
@@ -711,6 +720,7 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
             <div class="footer-left">
               <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
               <div>This report contains business information</div>
+              <div>Periksa kembali data yang tercantum dalam laporan ini</div>
             </div>
             <div class="footer-right">
               <div>Page 1 of 1</div>
