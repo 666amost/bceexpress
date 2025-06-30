@@ -82,11 +82,11 @@ const kotaWilayahTanjungPandan = {
 };
 
 const hargaPerKgTanjungPandan = {
-  JKT: 20000,
-  TNG: 23000,
-  BKS: 23000,
-  DPK: 27000,
-  BGR: 23000,
+  JKT: 22000,
+  TNG: 25000,
+  BKS: 25000,
+  DPK: 29000,
+  BGR: 25000,
 };
 
 const agentListTanjungPandan = [

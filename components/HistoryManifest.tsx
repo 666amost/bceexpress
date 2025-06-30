@@ -56,7 +56,8 @@ const kotaWilayah = {
 const agentListTanjungPandan = [
   'COD',
   'TRANSFER',
-  'CASH'
+  'CASH',
+  'Wijaya Crab'
 ];
 
 const agentListBangka = [
