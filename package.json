@@ -1,8 +1,9 @@
 {
   "name": "bce-express",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/update-sw-version.js",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

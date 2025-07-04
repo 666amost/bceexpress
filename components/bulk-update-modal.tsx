@@ -17,6 +17,7 @@ import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
 import { toast } from "sonner"
 import { QRScanner } from './qr-scanner'
+import { Dialog as UIDialog, DialogContent as UIDialogContent, DialogHeader as UIDialogHeader, DialogTitle as UIDialogTitle, DialogFooter as UIDialogFooter } from "@/components/ui/dialog"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -34,6 +35,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [recapModal, setRecapModal] = useState<{ successCount: number, deliveredAwbs: string[] } | null>(null)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
@@ -292,7 +294,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           // Check if shipment exists
           const existingCheck = client
             .from("shipments")
-            .select("awb_number")
+            .select("awb_number, current_status")
             .eq("awb_number", awb)
             .maybeSingle();
 
@@ -300,6 +302,19 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
 
           let shipmentSuccess = false;
           let historySuccess = false;
+          
+          // Tambahkan log/debug
+          if (existingShipment) {
+            console.log('DEBUG: existingShipment', existingShipment);
+          }
+          // Tambahkan pengecekan jika sudah delivered
+          if (existingShipment && existingShipment.current_status && existingShipment.current_status.toLowerCase() === 'delivered') {
+            toast.error("RESI INI SUDAH DELIVERY.", {
+              description: "MOHON CEK KEMBALI RESI YG AKAN DI UPDATE.\nJIKA SUDAH BENAR. HARAP HUB AMOS",
+              duration: 6000
+            });
+            return { awb, success: false, error: 'Already delivered' };
+          }
           
           // Step 1: Handle shipment creation/update
           if (!existingShipment) {
@@ -459,7 +474,16 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
         result.status === 'fulfilled' && !result.value.success
       );
 
-    return successCount;
+    // Tambahkan notifikasi rekap jika ada yang sudah delivered
+    const deliveredAwbs = results
+      .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled' && result.value.error === 'Already delivered')
+      .map(result => result.value.awb);
+
+    if (deliveredAwbs.length > 0) {
+      setRecapModal({ successCount, deliveredAwbs });
+    }
+
+    return { successCount, deliveredAwbs };
   }
 
   const handleSubmit = async () => {
@@ -469,16 +493,14 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     }
 
     const awbList = awbNumbers
-      .split(/\s*,\s*|\s+|\n/) // Split by comma, space, or newline
-      .filter(Boolean) // Remove empty strings
+      .split(/\s*,\s*|\s+|\n/)
+      .filter(Boolean)
       .map((awb) => awb.trim())
 
     if (awbList.length === 0) {
       setError("Please enter at least one AWB number.")
       return
     }
-    
-    // Input manual tidak perlu validasi format AWB, bisa menerima format apapun
 
     setError(null)
     setIsLoading(true)
@@ -487,17 +509,24 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     setAbortController(controller)
 
     try {
-      const successfulUpdatesCount = await processAwbsParallel(
+      // Ambil hasil recap dari processAwbsParallel
+      const { successCount, deliveredAwbs } = await processAwbsParallel(
         awbList,
         currentUser.id,
         currentUser.name || currentUser.email.split("@")[0],
       )
 
+      if (deliveredAwbs.length > 0) {
+        setRecapModal({ successCount, deliveredAwbs })
+        // Tunggu user close modal recap
+        return
+      }
+      // Jika semua berhasil, langsung close
       toast.success("Bulk Update Complete", {
-        description: `Successfully processed ${successfulUpdatesCount} shipments.`,
+        description: `Successfully processed ${successCount} shipments.`,
         duration: 5000,
       })
-      onSuccess(successfulUpdatesCount)
+      onSuccess(successCount)
       onClose()
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -513,6 +542,15 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
     } finally {
       setIsLoading(false)
       setAbortController(null)
+    }
+  }
+
+  // Handler untuk close recap modal
+  const handleCloseRecapModal = () => {
+    if (recapModal) {
+      onSuccess(recapModal.successCount)
+      onClose()
+      setRecapModal(null)
     }
   }
 
@@ -576,6 +614,32 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           }
         }}
       >
+        {/* Recap Modal Popup */}
+        {recapModal && (
+          <UIDialog open={true}>
+            <UIDialogContent className="max-w-md">
+              <UIDialogHeader>
+                <UIDialogTitle>Rekap Bulk Update</UIDialogTitle>
+              </UIDialogHeader>
+              <div className="py-4">
+                <p className="mb-2 text-base font-semibold text-gray-800 dark:text-gray-100">
+                  {recapModal.successCount} resi berhasil diupdate.
+                </p>
+                <p className="mb-2 text-base text-red-600 dark:text-red-400">
+                  {recapModal.deliveredAwbs.length} resi sudah delivered:
+                </p>
+                <ul className="list-disc ml-6 text-sm text-gray-700 dark:text-gray-200">
+                  {recapModal.deliveredAwbs.map((awb) => (
+                    <li key={awb}>{awb}</li>
+                  ))}
+                </ul>
+              </div>
+              <UIDialogFooter>
+                <Button onClick={handleCloseRecapModal} className="w-full">OK</Button>
+              </UIDialogFooter>
+            </UIDialogContent>
+          </UIDialog>
+        )}
         <DialogContent 
           key={modalKey} 
           className={`w-[95vw] max-w-[420px] ${isKeyboardOpen ? 'max-h-[60vh] mobile-keyboard-open' : 'max-h-[90vh]'} p-4 sm:p-6 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 mx-auto overflow-hidden dialog-content`}

@@ -27,6 +27,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Oval as LoadingIcon } from 'react-loading-icons'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -78,6 +82,14 @@ export function LeaderDashboard() {
   const [hasActiveCouriers, setHasActiveCouriers] = useState<boolean>(false); // State for active couriers status
   const [highPriorityThreshold, setHighPriorityThreshold] = useState(5); // Kurir dengan > 5 pending dianggap prioritas tinggi
   const [prioritySort, setPrioritySort] = useState<boolean>(false); // Auto-sort by priority
+
+  // New states for status update functionality
+  const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false)
+  const [selectedShipmentForUpdate, setSelectedShipmentForUpdate] = useState<any>(null)
+  const [newStatus, setNewStatus] = useState<string>("")
+  const [updateNotes, setUpdateNotes] = useState("")
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [statusUpdateError, setStatusUpdateError] = useState("")
 
   const getDateRange = useCallback((days: number) => {
     const now = new Date()
@@ -403,7 +415,7 @@ export function LeaderDashboard() {
       try {
         const historyDeleted = await deleteShipmentHistory(awbNumber);
         if (historyDeleted) {
-          const { error } = await supabaseClient.from('shipments').delete().eq('awb_number', awbNumber);
+          const { error } = await supabaseClient.from("shipments").delete().eq("awb_number", awbNumber);
           if (error) {
             alert(`Deletion failed: ${error.message || 'Unknown error'}`);
           } else {
@@ -414,6 +426,88 @@ export function LeaderDashboard() {
         alert('An unexpected error occurred during deletion.');
       }
     }
+  };
+
+  // Function to open status update modal
+  const handleStatusUpdateClick = (shipment: any) => {
+    setSelectedShipmentForUpdate(shipment);
+    setNewStatus(shipment.current_status || "");
+    setUpdateNotes("");
+    setStatusUpdateError("");
+    setIsStatusUpdateModalOpen(true);
+  };
+
+  // Function to update shipment status
+  const handleStatusUpdate = async () => {
+    if (!selectedShipmentForUpdate || !newStatus) {
+      setStatusUpdateError("Please select a status");
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    setStatusUpdateError("");
+
+    try {
+      const currentDate = new Date().toISOString();
+      const leaderName = user?.name || user?.email?.split("@")[0] || "Leader";
+
+      // Update shipment status
+      const { error: updateError } = await supabaseClient
+        .from("shipments")
+        .update({
+          current_status: newStatus,
+          updated_at: currentDate
+        })
+        .eq("awb_number", selectedShipmentForUpdate.awb_number);
+
+      if (updateError) {
+        setStatusUpdateError(`Failed to update shipment: ${updateError.message}`);
+        return;
+      }
+
+      // Add shipment history entry
+      const { error: historyError } = await supabaseClient
+        .from("shipment_history")
+        .insert({
+          awb_number: selectedShipmentForUpdate.awb_number,
+          status: newStatus,
+          location: "Leader Update",
+          notes: updateNotes || `Status updated to ${newStatus} by ${leaderName}`,
+          created_at: currentDate,
+          updated_by: leaderName
+        });
+
+      if (historyError) {
+        // Tidak perlu console.error jika error kosong
+        // (biarkan silent, update tetap lanjut)
+      }
+
+      // Close modal and refresh data
+      setIsStatusUpdateModalOpen(false);
+      setSelectedShipmentForUpdate(null);
+      setNewStatus("");
+      setUpdateNotes("");
+      
+      // Refresh dashboard data
+      await loadDashboardData();
+      
+      // Show success message
+      alert(`Status updated successfully to ${newStatus}`);
+
+    } catch (err: any) {
+      setStatusUpdateError(`An unexpected error occurred: ${err.message}`);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Function to close status update modal
+  const closeStatusUpdateModal = () => {
+    setIsStatusUpdateModalOpen(false);
+    setSelectedShipmentForUpdate(null);
+    setNewStatus("");
+    setUpdateNotes("");
+    setStatusUpdateError("");
   };
 
   if (isLoading) {
@@ -747,16 +841,24 @@ export function LeaderDashboard() {
                             <CardContent className="p-4">
                               <p className="dark:text-gray-200"><strong>AWB Number:</strong> {shipment.awb_number}</p>
                               <p className="dark:text-gray-200"><strong>Courier:</strong> {shipment.courier}</p>
+                              <p className="dark:text-gray-200"><strong>Current Status:</strong> {shipment.current_status?.replace(/_/g, " ") || "N/A"}</p>
                               {shipment.updated_at && (
                                 <p className="dark:text-gray-200"><strong>Last Updated:</strong> {new Date(shipment.updated_at).toLocaleString()}</p>
                               )}
-                              <Button
-                                onClick={() => handleDeleteShipment(shipment.awb_number)}
-                                className="mt-3 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold w-full shadow-sm"
-                              >
-                                <TrashCanIcon className="h-4 w-4 mr-2" style={{ fontWeight: 'bold' }} />
-                                Delete Shipment
-                              </Button>
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  onClick={() => handleStatusUpdateClick(shipment)}
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 font-bold shadow-sm"
+                                >
+                                  Update Status
+                                </Button>
+                                <Button
+                                  onClick={() => handleDeleteShipment(shipment.awb_number)}
+                                  className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 font-bold shadow-sm"
+                                >
+                                  <TrashCanIcon className="h-4 w-4" style={{ fontWeight: 'bold' }} />
+                                </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         ))}
@@ -852,6 +954,21 @@ export function LeaderDashboard() {
                                 )}
                               </div>
                             )}
+                            
+                            {/* Status Update Button */}
+                            <div className="mt-2">
+                              <Button
+                                onClick={() => handleStatusUpdateClick({
+                                  awb_number: shipment.awb_number,
+                                  current_status: shipment.current_status,
+                                  courier: couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'
+                                })}
+                                size="sm"
+                                className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 font-bold text-white shadow-sm"
+                              >
+                                Update Status
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -912,6 +1029,88 @@ export function LeaderDashboard() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Tidak ada kurir aktif saat ini.
                 </p>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Status Update Modal */}
+        <Dialog open={isStatusUpdateModalOpen} onOpenChange={setIsStatusUpdateModalOpen}>
+          <DialogContent className="max-w-md sm:max-w-lg dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900 dark:text-white font-bold flex items-center gap-2">
+                <BoxIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+                Update Shipment Status
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedShipmentForUpdate && (
+              <div className="space-y-4">
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Shipment Details:</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400"><strong>AWB:</strong> {selectedShipmentForUpdate.awb_number}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400"><strong>Current Status:</strong> {selectedShipmentForUpdate.current_status?.replace(/_/g, " ") || "N/A"}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400"><strong>Courier:</strong> {selectedShipmentForUpdate.courier || "N/A"}</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="new-status" className="text-gray-700 dark:text-gray-300 font-semibold text-sm">New Status</Label>
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger id="new-status" className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 h-10 text-sm">
+                      <SelectValue placeholder="Select new status" className="text-gray-400 dark:text-gray-600" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
+                      <SelectItem value="processed">Processed</SelectItem>
+                      <SelectItem value="shipped">Shipped</SelectItem>
+                      <SelectItem value="in_transit">In Transit</SelectItem>
+                      <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
+                      <SelectItem value="delivered">Delivered</SelectItem>
+                      <SelectItem value="exception">Exception</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="update-notes" className="text-gray-700 dark:text-gray-300 font-semibold text-sm">Notes (Optional)</Label>
+                  <Textarea
+                    id="update-notes"
+                    rows={3}
+                    placeholder="Add notes about this status update..."
+                    value={updateNotes}
+                    onChange={(e) => setUpdateNotes(e.target.value)}
+                    className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                  />
+                </div>
+
+                {statusUpdateError && (
+                  <Alert variant="destructive" className="border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                    <AlertDescription className="text-red-700 dark:text-red-300 text-sm">{statusUpdateError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={closeStatusUpdateModal}
+                    variant="outline"
+                    className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleStatusUpdate}
+                    disabled={isUpdatingStatus || !newStatus}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 font-bold text-white shadow-sm"
+                  >
+                    {isUpdatingStatus ? (
+                      <>
+                        <LoadingIcon className="h-4 w-4 mr-2 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      "Update Status"
+                    )}
+                  </Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>

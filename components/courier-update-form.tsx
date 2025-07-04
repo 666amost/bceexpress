@@ -575,21 +575,23 @@ function CourierUpdateFormComponent() {
     }
   }
 
-  const checkShipmentExists = async (awbNumber: string): Promise<boolean> => {
+  const checkShipmentExists = async (awbNumber: string): Promise<{ exists: boolean, current_status?: string }> => {
     try {
       const { data, error } = await supabaseClient
         .from("shipments")
-        .select("awb_number")
+        .select("awb_number, current_status")
         .eq("awb_number", awbNumber)
         .maybeSingle()
 
       if (error) {
-        return false
+        return { exists: false }
       }
-
-      return !!data
+      if (data) {
+        return { exists: true, current_status: data.current_status }
+      }
+      return { exists: false }
     } catch (error) {
-      return false
+      return { exists: false }
     }
   }
 
@@ -665,8 +667,16 @@ function CourierUpdateFormComponent() {
             }
           }
 
-          const shipmentExists = await checkShipmentExists(awbNumber)
-          if (!shipmentExists) {
+          const shipmentCheck = await checkShipmentExists(awbNumber)
+          if (shipmentCheck.exists && shipmentCheck.current_status === 'delivered') {
+            toast.error("RESI INI SUDAH DELIVERY.", {
+              description: "MOHON CEK KEMBALI RESI YG AKAN DI UPDATE.\nJIKA SUDAH BENAR. HARAP HUB AMOS",
+              duration: 6000
+            });
+            setIsLoading(false)
+            return
+          }
+          if (!shipmentCheck.exists) {
             const created = await createShipmentFromManifest(awbNumber)
             if (!created) {
               setError("Gagal membuat shipment baru. Silakan coba lagi.")
@@ -686,7 +696,31 @@ function CourierUpdateFormComponent() {
           )
 
           if (!historyAdded) {
-            setError("Gagal menambahkan riwayat shipment. Silakan coba lagi.")
+            // Cek status terakhir di shipment_history
+            try {
+              const { data: lastHistory, error: lastHistoryError } = await supabaseClient
+                .from("shipment_history")
+                .select("status, notes, created_at")
+                .eq("awb_number", awbNumber)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (!lastHistoryError && lastHistory && lastHistory.status === 'delivered') {
+                // Ambil nama kurir dari notes jika ada
+                let kurir = '';
+                if (lastHistory.notes) {
+                  const byMatch = lastHistory.notes.match(/by\s+([\w.@]+)/i);
+                  if (byMatch && byMatch[1]) {
+                    kurir = byMatch[1];
+                  }
+                }
+                setError(`Resi ${awbNumber} sudah di-delivered oleh kurir${kurir ? ' ' + kurir : ''}. Tidak bisa update status lagi.`)
+              } else {
+                setError("Gagal menambahkan riwayat shipment. Silakan coba lagi.")
+              }
+            } catch (e) {
+              setError("Gagal menambahkan riwayat shipment. Silakan coba lagi.")
+            }
             setIsLoading(false)
             return
           }
