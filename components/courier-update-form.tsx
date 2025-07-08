@@ -69,7 +69,11 @@ function CourierUpdateFormComponent() {
 
   const playBeep = () => {
     if (!beepTimeoutRef.current) {
-      const audio = new Audio('/sounds/scan_success.mp3');
+      let audioPath = '/sounds/scan_success.mp3';
+      if (status === 'delivered') {
+        audioPath = '/sounds/scan_delivered.mp3';
+      }
+      const audio = new Audio(audioPath);
       audio.volume = 1;
       audio.play()
         .catch(() => {
