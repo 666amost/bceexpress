@@ -1,6 +1,6 @@
 {
   "name": "bce-express",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/update-sw-version.js",
@@ -45,6 +45,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "@types/dompurify": "^3.0.5",
     "@types/leaflet": "^1.9.18",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
@@ -58,6 +59,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^0.2.0",
     "date-fns": "^3.3.1",
+    "dompurify": "^3.2.6",
     "embla-carousel-react": "^8.0.0",
     "form-data": "^4.0.2",
     "framer-motion": "^12.10.0",

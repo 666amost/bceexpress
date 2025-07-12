@@ -75,7 +75,7 @@ self.addEventListener('message', (event) => {
 
 async function checkForUpdates() {
   try {
-    const response = await fetch('/api/version', {
+    const response = await fetch(self.location.origin + '/api/version', {
       headers: {
         'Cache-Control': 'no-cache'
       }
@@ -84,11 +84,12 @@ async function checkForUpdates() {
     
     // Get current version from cache
     const currentVersion = await caches.keys().then(keys => {
-      return keys.find(key => key.startsWith('bce-express-'));
+      const fullCacheName = keys.find(key => key.startsWith('bce-express-'));
+      return fullCacheName ? fullCacheName.replace('bce-express-v', '') : null;
     });
 
     // Only update if version is different
-    if (data.version !== currentVersion) {
+    if (data.version && currentVersion && data.version !== currentVersion) {
       // New version available
       self.clients.matchAll().then(clients => {
         clients.forEach(client => {
