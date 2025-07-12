@@ -254,54 +254,66 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         } else {
           const { data: existingShipment } = await supabaseClient
             .from("shipments")
-            .select("awb_number")
+            .select("awb_number, current_status")
             .eq("awb_number", awb)
             .single()
 
-          let result
-          if (!existingShipment) {
-            const manifestData = await checkManifestAwb(awb)
-            
-            if (manifestData) {
-              // Periksa apakah data penerima tersedia 
-              if (manifestData.nama_penerima && manifestData.alamat_penerima) {
-                result = await createShipmentWithManifestData(awb, manifestData, courierId)
-                if (!result.success) {
+          // Tambahkan pengecekan jika sudah delivered
+          // Prevent delivered shipments in ALL modes - DLVD button is for updating Out For Delivery to Delivered
+          if (existingShipment && existingShipment.current_status && existingShipment.current_status.toLowerCase() === 'delivered') {
+            status = 'error';
+            message = 'RESI INI SUDAH DELIVERY. MOHON CEK KEMBALI RESI YG AKAN DI UPDATE. JIKA SUDAH BENAR. HARAP HUB AMOS';
+            toast({
+              title: "RESI SUDAH DELIVERED",
+              description: "MOHON CEK KEMBALI RESI YG AKAN DI UPDATE.\nJIKA SUDAH BENAR. HARAP HUB AMOS",
+              variant: "destructive",
+            });
+          } else {
+            let result
+            if (!existingShipment) {
+              const manifestData = await checkManifestAwb(awb)
+              
+              if (manifestData) {
+                // Periksa apakah data penerima tersedia 
+                if (manifestData.nama_penerima && manifestData.alamat_penerima) {
+                  result = await createShipmentWithManifestData(awb, manifestData, courierId)
+                  if (!result.success) {
+                    result = await createBasicShipment(awb, courierId)
+                  }
+                } else {
                   result = await createBasicShipment(awb, courierId)
                 }
               } else {
                 result = await createBasicShipment(awb, courierId)
               }
             } else {
-              result = await createBasicShipment(awb, courierId)
+              result = await updateExistingShipment(awb, courierId)
             }
-          } else {
-            result = await updateExistingShipment(awb, courierId)
-          }
 
-          if (result.success) {
-            await addShipmentHistory(awb, courierName)
-            
-            processedAwbsRef.current.push(awb);
-            status = 'success';
-            message = result.message;
-            
-            toast({
-              title: "AWB Processed",
-              description: `${awb} successfully added to today's assignments`,
-            });
+            if (result.success) {
+              await addShipmentHistory(awb, courierName)
+              
+              processedAwbsRef.current.push(awb);
+              status = 'success';
+              message = result.message;
+              
+              toast({
+                title: "AWB Processed",
+                description: `${awb} successfully added to today's assignments`,
+              });
 
-            // If this is a delivered scan, redirect to update form
-            if (prefillStatus === 'delivered') {
-              // Close the modal first
-              onClose();
-              // Redirect to update form with pre-filled delivered status
-              router.push(`/courier/update?awb=${awb}&status=delivered`);
-              return; // Exit early to prevent further processing
+              // If this is a delivered scan, redirect to update form
+              if (prefillStatus === 'delivered') {
+                // Close the modal first
+                onClose();
+                // Redirect to update form with pre-filled delivered status
+                router.push(`/courier/update?awb=${awb}&status=delivered`);
+                return; // Exit early to prevent further processing
+              }
+            } else {
+              status = 'error';
+              message = result.message;
             }
-          } else {
-            status = 'error';
-            message = result.message;
           }
         }
       }
