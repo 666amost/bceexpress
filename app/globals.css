@@ -160,3 +160,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes gradient-bar {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.animate-gradient-bar {
+  background-size: 200% 100%;
+  animation: gradient-bar 2s linear infinite;
+}
+
+@keyframes gradient-bg {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+.animate-gradient-bg {
+  background: linear-gradient(90deg, #2563eb, #38bdf8, #2563eb, #60a5fa);
+  background-size: 300% 100%;
+  animation: gradient-bg 4s linear infinite;
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import gsap from "gsap"
+
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -55,6 +57,15 @@ const LeafletMap = dynamic(() => import('./leaflet-map').then(mod => mod.Leaflet
     </div>
   )
 })
+
+// Tambahkan tipe untuk live shipment activity
+interface LiveShipmentActivityItem {
+  awb_number: string;
+  current_status: string;
+  updated_at: string;
+  courier_name: string;
+  city?: string | null;
+}
 
 export function LeaderDashboard() {
   const router = useRouter()
@@ -90,6 +101,101 @@ export function LeaderDashboard() {
   const [updateNotes, setUpdateNotes] = useState("")
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [statusUpdateError, setStatusUpdateError] = useState("")
+
+  // State untuk live shipment activity
+  const [liveShipments, setLiveShipments] = useState<LiveShipmentActivityItem[]>([])
+  const [displayedShipments, setDisplayedShipments] = useState<LiveShipmentActivityItem[]>([])
+  const liveListRef = useRef<HTMLDivElement>(null)
+  const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const fetchLiveShipments = useCallback(async () => {
+    try {
+      // Ambil 3 shipment terakhir yang statusnya diupdate
+      const { data: shipments, error } = await supabaseClient
+        .from("shipments")
+        .select("*") // Gunakan select('*') agar tidak error 400
+        .order("updated_at", { ascending: false })
+        .limit(3)
+
+      if (error) {
+        setLiveShipments([])
+        return
+      }
+      if (!shipments || shipments.length === 0) {
+        setLiveShipments([])
+        return
+      }
+      // Ambil nama kurir
+      const courierIds = shipments.map(s => s.courier_id).filter(Boolean)
+      let courierNames: Record<string, string> = {}
+      if (courierIds.length > 0) {
+        const { data: couriers } = await supabaseClient
+          .from("users")
+          .select("id, name")
+          .in("id", courierIds)
+        courierNames = (couriers || []).reduce((acc, c) => {
+          acc[c.id] = c.name
+          return acc
+        }, {} as Record<string, string>)
+      }
+      const liveData = shipments.map(s => ({
+        awb_number: s.awb_number || "UNKNOWN",
+        current_status: s.current_status || "unknown",
+        updated_at: s.updated_at || new Date().toISOString(),
+        courier_name: courierNames[s.courier_id] || "Unknown",
+        city: s.city || null, // city optional, jika tidak ada tetap null
+      })).filter(item => item.awb_number !== "UNKNOWN")
+      setLiveShipments(liveData)
+    } catch {
+      setLiveShipments([])
+    }
+  }, [])
+
+  // Saat data baru masuk, update displayedShipments dengan animasi scroll
+  useEffect(() => {
+    if (liveShipments.length === 0) return
+    // Jika data berubah (ada data baru di liveShipments[0]), animasi scroll
+    if (
+      displayedShipments.length > 0 &&
+      liveShipments[0]?.awb_number !== displayedShipments[0]?.awb_number
+    ) {
+      // Animasi scroll ke bawah
+      if (liveListRef.current) {
+        // Hitung tinggi satu item (ambil node pertama)
+        const firstItem = liveListRef.current.children[0] as HTMLElement | undefined;
+        const itemHeight = firstItem ? firstItem.offsetHeight + 8 : 60; // 8 = gap-2
+        gsap.to(liveListRef.current, {
+          y: itemHeight,
+          duration: 0.5,
+          ease: "power2.inOut",
+          onComplete: () => {
+            setDisplayedShipments(liveShipments.slice(0, 3))
+            gsap.set(liveListRef.current, { y: 0 })
+          }
+        })
+      } else {
+        setDisplayedShipments(liveShipments.slice(0, 3))
+      }
+    } else if (displayedShipments.length === 0) {
+      setDisplayedShipments(liveShipments.slice(0, 3))
+    }
+  }, [liveShipments])
+
+  // Auto-refresh live shipment activity setiap 10 detik
+  useEffect(() => {
+    fetchLiveShipments()
+    const interval = setInterval(fetchLiveShipments, 10000)
+    return () => clearInterval(interval)
+  }, [fetchLiveShipments])
+
+  // Fallback data jika database kosong
+  useEffect(() => {
+    // HAPUS: tidak perlu fallback data demo, hanya tampilkan data asli
+    // if (liveShipments.length === 0) {
+    //   const testData: LiveShipmentActivityItem[] = [...]
+    //   setLiveShipments(testData)
+    // }
+  }, [liveShipments.length])
 
   const getDateRange = useCallback((days: number) => {
     const now = new Date()
@@ -132,6 +238,9 @@ export function LeaderDashboard() {
         setIsLoading(false)
         return
       }
+
+      // Fetch live shipments juga saat dashboard load
+      fetchLiveShipments()
 
       const { data: recentShipments, error: shipmentsError } = await supabaseClient
         .from("shipments")
@@ -510,6 +619,48 @@ export function LeaderDashboard() {
     setStatusUpdateError("");
   };
 
+  // Hapus const dailyTarget = 20;
+  // Tambahkan state dailyTarget dan hitung otomatis dari jumlah shipment hari ini
+  const [dailyTarget, setDailyTarget] = useState(0);
+
+  // Perbaiki useEffect fetchDailyTarget agar tidak infinite loop dan benar-benar sesuai hari ini
+  useEffect(() => {
+    const fetchDailyTarget = async () => {
+      const { startDate, endDate } = getDateRange(1);
+      const { count, error } = await supabaseClient
+        .from("shipments")
+        .select("*", { count: 'exact', head: true })
+        .gte("created_at", startDate)
+        .lte("created_at", endDate);
+      if (!error && typeof count === 'number') {
+        setDailyTarget(count);
+      } else {
+        setDailyTarget(0);
+      }
+    };
+    fetchDailyTarget();
+  }, [dataRange]);
+
+  // Pastikan totalCompleted juga hanya shipment hari ini yang delivered
+  const [todayCompleted, setTodayCompleted] = useState(0);
+  useEffect(() => {
+    const fetchTodayCompleted = async () => {
+      const { startDate, endDate } = getDateRange(1);
+      const { count, error } = await supabaseClient
+        .from("shipments")
+        .select("*", { count: 'exact', head: true })
+        .eq("current_status", "delivered")
+        .gte("created_at", startDate)
+        .lte("created_at", endDate);
+      if (!error && typeof count === 'number') {
+        setTodayCompleted(count);
+      } else {
+        setTodayCompleted(0);
+      }
+    };
+    fetchTodayCompleted();
+  }, [dataRange]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
@@ -590,13 +741,56 @@ export function LeaderDashboard() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <UserMultipleIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+          {/* Live Shipment Activity Card */}
+          <div className="relative col-span-2 sm:col-span-1 bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 p-4 sm:p-6 text-center flex flex-col justify-between min-h-[170px] sm:min-h-[200px] overflow-hidden">
+            <div className="absolute top-1 sm:top-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 z-10 w-fit">
+              <span className="relative text-xs font-bold px-3 py-1 rounded-full text-white shadow-md animate-gradient-bg">
+                Live Activity ({liveShipments.length})
+              </span>
             </div>
-            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Total Couriers</span>
-            <span className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white">{couriers.length}</span>
+            <div className="flex flex-col h-full justify-center items-center">
+              <div
+                ref={liveListRef}
+                className="w-full flex flex-col gap-2 transition-transform duration-500 mt-8"
+                style={{ minHeight: 180 }}
+              >
+                {displayedShipments.map((item, idx) => (
+                  <div
+                    key={item.awb_number}
+                    className={`rounded-xl px-2 py-2 sm:py-3 flex flex-col items-start sm:items-center sm:flex-row justify-between gap-1 sm:gap-4 text-left border border-blue-100 dark:border-blue-800 bg-white dark:bg-gray-900 shadow-sm w-full mx-auto ${idx === 0 ? "font-bold" : "opacity-80"}`}
+                    style={{ minHeight: 48 }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base sm:text-lg">{item.awb_number}</span>
+                        {item.current_status === 'delivered' ? (
+                          <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-2 py-0.5 ml-1">Delivered</span>
+                        ) : (
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded px-2 py-0.5 capitalize whitespace-nowrap ml-1">{item.current_status.replace(/_/g, " ")}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                        <span>by <span className="font-semibold text-gray-700 dark:text-gray-200">{item.courier_name}</span></span>
+                        <span className="hidden sm:inline">•</span>
+                        <span>{new Date(item.updated_at).toLocaleTimeString()}</span>
+                        {item.city && <span className="hidden sm:inline">• {item.city}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {displayedShipments.length === 0 && (
+                  <div className="py-8 flex flex-col items-center justify-center">
+                    <svg className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+                    </svg>
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">No recent shipment activity</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+          {/* END Live Shipment Activity Card */}
+          {/* Card 2, 3, 4 tetap seperti sebelumnya, geser indexnya */}
           
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -632,6 +826,24 @@ export function LeaderDashboard() {
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Completed</span>
             <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400">{totalCompleted}</span>
             <span className="text-xs text-gray-500 dark:text-gray-400 block">deliveries</span>
+          </div>
+          {/* Progress Bar Card hanya di mobile, card ke-4 */}
+          <div className="block sm:hidden bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 p-4 sm:p-6 text-center flex flex-col justify-center items-center">
+            <div className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200 text-center">
+              Progress Pengiriman Hari Ini
+            </div>
+            <div className="flex items-center justify-center text-xs mb-1">
+              <span className="font-bold text-blue-700">{todayCompleted}</span>
+              <span className="text-gray-500">/</span>
+              <span className="font-bold text-gray-700">{dailyTarget}</span>
+              <span className="ml-2 text-gray-500">paket delivered</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full transition-all duration-500"
+                style={{ width: `${dailyTarget > 0 ? Math.min(100, Math.round((todayCompleted/dailyTarget)*100)) : 0}%` }}
+              ></div>
+            </div>
           </div>
         </div>
 
@@ -822,7 +1034,7 @@ export function LeaderDashboard() {
                         handleSearch();
                       }
                     }}
-                    className="border-gray-300 focus:border-gray-500 dark:border-gray-600 dark:focus:border-gray-500 dark:bg-gray-700 dark:text-gray-100 shadow-sm"
+                    className="border-gray-300 focus:border-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm"
                   />
                   <Button 
                     onClick={handleSearch}

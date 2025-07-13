@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bce-express-v5.1.0';
+const CACHE_NAME = 'bce-express-v5.2.1';
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
