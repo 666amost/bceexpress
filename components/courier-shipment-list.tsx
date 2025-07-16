@@ -74,9 +74,23 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       setCourier(courierData);
       setDebugInfo(`Workspaceed courier: ${courierData?.name}`);
 
-      // === Mengambil data history yang relevan langsung dari database dengan filter ===
-      const courierUsername = courierData.email.split("@")[0];
+      // === Ambil data shipment dari tabel shipments untuk kurir ini ===
       const { startDate, endDate } = getDateRange(dataRange);
+      const { data: shipmentsByCourier, error: shipmentsByCourierError } = await supabaseClient
+        .from("shipments")
+        .select("*")
+        .eq("courier_id", courierId)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate);
+
+      if (shipmentsByCourierError) {
+        setDebugInfo(`Error fetching shipments by courier: ${shipmentsByCourierError.message}`);
+        setIsLoading(false);
+        return;
+      }
+
+      // === Ambil data history yang relevan langsung dari database dengan filter ===
+      const courierUsername = courierData.email.split("@")[0];
       const { data: courierHistoryData, error: historyError } = await supabaseClient
         .from("shipment_history")
         .select("awb_number, created_at, latitude, longitude, notes, location, status")
@@ -94,13 +108,11 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       setDebugInfo(`Workspaceed ${courierHistoryData?.length || 0} relevant history entries directly from DB.`);
 
       // Get unique AWB numbers from relevant history
-      const awbNumbers = Array.from(new Set(courierHistoryData.map((item) => item.awb_number))).filter(Boolean);
+      const awbNumbersFromHistory = Array.from(new Set(courierHistoryData.map((item) => item.awb_number))).filter(Boolean);
 
-      setDebugInfo(`Found ${awbNumbers.length} unique AWB numbers from relevant history after filtering.`);
+      setDebugInfo(`Found ${awbNumbersFromHistory.length} unique AWB numbers from relevant history after filtering.`);
 
       // Pre-process courierHistoryData into a map for faster lookups
-      // The history entries for each AWB will be sorted by `created_at` descending
-      // because the query was fetched with `order("created_at", { ascending: false })`.
       const historyMap = new Map<string, any[]>();
       for (const entry of courierHistoryData || []) {
         if (!historyMap.has(entry.awb_number)) {
@@ -109,53 +121,51 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
         historyMap.get(entry.awb_number)?.push(entry);
       }
 
-      // === Mengambil detail shipment menggunakan query .in() ===
-      const shipmentDetails: any[] = [];
-      if (awbNumbers.length > 0) { // Hanya lakukan query jika ada AWB
-          const { data: shipmentsData, error: shipmentsError } = await supabaseClient
-            .from("shipments")
-            .select("*")
-            .in('awb_number', awbNumbers); // Ambil semua shipments yang AWB-nya ada di daftar AWB relevant
+      // === Ambil detail shipment dari AWB hasil history ===
+      let shipmentDetails: any[] = [];
+      if (awbNumbersFromHistory.length > 0) {
+        const { data: shipmentsData, error: shipmentsError } = await supabaseClient
+          .from("shipments")
+          .select("*")
+          .in('awb_number', awbNumbersFromHistory);
 
-          if (shipmentsError) {
-            setDebugInfo(`Error fetching shipments: ${shipmentsError.message}`);
-            setIsLoading(false);
-            return;
-          }
+        if (shipmentsError) {
+          setDebugInfo(`Error fetching shipments: ${shipmentsError.message}`);
+          setIsLoading(false);
+          return;
+        }
 
-          setDebugInfo(`Workspaceed ${shipmentsData?.length || 0} shipment details using .in().`);
-
-           for (const shipment of shipmentsData || []) {
-               const allShipmentHistory = historyMap.get(shipment.awb_number) || [];
-               const latestHistory = allShipmentHistory.length > 0 ? allShipmentHistory[0] : null; // First element is latest due to sorting
-
-                shipmentDetails.push({
-                    ...shipment,
-                    latest_update: latestHistory, // latestHistory sekarang menyertakan 'location'
-                    all_history: allShipmentHistory, // Add all history for this shipment
-                });
-          }
-
-      } else {
-         setDebugInfo("No relevant AWB numbers found, skipping shipment details fetch.");
+        for (const shipment of shipmentsData || []) {
+          const allShipmentHistory = historyMap.get(shipment.awb_number) || [];
+          const latestHistory = allShipmentHistory.length > 0 ? allShipmentHistory[0] : null;
+          shipmentDetails.push({
+            ...shipment,
+            latest_update: latestHistory,
+            all_history: allShipmentHistory,
+          });
+        }
       }
-      // === Akhir Mengambil detail shipment ===
 
-       // === Urutkan shipmentDetails berdasarkan created_at latest_update (terbaru di atas) ===
-       shipmentDetails.sort((a, b) => {
-         const dateA = a.latest_update ? new Date(a.latest_update.created_at).getTime() : 0;
-         const dateB = b.latest_update ? new Date(b.latest_update.created_at).getTime() : 0;
+      // === Tambahkan shipment yang belum ada di shipmentDetails (tidak punya history) ===
+      const awbInDetails = new Set(shipmentDetails.map(s => s.awb_number));
+      const shipmentsWithoutHistory = (shipmentsByCourier || []).filter(s => !awbInDetails.has(s.awb_number));
+      for (const shipment of shipmentsWithoutHistory) {
+        shipmentDetails.push({
+          ...shipment,
+          latest_update: null,
+          all_history: [],
+        });
+      }
 
-         const comparisonResult = dateB - dateA; // Logika descending
+      // === Urutkan shipmentDetails berdasarkan created_at (terbaru di atas) ===
+      shipmentDetails.sort((a, b) => {
+        const dateA = a.latest_update ? new Date(a.latest_update.created_at).getTime() : new Date(a.created_at).getTime();
+        const dateB = b.latest_update ? new Date(b.latest_update.created_at).getTime() : new Date(b.created_at).getTime();
+        return dateB - dateA;
+      });
 
-         return comparisonResult; // Urutan menurun (terbaru lebih dulu)
-       });
-       // === Akhir Pengurutan ===
-
-
-      setShipments(shipmentDetails); // Set state shipments dengan data yang sudah diurutkan
+      setShipments(shipmentDetails);
       setDebugInfo(`Finished loading courier data for ${courierData?.name}.`);
-      // Perhitungan jumlah per kategori akan dilakukan di useEffect setelah state shipments terupdate
       setIsLoading(false);
     } catch (err) {
       setDebugInfo(`Error loading courier data: ${err}`);

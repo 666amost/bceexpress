@@ -42,6 +42,7 @@ function CourierUpdateFormComponent() {
   const [shipmentDetails, setShipmentDetails] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [useHighCompression, setUseHighCompression] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -218,6 +219,15 @@ function CourierUpdateFormComponent() {
 
       // Adaptive compression based on file size and device capabilities
       const getCompressionOptions = (fileSize: number) => {
+        if (useHighCompression) {
+          return {
+            maxSizeMB: 0.2, // 200KB
+            maxWidthOrHeight: 1200,
+            useWebWorker: false,
+            initialQuality: 0.65,
+            alwaysKeepResolution: false
+          }
+        }
         if (fileSize > 5 * 1024 * 1024) { // > 5MB
           return {
             maxSizeMB: 1.5,
@@ -947,6 +957,19 @@ function CourierUpdateFormComponent() {
                     </div>
                   </div>
                 )}
+                {/* Toggle for high compression */}
+                <div className="flex items-center justify-center mt-2">
+                  <input
+                    type="checkbox"
+                    id="high-compression-toggle"
+                    checked={useHighCompression}
+                    onChange={e => setUseHighCompression(e.target.checked)}
+                    className="mr-2 accent-blue-600"
+                  />
+                  <label htmlFor="high-compression-toggle" className="text-xs text-red-600 font-bold select-none cursor-pointer">
+                    LOW QUALITY (for slow device/weak network)
+                  </label>
+                </div>
               </div>
             </div>
 
