@@ -3,29 +3,27 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const authorization = req.headers.get('authorization');
-  const { awb, status, courierName, note, receiverPhone } = body;
+  const { type, record, old_record } = body;
 
   if (authorization !== process.env.WA_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  if (status === 'delivered') {
+  // Trigger hanya jika status delivered
+  if (
+    (type === 'INSERT' && record.status === 'delivered') ||
+    (type === 'UPDATE' && record.status === 'delivered' && old_record.status !== 'delivered')
+  ) {
+    const awb = record.awb_number;
+    const status = record.status;
+    const note = record.notes || '';
+
     const groupId = process.env.WA_GROUP_ID?.endsWith('@g.us')
       ? process.env.WA_GROUP_ID
       : process.env.WA_GROUP_ID + '@g.us';
-    const text = ` Paket Terkirim!\nAWB: ${awb}\nStatus: ${status}\nKurir: ${courierName}\nNote: ${note}`;
-    await sendMessage(groupId, text);
+    const text = `Paket Terkirim!\nAWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
-    if (receiverPhone) {
-      let phoneId = receiverPhone;
-      if (phoneId.startsWith('0')) {
-        phoneId = '62' + phoneId.slice(1);
-      }
-      if (!phoneId.endsWith('@c.us')) {
-        phoneId = phoneId + '@c.us';
-      }
-      await sendMessage(phoneId, text);
-    }
+    await sendMessage(groupId, text);
   }
 
   return NextResponse.json({ ok: true });
