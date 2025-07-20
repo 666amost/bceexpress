@@ -1,17 +1,29 @@
 require('dotenv').config({ path: '.env.local' });
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
-const { downloadSessionFromSupabase, uploadSessionToSupabase } = require('./lib/supabase-session.ts');
-const qrcode = require('qrcode-terminal');
 const express = require('express');
+const fetch = require('node-fetch');
 const app = express();
 app.use(express.json());
 
-let sock; // pastikan sock global
+const WAHA_API_URL = process.env.WAHA_API_URL;
+const WAHA_SESSION = process.env.WAHA_SESSION || 'default';
+
+async function sendMessage(phoneOrGroup, message) {
+  // phoneOrGroup bisa berupa nomor (628xxxx@s.whatsapp.net) atau groupId (@g.us)
+  const res = await fetch(`${WAHA_API_URL}/api/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session: WAHA_SESSION,
+      chatId: phoneOrGroup,
+      text: message
+    })
+  });
+  return res.json();
+}
 
 app.post('/wa-webhook', async (req, res) => {
   const { authorization } = req.headers;
-  const { awb, status, courierName, note } = req.body;
+  const { awb, status, courierName, note, receiverPhone } = req.body;
 
   // Validasi secret
   if (authorization !== process.env.WA_WEBHOOK_SECRET) {
@@ -26,8 +38,21 @@ app.post('/wa-webhook', async (req, res) => {
         ? process.env.WA_GROUP_ID
         : process.env.WA_GROUP_ID + '@g.us';
       const text = ` Paket Terkirim!\nAWB: ${awb}\nStatus: ${status}\nKurir: ${courierName}\nNote: ${note}`;
-      await sock.sendMessage(groupId, { text });
+      await sendMessage(groupId, text);
       console.log('Pesan delivered dikirim ke grup:', text);
+
+      // Kirim ke nomor penerima jika ada
+      if (receiverPhone) {
+        let phoneId = receiverPhone;
+        if (phoneId.startsWith('0')) {
+          phoneId = '62' + phoneId.slice(1);
+        }
+        if (!phoneId.endsWith('@c.us')) {
+          phoneId = phoneId + '@c.us';
+        }
+        await sendMessage(phoneId, text);
+        console.log('Pesan delivered dikirim ke penerima:', phoneId);
+      }
     }, delay);
   }
 
@@ -36,43 +61,4 @@ app.post('/wa-webhook', async (req, res) => {
 
 app.listen(3001, () => {
   console.log('Bot WhatsApp webhook listening on port 3001');
-});
-
-// Inisialisasi sock seperti biasa, pastikan sock global
-async function startBot() {
-  await downloadSessionFromSupabase();
-  const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-  sock = makeWASocket({ auth: state });
-
-  sock.ev.on('creds.update', async () => {
-    await saveCreds();
-    await uploadSessionToSupabase(); // update session ke Supabase
-  });
-
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      qrcode.generate(qr, { small: true }); // Tampilkan QR code di terminal
-    }
-    if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) {
-        startBot();
-      }
-    } else if (connection === 'open') {
-      console.log('Bot is connected');
-      setTimeout(() => {
-        const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
-          ? process.env.WA_GROUP_ID
-          : process.env.WA_GROUP_ID + '@g.us';
-        sock.sendMessage(groupId, { text: 'TEST BOT COK' });
-        // Test ke nomor pribadi juga:
-        // sock.sendMessage('62xxxxxxxxxx@s.whatsapp.net', { text: 'Tes ke nomor pribadi' });
-      }, 5000);
-    }
-  });
-
-  // Contoh kirim pesan ke grup:
-  // await sock.sendMessage('6281380800298-1585973791@g.us', { text: 'TEST BOT RESI' });
-}
-startBot(); 
+}); 
