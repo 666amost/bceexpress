@@ -26,7 +26,8 @@ import {
   Box as BoxIcon,
   InProgress as InProgressIcon,
   Barcode as BarcodeIcon,
-  Scan as ScanIcon
+  Scan as ScanIcon,
+  ChevronDown, ChevronUp
 } from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
@@ -128,6 +129,9 @@ export function CourierDashboard() {
   const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
   const [hasCompletedFirstDelivery, setHasCompletedFirstDelivery] = useState(false)
+  const [expandAssignments, setExpandAssignments] = useState(false);
+  const [expandPending, setExpandPending] = useState(false);
+  const [showAllAssignments, setShowAllAssignments] = useState(false);
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
@@ -589,174 +593,177 @@ export function CourierDashboard() {
 
   const displayName = currentUser?.name || currentUser?.email?.split("@")[0] || ""
   const emailDisplay = currentUser?.email || ""
+  // Tambahkan logo (bisa pakai /images/bce-logo.png)
+  const logoUrl = "/images/bce-logo.png";
+
+  // Urutkan assignments berdasarkan created_at ASC (terlama di atas)
+  const sortedAssignments = [...bulkShipmentAwbs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Watermark Background */}
-      <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04]">
+      <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04] z-0">
         {Array.from({ length: 48 }).map((_, i) => (
           <div key={i} className="text-black dark:text-white -rotate-[36deg]">
             <span className="font-semibold text-sm whitespace-nowrap">BCE Express</span>
           </div>
         ))}
       </div>
-
       {/* Header */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                Courier Dashboard
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Welcome, <span className="font-semibold text-gray-800 dark:text-gray-200">{displayName}</span> ({emailDisplay})
-              </p>
-              {lastCompletedAwb && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                  Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
-                </p>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2 sm:gap-4 justify-center sm:justify-end items-center">
-              <GoogleMapsButton />
-              <Button
-                variant="outline"
-                onClick={handleLogout}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-              >
-                <LogoutIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
-                Logout
-              </Button>
-            </div>
-          </div>
+      <header className="flex items-center justify-between px-4 py-4 bg-white/70 backdrop-blur rounded-b-2xl shadow-md border-b border-gray-200 sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <Image src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
         </div>
-      </div>
+        <div className="flex-1 text-center">
+          <span className="font-bold text-lg text-gray-900">{displayName}</span>
+          {lastCompletedAwb && (
+            <div className="text-xs text-blue-600 mt-1">
+              Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
+            </div>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          onClick={handleLogout}
+          className="h-8 px-2 text-xs font-bold text-gray-700"
+        >
+          <LogoutIcon className="h-5 w-5" />
+        </Button>
+      </header>
 
-      {/* Stats Cards */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mb-6">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-100 dark:bg-blue-900/60 rounded-full flex items-center justify-center flex-shrink-0">
-              <DeliveryParcelIcon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
-            </div>
-            <div className="flex-1">
-              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Today's Assignments</span>
-              <span className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white leading-none block">{totalBulkShipments}</span>
-            </div>
-            {totalBulkShipments > 0 && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkDetails(true)}
-                  className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-                >
-                  <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDeliveredScanOpen(true)}
-                  className="h-8 px-3 text-xs font-bold border-green-300 text-green-700 hover:bg-green-100 dark:border-green-600 dark:text-green-300 dark:hover:bg-green-800/50"
-                >
-                  <CheckmarkIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> DLVD
-                </Button>
+      {/* Quick Stats as Accordions */}
+      <div className="flex flex-col gap-3 px-3 py-4">
+        {/* Assignments Card */}
+        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-blue-200 px-4 py-3">
+          <div className="absolute left-0 top-0 w-16 h-16 bg-blue-100 rounded-full opacity-30 blur-2xl z-0" />
+          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandAssignments(v => !v)}>
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-50 rounded-full p-2">
+                <DeliveryParcelIcon className="h-7 w-7 text-blue-600" />
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-green-100 dark:bg-green-900/60 rounded-full flex items-center justify-center flex-shrink-0">
-              <CheckmarkIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+              <div className="text-xs text-gray-500 font-semibold">Assignments</div>
             </div>
-            <div className="flex-1">
-              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Completed Today</span>
-              {isShipmentsLoading ? (
-                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="text-3xl font-black text-blue-700">{totalBulkShipments}</div>
+            {expandAssignments ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+          </button>
+          {expandAssignments && (
+            <div className="mt-3 flex flex-col gap-2 z-10 relative">
+              {sortedAssignments.length === 0 ? (
+                <div className="text-gray-400 text-sm">Tidak ada tugas hari ini.</div>
               ) : (
-                <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400 leading-none block">{completedCount}</span>
+                <>
+                  {sortedAssignments.slice(0, 5).map((shipment) => (
+                    <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                      <div>
+                        <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base">{shipment.awb_number}</div>
+                        <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
+                        <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
+                        <div className="flex gap-2 mt-1">
+                          <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
+                          <MapsButton address={shipment.receiver_address} />
+                        </div>
+                      </div>
+                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                        Update
+                      </Button>
+                    </div>
+                  ))}
+                  {sortedAssignments.length > 5 && (
+                    <Button variant="ghost" className="w-full text-blue-600 font-bold mt-2" onClick={() => setShowAllAssignments(true)}>
+                      Lihat Semua
+                    </Button>
+                  )}
+                </>
               )}
             </div>
-            {completedCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCompletedTodayDetails(true)}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-              >
-                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View Details
-              </Button>
-            )}
+          )}
+        </div>
+        {/* Completed Card */}
+        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-green-200 px-4 py-3">
+          <div className="absolute left-0 top-0 w-16 h-16 bg-green-100 rounded-full opacity-30 blur-2xl z-0" />
+          <div className="flex items-center w-full justify-between z-10 relative">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-50 rounded-full p-2">
+                <CheckmarkIcon className="h-7 w-7 text-green-600" />
+              </div>
+              <div className="text-xs text-gray-500 font-semibold">Completed</div>
+            </div>
+            <div className="text-3xl font-black text-green-600">{completedCount}</div>
           </div>
         </div>
-
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-yellow-200 dark:border-yellow-700 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 flex flex-col">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-yellow-100 dark:bg-yellow-900/60 rounded-full flex items-center justify-center flex-shrink-0">
-              <WarningIcon className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+        {/* Pending Card */}
+        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-yellow-200 px-4 py-3">
+          <div className="absolute left-0 top-0 w-16 h-16 bg-yellow-100 rounded-full opacity-30 blur-2xl z-0" />
+          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandPending(v => !v)}>
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-50 rounded-full p-2">
+                <WarningIcon className="h-7 w-7 text-yellow-600" />
+              </div>
+              <div className="text-xs text-gray-500 font-semibold">Pending</div>
             </div>
-            <div className="flex-1">
-              <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending Deliveries</span>
-              {isShipmentsLoading ? (
-                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="text-3xl font-black text-yellow-600">{pendingDeliveries}</div>
+            {expandPending ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+          </button>
+          {expandPending && (
+            <div className="mt-3 flex flex-col gap-2 z-10 relative">
+              {pendingShipments.length === 0 ? (
+                <div className="text-gray-400 text-sm">Tidak ada pending deliveries.</div>
               ) : (
-                <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 leading-none block">{pendingDeliveries}</span>
+                pendingShipments.map((shipment) => (
+                  <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                    <div>
+                      <div className="font-mono font-bold text-yellow-700 dark:text-yellow-300 text-base">{shipment.awb_number}</div>
+                      <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
+                      <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
+                      <div className="flex gap-2 mt-1">
+                        <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
+                        <MapsButton address={shipment.receiver_address} />
+                      </div>
+                    </div>
+                    <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-lg" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                      Update
+                    </Button>
+                  </div>
+                ))
               )}
             </div>
-            {pendingDeliveries > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPendingDetails(true)}
-                className="h-8 px-3 text-xs font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50"
-              >
-                <ViewIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} /> View Details
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-6">
-        <Button
-          className="w-full bg-gray-700 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 font-bold text-white h-auto py-4 text-base sm:text-lg shadow-lg"
-          onClick={() => setIsContinuousScanOpen(true)}
-        >
-          <span className="bg-white p-1 rounded-md mr-2 flex items-center justify-center"><BarcodeIcon className="h-5 w-5 text-gray-700" style={{ fontWeight: 'bold' }} /></span>
-          Continuous Scan
+      {/* Quick Actions */}
+      <div className="flex flex-col gap-3 px-3 mb-4">
+        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsContinuousScanOpen(true)}>
+          <BarcodeIcon className="h-5 w-5" /> Scan Resi
         </Button>
-        <Button
-          className="w-full bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 font-bold text-gray-900 dark:text-white h-auto py-4 text-base sm:text-lg shadow-lg"
-          onClick={() => setIsBulkModalOpen(true)}
-        >
-          <BoxIcon className="h-5 w-5 mr-2" style={{ fontWeight: 'bold' }} />
-          Bulk Shipped Update
+        <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsBulkModalOpen(true)}>
+          <BoxIcon className="h-5 w-5" /> Update Manual
         </Button>
       </div>
 
+      {/* Floating DLVD Scan Button (mobile only) */}
+      <Button onClick={() => setIsDeliveredScanOpen(true)} className="fixed bottom-5 right-5 z-50 bg-black hover:bg-gray-900 text-white rounded-full shadow-lg p-0 w-16 h-16 flex items-center justify-center sm:hidden">
+        <BarcodeIcon className="h-10 w-10 text-white" />
+      </Button>
+
+      {/* Modals tetap ada, tidak diubah */}
       <BulkUpdateModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
         onSuccess={handleBulkUpdateSuccess}
       />
-
       <ContinuousScanModal
         isOpen={isContinuousScanOpen}
         onClose={() => setIsContinuousScanOpen(false)}
         onSuccess={handleContinuousScanSuccess}
       />
-
       <ContinuousScanModal
         isOpen={isDeliveredScanOpen}
         onClose={() => setIsDeliveredScanOpen(false)}
         onSuccess={handleDeliveredScanSuccess}
         prefillStatus="delivered"
       />
-
+      {/* Dialog detail tetap ada, tidak diubah */}
       {/* Bulk Shipments Details Dialog */}
       <Dialog open={showBulkDetails} onOpenChange={setShowBulkDetails}>
         <DialogContent className="max-w-3xl">
@@ -931,6 +938,34 @@ export function CourierDashboard() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">No shipments completed today</div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal All Assignments */}
+      <Dialog open={showAllAssignments} onOpenChange={setShowAllAssignments}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Semua Tugas Hari Ini</DialogTitle>
+            <DialogDescription>Daftar lengkap resi assignments hari ini.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto mt-4 flex flex-col gap-2">
+            {sortedAssignments.map((shipment) => (
+              <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                <div>
+                  <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base">{shipment.awb_number}</div>
+                  <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
+                  <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
+                  <div className="flex gap-2 mt-1">
+                    <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
+                    <MapsButton address={shipment.receiver_address} />
+                  </div>
+                </div>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg" onClick={() => { setShowAllAssignments(false); router.push(`/courier/update?awb=${shipment.awb_number}`); }}>
+                  Update
+                </Button>
+              </div>
+            ))}
           </div>
         </DialogContent>
       </Dialog>

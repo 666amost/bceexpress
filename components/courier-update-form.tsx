@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useState, useRef, useEffect, Suspense } from "react"
+import React, { useState, useRef, useEffect, Suspense, useTransition, lazy } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,6 +22,18 @@ import type { ShipmentStatus } from "@/lib/db"
 import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
+import debounce from "lodash/debounce"
+
+// Lazy load komponen preview foto
+const PhotoPreview = lazy(() => Promise.resolve({
+  default: ({ src }: { src: string }) => (
+    <img
+      src={src || "/placeholder.svg"}
+      alt="Preview"
+      className="mx-auto photo-preview max-h-48 sm:max-h-60 rounded-lg shadow-md"
+    />
+  )
+}));
 
 function CourierUpdateFormComponent() {
   const searchParams = useSearchParams()
@@ -43,6 +54,8 @@ function CourierUpdateFormComponent() {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [useHighCompression, setUseHighCompression] = useState(false)
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -198,6 +211,8 @@ function CourierUpdateFormComponent() {
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setPhotoLoading(true);
+      setPhotoProgress(0);
       const file = e.target.files[0]
       
       // Reset input value untuk memungkinkan select file yang sama
@@ -206,11 +221,15 @@ function CourierUpdateFormComponent() {
       // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error("File tidak valid", { description: "Hanya file gambar yang diperbolehkan." })
+        setPhotoLoading(false);
+        setPhotoProgress(0);
         return
       }
       
       if (file.size > 10 * 1024 * 1024) { // Increased to 10MB for high resolution photos
         toast.error("File terlalu besar", { description: "Ukuran file maksimal 10MB." })
+        setPhotoLoading(false);
+        setPhotoProgress(0);
         return
       }
 
@@ -225,7 +244,8 @@ function CourierUpdateFormComponent() {
             maxWidthOrHeight: 1200,
             useWebWorker: false,
             initialQuality: 0.65,
-            alwaysKeepResolution: false
+            alwaysKeepResolution: false,
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         }
         if (fileSize > 5 * 1024 * 1024) { // > 5MB
@@ -234,7 +254,8 @@ function CourierUpdateFormComponent() {
             maxWidthOrHeight: 1600,
             useWebWorker: false, // Disable web worker for better compatibility
             initialQuality: 0.7,
-            alwaysKeepResolution: false
+            alwaysKeepResolution: false,
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         } else if (fileSize > 2 * 1024 * 1024) { // > 2MB
           return {
@@ -242,7 +263,8 @@ function CourierUpdateFormComponent() {
             maxWidthOrHeight: 1920,
             useWebWorker: false,
             initialQuality: 0.8,
-            alwaysKeepResolution: false
+            alwaysKeepResolution: false,
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         } else {
           return {
@@ -250,26 +272,56 @@ function CourierUpdateFormComponent() {
             maxWidthOrHeight: 2048,
             useWebWorker: false,
             initialQuality: 0.9,
-            alwaysKeepResolution: false
+            alwaysKeepResolution: false,
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         }
       }
 
+      let processedFile: File = file;
+      try {
+        const options = getCompressionOptions(file.size)
+        // imageCompression supports onProgress callback (0-100)
+        processedFile = await imageCompression(file, options)
+        
+        // Validate compressed file
+        if (!processedFile || processedFile.size === 0) {
+          throw new Error("Compression resulted in empty file")
+        }
+        
+      } catch (compressionError) {
+        console.warn("Compression failed, trying with reduced options:", compressionError)
+        
+        // Fallback compression with minimal settings
+        try {
+          const fallbackOptions = {
+            maxSizeMB: 2,
+            maxWidthOrHeight: 1280,
+            useWebWorker: false,
+            initialQuality: 0.6,
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
+          }
+          processedFile = await imageCompression(file, fallbackOptions)
+          
+          if (!processedFile || processedFile.size === 0) {
+            throw new Error("Fallback compression failed")
+          }
+          
+        } catch (fallbackError) {
+          console.warn("All compression attempts failed, using original file:", fallbackError)
+          processedFile = file
+        }
+      }
+      
+      // FileReader progress
       const processFile = (fileToProcess: File) => {
-        return new Promise<void>((resolve, reject) => {
+        return new Promise<string>((resolve, reject) => {
           const reader = new FileReader()
           
           reader.onload = (event) => {
             if (event.target?.result) {
-              setPhoto(fileToProcess)
-              setPhotoPreview(event.target.result as string)
-              
-              toast.dismiss(loadingToast)
-              toast.success("Foto berhasil dipilih", { 
-                description: `File: ${fileToProcess.name} (${(fileToProcess.size / 1024).toFixed(1)}KB)`,
-                duration: 2000
-              })
-              resolve()
+              setPhotoProgress(100)
+              resolve(event.target.result as string)
             } else {
               reject(new Error("Failed to read file"))
             }
@@ -277,6 +329,11 @@ function CourierUpdateFormComponent() {
           
           reader.onerror = () => {
             reject(new Error("FileReader error"))
+          }
+          reader.onprogress = (event) => {
+            if (event.lengthComputable) {
+              setPhotoProgress(80 + Math.round((event.loaded / event.total) * 20))
+            }
           }
           
           // Add timeout for FileReader
@@ -289,45 +346,19 @@ function CourierUpdateFormComponent() {
       }
 
       try {
-        const options = getCompressionOptions(file.size)
-        let processedFile: File
-        
-        try {
-          // Try compression with retry mechanism
-          processedFile = await imageCompression(file, options)
-          
-          // Validate compressed file
-          if (!processedFile || processedFile.size === 0) {
-            throw new Error("Compression resulted in empty file")
-          }
-          
-        } catch (compressionError) {
-          console.warn("Compression failed, trying with reduced options:", compressionError)
-          
-          // Fallback compression with minimal settings
-          try {
-            const fallbackOptions = {
-              maxSizeMB: 2,
-              maxWidthOrHeight: 1280,
-              useWebWorker: false,
-              initialQuality: 0.6
-            }
-            processedFile = await imageCompression(file, fallbackOptions)
-            
-            if (!processedFile || processedFile.size === 0) {
-              throw new Error("Fallback compression failed")
-            }
-            
-          } catch (fallbackError) {
-            console.warn("All compression attempts failed, using original file:", fallbackError)
-            processedFile = file
-          }
-        }
-        
-        await processFile(processedFile)
+        const previewUrl = await processFile(processedFile)
+        setPhoto(processedFile)
+        setPhotoPreview(previewUrl)
+        toast.dismiss(loadingToast)
+        toast.success("Foto berhasil dipilih", { 
+          description: `File: ${processedFile.name} (${(processedFile.size / 1024).toFixed(1)}KB)`,
+          duration: 2000
+        })
         
       } catch (error) {
         console.error("Photo processing error:", error)
+        setPhoto(null)
+        setPhotoPreview(null)
         toast.dismiss(loadingToast)
         toast.error("Gagal memproses foto", { 
           description: "Silakan coba lagi atau pilih foto lain",
@@ -335,8 +366,10 @@ function CourierUpdateFormComponent() {
         })
         
         // Reset states
-        setPhoto(null)
-        setPhotoPreview(null)
+        // setPhoto(null) // This is now handled by the finally block
+        // setPhotoPreview(null) // This is now handled by the finally block
+      } finally {
+        setTimeout(() => { setPhotoLoading(false); setPhotoProgress(0); }, 500)
       }
     }
   }
@@ -839,19 +872,7 @@ function CourierUpdateFormComponent() {
               <div className="flex justify-between items-center mb-1.5">
                 <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">AWB Number</Label>
               </div>
-              <Input
-                id="courier-awb"
-                placeholder="Enter AWB Number"
-                value={awbNumber}
-                onChange={(e) => {
-                  setAwbNumber(e.target.value)
-                  if (e.target.value.length >= 10) {
-                    fetchShipmentDetails(e.target.value)
-                  }
-                }}
-                required
-                className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11"
-              />
+              <AwbInput awbNumber={awbNumber} setAwbNumber={setAwbNumber} fetchShipmentDetails={fetchShipmentDetails} />
             </div>
 
             <div>
@@ -916,14 +937,16 @@ function CourierUpdateFormComponent() {
                   onChange={handlePhotoChange}
                 />
 
-                {photoPreview ? (
-                  <div className="mb-3 sm:mb-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photoPreview || "/placeholder.svg"}
-                      alt="Preview"
-                      className="mx-auto photo-preview max-h-48 sm:max-h-60 rounded-lg shadow-md"
-                    />
+                {photoLoading ? (
+                  <div className="flex flex-col justify-center items-center h-32 w-full sm:hidden">
+                    <div className="w-3/4 bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div className="bg-blue-500 h-3 rounded-full transition-all duration-200" style={{ width: `${photoProgress}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-600 mt-1">{photoProgress}%</span>
+                  </div>
+                ) : photoPreview ? (
+                  <Suspense fallback={<div className="flex justify-center items-center h-32"><span className="text-blue-500">Loading...</span></div>}>
+                    <PhotoPreview src={photoPreview} />
                     <Button
                       type="button"
                       variant="ghost"
@@ -933,7 +956,7 @@ function CourierUpdateFormComponent() {
                     >
                       <CloseIcon className="h-4 w-4 mr-1" /> Remove Photo
                     </Button>
-                  </div>
+                  </Suspense>
                 ) : (
                   <div>
                     <CameraIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2 sm:mb-3" />
@@ -1006,6 +1029,41 @@ function CourierUpdateFormComponent() {
     </div>
   )
 }
+
+// Komponen input AWB terpisah
+const AwbInput = React.memo(function AwbInput({ awbNumber, setAwbNumber, fetchShipmentDetails }: {
+  awbNumber: string,
+  setAwbNumber: (v: string) => void,
+  fetchShipmentDetails: (awb: string) => void
+}) {
+  const [isPending, startTransition] = useTransition();
+  const debouncedFetch = React.useMemo(
+    () => debounce((awb: string) => {
+      startTransition(() => fetchShipmentDetails(awb));
+    }, 300),
+    [fetchShipmentDetails]
+  );
+  const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setAwbNumber(e.target.value)
+    if (e.target.value.length >= 10) debouncedFetch(e.target.value)
+  }, [setAwbNumber, debouncedFetch])
+  React.useEffect(() => () => debouncedFetch.cancel(), [debouncedFetch])
+  return (
+    <div className="relative">
+      <Input
+        id="courier-awb"
+        placeholder="Enter AWB Number"
+        value={awbNumber}
+        onChange={handleChange}
+        required
+        className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11 pr-10"
+      />
+      {isPending && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-500 animate-pulse">Loading...</span>
+      )}
+    </div>
+  )
+})
 
 export function CourierUpdateForm() {
   return (
