@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Type untuk payload WAHA
+interface WahaPayload {
+  from?: string;
+  fromMe?: boolean;
+}
+
+interface WahaBody {
+  from?: string;
+  fromMe?: boolean;
+  payload?: WahaPayload;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body: WahaBody = await req.json();
     // Ambil nomor pengirim dan status fromMe dari body.payload (WAHA) atau fallback ke body.from (Postman/manual)
-    let from = body.from;
-    let fromMe = false;
+    let from: string | undefined = body.from;
+    let fromMe: boolean = false;
     if (!from && body.payload && body.payload.from) {
       from = body.payload.from;
-      fromMe = body.payload.fromMe;
+      fromMe = !!body.payload.fromMe;
     } else if (body.fromMe !== undefined) {
-      fromMe = body.fromMe;
+      fromMe = !!body.fromMe;
     }
     if (!from) {
       return NextResponse.json({ error: 'No sender (from) in payload' }, { status: 400 });
