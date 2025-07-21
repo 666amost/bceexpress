@@ -3,8 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log('WAHA payload:', body); // Logging untuk debugging
-    const { from } = body;
+    // Ambil nomor pengirim dari WAHA (messages[0].from) atau fallback ke body.from
+    let from = body.from;
+    if (!from && Array.isArray(body.messages) && body.messages.length > 0) {
+      from = body.messages[0].from;
+    }
     if (!from) {
       return NextResponse.json({ error: 'No sender (from) in payload' }, { status: 400 });
     }
