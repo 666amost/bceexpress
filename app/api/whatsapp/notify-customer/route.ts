@@ -28,12 +28,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Tambahkan handler GET untuk auto-reply jika user membalas (simulasi, karena WhatsApp webhook reply perlu endpoint terpisah)
-export async function GET(req: NextRequest) {
-  // Simulasi auto-reply jika user membalas
-  return NextResponse.json({ reply: 'Untuk pertanyaan mengenai pengiriman bisa hub Admin di area pengiriman' });
-}
-
 function normalizePhoneNumber(phone: string): string {
   if (phone.startsWith('62')) return phone;
   if (phone.startsWith('08')) return '62' + phone.slice(1);

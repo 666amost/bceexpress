@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { from } = body;
-    const replyText = 'Untuk pertanyaan mengenai pengiriman bisa hub Admin di area pengiriman atau silahkan hubungi kami di nomor 082114097704';
+    const replyText = 'untuk pertanyaan mengenai pengiriman bisa hub Admin di area pengiriman\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima';
 
     // Normalisasi nomor WA (jika perlu)
     const phoneId = normalizePhoneNumber(from);
@@ -20,9 +20,12 @@ export async function POST(req: NextRequest) {
 
 function normalizePhoneNumber(phone: string): string {
   if (!phone) return '';
-  if (phone.startsWith('62')) return phone;
-  if (phone.startsWith('08')) return '62' + phone.slice(1);
-  return phone;
+  // Ambil hanya digit (buang @c.us jika ada)
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('62')) return digits;
+  if (digits.startsWith('08')) return '62' + digits.slice(1);
+  if (digits.startsWith('8')) return '62' + digits; // handle jika tanpa 0
+  return digits;
 }
 
 async function sendMessageSequence(phoneOrGroup: string, message: string) {
