@@ -3,13 +3,21 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    // Ambil nomor pengirim dari body.payload.from (WAHA) atau fallback ke body.from (Postman/manual)
+    // Ambil nomor pengirim dan status fromMe dari body.payload (WAHA) atau fallback ke body.from (Postman/manual)
     let from = body.from;
+    let fromMe = false;
     if (!from && body.payload && body.payload.from) {
       from = body.payload.from;
+      fromMe = body.payload.fromMe;
+    } else if (body.fromMe !== undefined) {
+      fromMe = body.fromMe;
     }
     if (!from) {
       return NextResponse.json({ error: 'No sender (from) in payload' }, { status: 400 });
+    }
+    if (fromMe) {
+      // Jangan balas pesan dari bot sendiri
+      return NextResponse.json({ ok: true, info: 'Message from bot, not replying.' });
     }
     const replyText = 'untuk pertanyaan mengenai pengiriman bisa hub Admin di area pengiriman\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima';
 
