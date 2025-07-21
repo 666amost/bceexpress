@@ -15,7 +15,7 @@ interface MessageData {
 interface WahaWebhookBody {
   event: 'message' | 'ack' | 'presence' | string; // Tipe event yang dikirim
   session: string;
-  data: MessageData; // Data payload, spesifik untuk event 'message'
+  payload: MessageData; // Data payload, spesifik untuk event 'message'
 }
 
 // ===================================================================
@@ -26,25 +26,18 @@ export async function POST(req: NextRequest) {
   try {
     const body: WahaWebhookBody = await req.json();
 
-    // --- PERBAIKAN UTAMA: Periksa tipe event ---
-    // Hanya proses jika event adalah 'message' dan ada isi pesannya.
-    if (body.event !== 'message' || !body.data || !body.data.body) {
-      // Jika ini event lain (ack, presence, dll) atau bukan pesan teks,
-      // abaikan dengan mengirim respons sukses. Ini akan menghentikan error 400.
+    // --- Perbaikan: gunakan body.payload sesuai struktur WAHA ---
+    if (body.event !== 'message' || !body.payload || !body.payload.body) {
       console.log(`Event '${body.event}' diterima dan diabaikan.`);
       return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored.` });
     }
 
-    // Dari sini, kita tahu ini adalah pesan teks yang valid.
-    const { from, fromMe } = body.data;
+    const { from, fromMe } = body.payload;
 
-    // Jangan balas pesan dari bot sendiri
     if (fromMe) {
       return NextResponse.json({ ok: true, info: 'Message from bot, not replying.' });
     }
 
-    // --- LOGIKA AUTO-REPLY SEDERHANA ---
-    // Kirim balasan standar untuk setiap pesan yang masuk.
     const replyText = 'Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.';
     await sendMessageSequence(from, replyText);
 
