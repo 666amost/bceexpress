@@ -66,7 +66,7 @@ async function sendMessage(phoneOrGroup: string, message: string) {
     'Content-Type': 'application/json',
   };
   if (process.env.WAHA_API_KEY) {
-    headers['apiKey'] = process.env.WAHA_API_KEY;
+    headers['X-Api-Key'] = process.env.WAHA_API_KEY; // Ganti ke X-Api-Key
   }
   const res = await fetch(`${process.env.WAHA_API_URL}/api/sendMessage`, {
     method: 'POST',
