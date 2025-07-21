@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
       try {
-        await sendMessage(groupId, text);
+        await sendMessageSequence(groupId, text);
       } catch (whatsappError) {
         console.error('WhatsApp send error:', whatsappError);
         // Return success but log error - don't fail the webhook
@@ -62,13 +62,43 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function sendMessage(phoneOrGroup: string, message: string) {
+async function sendMessageSequence(phoneOrGroup: string, message: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (process.env.WAHA_API_KEY) {
     headers['X-Api-Key'] = process.env.WAHA_API_KEY;
   }
+  // 1. Send seen
+  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 2. Start typing
+  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 3. Wait random 30-60 seconds
+  await randomDelay(30000, 60000);
+  // 4. Stop typing
+  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 5. Send text message
   const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
     method: 'POST',
     headers,
@@ -81,11 +111,14 @@ async function sendMessage(phoneOrGroup: string, message: string) {
       linkPreviewHighQuality: false
     })
   });
-  
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`WhatsApp API error: ${res.status} - ${errorText}`);
   }
-  
   return res.json();
+}
+
+function randomDelay(min: number, max: number) {
+  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
+  return new Promise(resolve => setTimeout(resolve, ms));
 } 
