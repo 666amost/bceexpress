@@ -66,15 +66,18 @@ async function sendMessage(phoneOrGroup: string, message: string) {
     'Content-Type': 'application/json',
   };
   if (process.env.WAHA_API_KEY) {
-    headers['X-Api-Key'] = process.env.WAHA_API_KEY; // Ganti ke X-Api-Key
+    headers['X-Api-Key'] = process.env.WAHA_API_KEY;
   }
-  const res = await fetch(`${process.env.WAHA_API_URL}/api/sendMessage`, {
+  const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      session: process.env.WAHA_SESSION || 'default',
       chatId: phoneOrGroup,
-      text: message
+      text: message,
+      session: process.env.WAHA_SESSION || 'default',
+      reply_to: null,
+      linkPreview: true,
+      linkPreviewHighQuality: false
     })
   });
   
