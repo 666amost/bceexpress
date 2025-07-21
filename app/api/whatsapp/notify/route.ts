@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
       const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
         ? process.env.WA_GROUP_ID
         : process.env.WA_GROUP_ID + '@g.us';
-      const text = `Paket Terkirim!\nAWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
+      // Ubah format pesan tanpa 'Paket Terkirim!'
+      const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
       try {
         await sendMessage(groupId, text);
