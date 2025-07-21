@@ -62,9 +62,15 @@ export async function POST(req: NextRequest) {
 }
 
 async function sendMessage(phoneOrGroup: string, message: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (process.env.WAHA_API_KEY) {
+    headers['apiKey'] = process.env.WAHA_API_KEY;
+  }
   const res = await fetch(`${process.env.WAHA_API_URL}/api/sendMessage`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       session: process.env.WAHA_SESSION || 'default',
       chatId: phoneOrGroup,

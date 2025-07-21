@@ -7,7 +7,7 @@ Untuk mengintegrasikan WhatsApp notification dengan sistem, Anda perlu mengatur 
 ### 1. WA_WEBHOOK_SECRET
 Secret key untuk mengamankan webhook dari Supabase ke Vercel
 ```
-WA_WEBHOOK_SECRET=your_secret_key_here
+WA_WEBHOOK_SECRET=botkontol666
 ```
 
 ### 2. WAHA_API_URL
@@ -19,19 +19,13 @@ WAHA_API_URL=http://your-waha-server:3000
 ### 3. WAHA_SESSION
 Session name untuk WAHA (default: 'default')
 ```
-WAHA_SESSION=default
+WAHA_SESSION=bot_group
 ```
 
 ### 4. WA_GROUP_ID
 ID grup WhatsApp untuk menerima notifikasi (tanpa @g.us suffix)
 ```
-WA_GROUP_ID=12345678901234567890
-```
-
-### 5. VERCEL_WEBHOOK_URL
-URL endpoint webhook di Vercel untuk menerima data dari Supabase
-```
-VERCEL_WEBHOOK_URL=https://your-app.vercel.app/api/whatsapp/notify
+WA_GROUP_ID=6281380800298-1585973791
 ```
 
 ## Cara Setup
@@ -48,20 +42,34 @@ VERCEL_WEBHOOK_URL=https://your-app.vercel.app/api/whatsapp/notify
 3. Buka tab "Settings" > "Environment Variables"
 4. Tambahkan semua environment variables di atas
 
-### 3. Setup Supabase Webhook
+### 3. Setup Supabase Webhook (HTTP Request)
 1. Buka dashboard Supabase
 2. Pilih project Anda
 3. Buka "Database" > "Webhooks"
 4. Buat webhook baru dengan:
-   - Table: `shipment_history`
-   - Events: `INSERT`, `UPDATE`
-   - URL: `https://your-app.vercel.app/api/whatsapp/notify`
-   - Headers: `Authorization: your_webhook_secret`
+   - **Type**: HTTP Request
+   - **Table**: `shipment_history`
+   - **Events**: `INSERT`, `UPDATE`
+   - **URL**: `https://bcexpress.vercel.app/api/whatsapp/notify`
+   - **Method**: `POST`
+   - **Headers**: 
+     ```
+     Authorization: botkontol666
+     Content-Type: application/json
+     ```
 
 ### 4. Test Konfigurasi
 1. Akses `/api/whatsapp/status` untuk mengecek status konfigurasi
 2. Update status shipment menjadi "delivered"
 3. Cek apakah notifikasi terkirim ke grup WhatsApp
+
+## Alur Kerja
+
+```
+1. Kurir Update Status → Database
+2. Supabase Webhook → HTTP Request → Vercel API
+3. Vercel API → Validasi → WhatsApp Notification
+```
 
 ## Troubleshooting
 
@@ -78,4 +86,9 @@ VERCEL_WEBHOOK_URL=https://your-app.vercel.app/api/whatsapp/notify
 ### Webhook Tidak Terpanggil
 - Pastikan webhook URL benar
 - Cek authorization header
-- Pastikan Supabase webhook aktif 
+- Pastikan Supabase webhook aktif
+- Pastikan table `shipment_history` ada dan memiliki data
+
+### Environment Variables Check
+- Akses `/api/whatsapp/status` untuk mengecek konfigurasi
+- Pastikan semua variables ter-set dengan benar 

@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "BCE WhatsApp Integration Test - Production",
+    "description": "Collection untuk test WhatsApp integration dengan resi yang sudah delivered di database",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://bcexpress.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "webhook_secret",
+      "value": "bcekontol666",
+      "type": "string"
+    },
+    {
+      "key": "awb_number",
+      "value": "BOTRESI67",
+      "type": "string"
+    },
+    {
+      "key": "waha_api_key",
+      "value": "ISI_API_KEY_ANDA_DISINI",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Check WhatsApp Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/whatsapp/status",
+          "host": ["{{base_url}}"],
+          "path": ["api", "whatsapp", "status"]
+        },
+        "description": "Cek status konfigurasi WhatsApp integration - pastikan semua environment variables ter-set"
+      }
+    },
+    {
+      "name": "2. Test WhatsApp - Resi Sudah Delivered",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "{{webhook_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"UPDATE\",\n  \"record\": {\n    \"awb_number\": \"{{awb_number}}\",\n    \"status\": \"delivered\",\n    \"notes\": \"Resi sudah delivered di database - test notifikasi WhatsApp\"\n  },\n  \"old_record\": {\n    \"awb_number\": \"{{awb_number}}\",\n    \"status\": \"out_for_delivery\",\n    \"notes\": \"Status sebelumnya\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/whatsapp/notify",
+          "host": ["{{base_url}}"],
+          "path": ["api", "whatsapp", "notify"]
+        },
+        "description": "Test webhook untuk resi yang sudah delivered di database - akan kirim notifikasi ke grup WhatsApp"
+      }
+    },
+    {
+      "name": "3. Test WhatsApp - INSERT Delivered",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "{{webhook_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"INSERT\",\n  \"record\": {\n    \"awb_number\": \"{{awb_number}}\",\n    \"status\": \"delivered\",\n    \"notes\": \"Insert resi delivered baru - test notifikasi WhatsApp\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/whatsapp/notify",
+          "host": ["{{base_url}}"],
+          "path": ["api", "whatsapp", "notify"]
+        },
+        "description": "Test webhook INSERT event untuk resi delivered - akan kirim notifikasi ke grup WhatsApp"
+      }
+    },
+    {
+      "name": "4. Test Manual WAHA API",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "apiKey",
+            "value": "{{waha_api_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"session\": \"bot_group\",\n  \"chatId\": \"6281380800298-1585973791@g.us\",\n  \"text\": \"Test manual dari Postman ke WAHA\"\n}"
+        },
+        "url": {
+          "raw": "https://waha-vktm5zbm2njg.cepat.sumopod.my.id/api/sendMessage",
+          "host": ["waha-vktm5zbm2njg.cepat.sumopod.my.id"],
+          "path": ["api", "sendMessage"]
+        },
+        "description": "Test manual ke WAHA API dengan header apiKey"
+      }
+    }
+  ]
+} 
