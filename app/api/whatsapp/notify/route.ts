@@ -8,7 +8,6 @@ export async function POST(req: NextRequest) {
 
     // Validasi environment variables
     if (!process.env.WA_WEBHOOK_SECRET) {
-      console.error('WA_WEBHOOK_SECRET not configured');
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
 
@@ -28,10 +27,6 @@ export async function POST(req: NextRequest) {
     ) {
       // Validasi environment variables untuk WhatsApp
       if (!process.env.WAHA_API_URL || !process.env.WA_GROUP_ID) {
-        console.error('WhatsApp environment variables not configured:', {
-          WAHA_API_URL: process.env.WAHA_API_URL ? 'SET' : 'NOT SET',
-          WA_GROUP_ID: process.env.WA_GROUP_ID ? 'SET' : 'NOT SET'
-        });
         // Return success but log error - don't fail the webhook
         return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - environment not configured' });
       }
@@ -49,7 +44,6 @@ export async function POST(req: NextRequest) {
       try {
         await sendMessageSequence(groupId, text);
       } catch (whatsappError) {
-        console.error('WhatsApp send error:', whatsappError);
         // Return success but log error - don't fail the webhook
         return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed but webhook succeeded' });
       }
@@ -57,7 +51,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Webhook processing error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

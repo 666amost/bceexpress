@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    // Ambil nomor pengirim dari WAHA (messages[0].from) atau fallback ke body.from
+    // Ambil nomor pengirim dari body.payload.from (WAHA) atau fallback ke body.from (Postman/manual)
     let from = body.from;
-    if (!from && Array.isArray(body.messages) && body.messages.length > 0) {
-      from = body.messages[0].from;
+    if (!from && body.payload && body.payload.from) {
+      from = body.payload.from;
     }
     if (!from) {
       return NextResponse.json({ error: 'No sender (from) in payload' }, { status: 400 });
@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Auto-reply error:', error);
     return NextResponse.json({ error: 'Internal server error', details: error instanceof Error ? error.message : error }, { status: 500 });
   }
 }
