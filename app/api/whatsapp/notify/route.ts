@@ -1,101 +1,117 @@
-// app/api/whatsapp/notify-customer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const rawAuth = req.headers.get('authorization') ?? '';
-    const token = rawAuth.replace(/^Bearer\s+/i, '').trim();
+    const authorization = req.headers.get('authorization');
+    const { type, record, old_record } = body;
 
+    // Validasi environment variables
     if (!process.env.WA_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
-    if (token !== process.env.WA_WEBHOOK_SECRET) {
+
+    if (authorization !== process.env.WA_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const { type, table } = body;
-    const src       = body.record ?? body.new ?? body.data ?? body;
-    const oldSrc    = body.old_record ?? body.old ?? {};
-
-    // --- map kolom shipments ---
-    const awb_number   = src?.awb_number;
-    const status       = (src?.current_status ?? src?.status ?? '').toLowerCase();
-    const oldStatus    = (oldSrc?.current_status ?? oldSrc?.status ?? '').toLowerCase();
-    const phoneRaw     = src?.receiver_phone ?? src?.receiver_number;
-
-    // Kalau payload tidak lengkap, jangan error 400 supaya log bersih
-    if (!awb_number || !status) {
-      return NextResponse.json({ ok: true, warning: 'payload missing fields', table, keys: Object.keys(src || {}) });
+    // Validasi data yang diperlukan
+    if (!record || !record.awb_number || !record.status) {
+      return NextResponse.json({ error: 'Invalid record data' }, { status: 400 });
     }
 
-    const isDeliveredInsert =
-      type === 'INSERT' && status === 'delivered';
-    const isDeliveredUpdate =
-      type === 'UPDATE' && status === 'delivered' && oldStatus !== 'delivered';
+    // Trigger hanya jika status delivered
+    if (
+      (type === 'INSERT' && record.status === 'delivered') ||
+      (type === 'UPDATE' && record.status === 'delivered' && old_record?.status !== 'delivered')
+    ) {
+      // Validasi environment variables untuk WhatsApp
+      if (!process.env.WAHA_API_URL || !process.env.WA_GROUP_ID) {
+        // Return success but log error - don't fail the webhook
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - environment not configured' });
+      }
 
-    if (!(isDeliveredInsert || isDeliveredUpdate)) {
-      return NextResponse.json({ ok: true, skipped: true });
+      const awb = record.awb_number;
+      const status = record.status;
+      const note = record.notes || '';
+
+      const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
+        ? process.env.WA_GROUP_ID
+        : process.env.WA_GROUP_ID + '@g.us';
+      // Ubah format pesan tanpa 'Paket Terkirim!'
+      const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
+
+      try {
+        await sendMessageSequence(groupId, text);
+      } catch (whatsappError) {
+        // Return success but log error - don't fail the webhook
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed but webhook succeeded' });
+      }
     }
 
-    if (!phoneRaw) {
-      return NextResponse.json({ ok: true, warning: 'receiver_phone missing' });
-    }
-    if (!process.env.WAHA_API_URL) {
-      return NextResponse.json({ ok: true, warning: 'WAHA_API_URL missing' });
-    }
-
-    const chatId  = toChatId(phoneRaw);
-    const message = buildDeliveredMsg(awb_number);
-
-    try {
-      await sendMessageSequence(chatId, message);
-      return NextResponse.json({ ok: true });
-    } catch {
-      return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed' });
-    }
-  } catch {
+    return NextResponse.json({ ok: true });
+  } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-/* Templates */
-const DELIVERED_TEMPLATES = [
-  (awb: string) => `Halo, kiriman Anda (AWB ${awb}) telah diterima. Terima kasih sudah mempercayakan pengiriman pada kami.`,
-  (awb: string) => `Hai! Paket dengan AWB ${awb} statusnya *DELIVERED*. Lihat detail tracking di bcexp.id.`,
-  (awb: string) => `Hello, paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan balas pesan ini ya.`,
-  (awb: string) => `Salam, paket Anda (AWB ${awb}) telah terkirim. Terima kasih!`
-];
-function buildDeliveredMsg(awb: string) {
-  return DELIVERED_TEMPLATES[Math.floor(Math.random() * DELIVERED_TEMPLATES.length)](awb);
-}
-
-/* Helpers */
-function toChatId(phone: string): string {
-  let digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('0')) digits = '62' + digits.slice(1);
-  if (!digits.startsWith('62')) digits = '62' + digits;
-  return `${digits}@c.us`;
-}
-
-async function sendMessageSequence(chatId: string, text: string) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
-  const session = process.env.WAHA_SESSION || 'default';
-
-  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`,     { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`,  { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await randomDelay(Number(process.env.MIN_DELAY_MS ?? 15000), Number(process.env.MAX_DELAY_MS ?? 35000));
-  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`,   { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-
+async function sendMessageSequence(phoneOrGroup: string, message: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (process.env.WAHA_API_KEY) {
+    headers['X-Api-Key'] = process.env.WAHA_API_KEY;
+  }
+  // 1. Send seen
+  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 2. Start typing
+  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 3. Wait random 30-60 seconds
+  await randomDelay(30000, 60000);
+  // 4. Stop typing
+  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      session: process.env.WAHA_SESSION || 'default',
+    })
+  });
+  // 5. Send text message
   const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ chatId, text, session, reply_to: null, linkPreview: true, linkPreviewHighQuality: false })
+    body: JSON.stringify({
+      chatId: phoneOrGroup,
+      text: message,
+      session: process.env.WAHA_SESSION || 'default',
+      reply_to: null,
+      linkPreview: true,
+      linkPreviewHighQuality: false
+    })
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`WhatsApp API error: ${res.status} - ${errorText}`);
+  }
+  return res.json();
 }
 
 function randomDelay(min: number, max: number) {
-  return new Promise(r => setTimeout(r, Math.floor(Math.random() * (max - min + 1)) + min));
-}
+  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
+  return new Promise(resolve => setTimeout(resolve, ms));
+} 
