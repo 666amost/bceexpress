@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     const status     = (src?.current_status ?? src?.status ?? '').toLowerCase();
     const oldStatus  = (oldSrc?.current_status ?? oldSrc?.status ?? '').toLowerCase();
     const phoneRaw   = src?.receiver_phone ?? src?.receiver_number ?? src?.phone;
+    const receiverNameRaw = src?.receiver_name; // <---- ADD
 
     // Jangan bikin 400 supaya log bersih
     if (!awb_number || !status) {
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     const chatId  = toChatId(phoneRaw);
-    const message = buildDeliveredMsg(awb_number);
+    const message = buildDeliveredMsg(awb_number, receiverNameRaw); // <---- PASS NAME
 
     try {
       await sendMessageSequence(chatId, message);
@@ -62,14 +63,27 @@ export async function POST(req: NextRequest) {
 }
 
 /* ================== Templates ================== */
+function cleanName(name?: string | null) {
+  if (!name) return null;
+  const n = String(name).trim();
+  return /auto\s*generated/i.test(n) ? null : n;
+}
+
 const DELIVERED_TEMPLATES = [
-  (awb: string) => `Halo, kiriman Anda (AWB ${awb}) telah diterima. Terima kasih sudah mempercayakan pengiriman pada kami.`,
-  (awb: string) => `Hai! Paket dengan AWB ${awb} statusnya *DELIVERED*. Lihat detail tracking di bcexp.id.`,
-  (awb: string) => `Hello, paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan balas pesan ini ya.`,
-  (awb: string) => `Salam, paket Anda (AWB ${awb}) telah terkirim. Terima kasih!`
+  (awb: string, name?: string) =>
+    `Halo${name ? ` ${name}` : ''}, kiriman Anda (AWB ${awb}) telah diterima. Terima kasih sudah mempercayakan pengiriman pada kami.`,
+  (awb: string, name?: string) =>
+    `Hai${name ? ` ${name}` : ''}! Paket dengan AWB ${awb} statusnya *DELIVERED*. Lihat detail tracking di bcexp.id.`,
+  (awb: string, name?: string) =>
+    `Hello${name ? ` ${name}` : ''}, paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan balas pesan ini ya.`,
+  (awb: string, name?: string) =>
+    `Salam${name ? ` ${name}` : ''}, paket Anda (AWB ${awb}) telah terkirim. Terima kasih!`
 ];
-function buildDeliveredMsg(awb: string) {
-  return DELIVERED_TEMPLATES[Math.floor(Math.random() * DELIVERED_TEMPLATES.length)](awb);
+
+function buildDeliveredMsg(awb: string, rawName?: string) {
+  const name = cleanName(rawName) || undefined;
+  const tpl = DELIVERED_TEMPLATES[Math.floor(Math.random() * DELIVERED_TEMPLATES.length)];
+  return tpl(awb, name);
 }
 
 /* ================== Helpers ================== */
