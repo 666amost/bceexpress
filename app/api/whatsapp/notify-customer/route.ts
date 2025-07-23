@@ -1,6 +1,10 @@
 // app/api/whatsapp/notify-customer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
+// Queue untuk menangani pesan customer
+let customerMessageQueue: {chatId: string, message: string}[] = [];
+let isCustomerProcessing = false;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -51,12 +55,15 @@ export async function POST(req: NextRequest) {
     const chatId  = toChatId(phoneRaw);
     const message = buildDeliveredMsg(awb_number, receiverNameRaw); // <---- PASS NAME
 
-    try {
-      await sendMessageSequence(chatId, message);
-      return NextResponse.json({ ok: true });
-    } catch {
-      return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed' });
+    // Tambahkan ke queue
+    customerMessageQueue.push({ chatId, message });
+    
+    // Mulai proses queue jika belum berjalan
+    if (!isCustomerProcessing) {
+      processCustomerMessageQueue();
     }
+    
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -121,4 +128,24 @@ async function sendMessageSequence(chatId: string, text: string) {
 
 function randomDelay(min: number, max: number) {
   return new Promise(r => setTimeout(r, Math.floor(Math.random() * (max - min + 1)) + min));
+}
+
+async function processCustomerMessageQueue() {
+  if (isCustomerProcessing || customerMessageQueue.length === 0) return;
+  
+  isCustomerProcessing = true;
+  
+  while (customerMessageQueue.length > 0) {
+    const message = customerMessageQueue[0];
+    try {
+      await sendMessageSequence(message.chatId, message.message);
+      // Tunggu 5 detik sebelum mengirim pesan berikutnya
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    } catch (error) {
+      console.error('Error sending customer message:', error);
+    }
+    customerMessageQueue.shift(); // Hapus pesan yang sudah diproses
+  }
+  
+  isCustomerProcessing = false;
 }

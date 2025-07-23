@@ -1,8 +1,7 @@
+// app/api/whatsapp/auto-reply/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// ===================================================================
-// BAGIAN 1: INTERFACE (TIPE) YANG LEBIH AKURAT UNTUK WAHA
-// ===================================================================
+// ================== Types ==================
 interface MessageData {
   from: string;
   fromMe: boolean;
@@ -14,81 +13,78 @@ interface WahaWebhookBody {
   payload: MessageData;
 }
 
-// ===================================================================
-// BAGIAN 2: FUNGSI UTAMA WEBHOOK (POST HANDLER)
-// ===================================================================
+// ================== Handler ==================
 export async function POST(req: NextRequest) {
   try {
-    const body: WahaWebhookBody = await req.json();
+    // Body must be read ONCE to avoid "Body is unusable" errors
+    const raw = await req.text();
+    const body: WahaWebhookBody = JSON.parse(raw);
 
-    if (body.event !== 'message' || !body.payload || !body.payload.body) {
-      console.log(`Event '${body.event}' diterima dan diabaikan.`);
-      return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored.` });
+    // Ignore non-message events or messages without text
+    if (body.event !== 'message' || !body.payload?.body) {
+      return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored` });
     }
 
     const { from, fromMe } = body.payload;
     if (fromMe) {
-      return NextResponse.json({ ok: true, info: 'Message from bot, not replying.' });
+      return NextResponse.json({ ok: true, info: 'Message from bot, skipped' });
     }
 
-    const replyText =
-`Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.
+    const replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan input no AWB.\n\nTERIMA KASIH.`;
 
-Whatsapp ini hanya chat otomatis untuk laporan paket diterima.
-
-Akses bcexp.id untuk tracking paket dengan input no AWB.
-
-TERIMA KASIH.`;
-
-    await sendMessageSequence(from, replyText);
+    await sendTextSafe(from, replyText); // fast send, no typing/delay to avoid 524
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('Error in webhook handler:', error);
+  } catch (err: any) {
+    console.error('Error in webhook handler:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : error },
+      { error: 'Internal server error', details: err?.message ?? String(err) },
       { status: 500 }
     );
   }
 }
 
-// ===================================================================
-// BAGIAN 3: FUNGSI PEMBANTU (HELPER FUNCTIONS)
-// ===================================================================
+// ================== Helpers ==================
 function normalizePhoneNumber(phone: string): string {
-  if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
+  const digits = (phone || '').replace(/\D/g, '');
   if (!digits) return '';
   if (digits.startsWith('62')) return digits;
   if (digits.startsWith('08')) return '62' + digits.slice(1);
-  if (digits.startsWith('8'))  return '62' + digits;
+  if (digits.startsWith('8')) return '62' + digits;
   return digits;
 }
 
-async function sendMessageSequence(phoneOrGroup: string, message: string) {
-  const typingDelay = Math.floor(Math.random() * (30000 - 10000 + 1)) + 10000;
-
+/**
+ * Send text quickly to WAHA without long delays/typing to prevent CF 524 timeout.
+ * We add a local timeout using AbortController and log WAHA responses.
+ */
+async function sendTextSafe(phoneOrGroup: string, text: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
 
-  const chatId = phoneOrGroup.includes('@c.us')
+  const chatId = /@(c|g)\.us$/.test(phoneOrGroup)
     ? phoneOrGroup
     : `${normalizePhoneNumber(phoneOrGroup)}@c.us`;
+
   const session = process.env.WAHA_SESSION || 'default';
 
-  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`,    { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await new Promise(r => setTimeout(r, typingDelay));
-  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`,  { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.WAHA_TIMEOUT_MS ?? 15000); // 15s default
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ chatId, text: message, session })
-  });
+  try {
+    const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ chatId, text, session }),
+      signal: controller.signal
+    });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error(`WhatsApp API error: ${res.status} - ${errorText}`);
+    const bodyText = await res.text();
+    console.log('WAHA sendText ->', res.status, bodyText);
+
+    if (!res.ok) throw new Error(`WAHA ${res.status}: ${bodyText}`);
+    return JSON.parse(bodyText);
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json();
 }

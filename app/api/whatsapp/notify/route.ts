@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Tambahkan queue untuk menangani pesan
+let messageQueue: {phoneOrGroup: string, message: string}[] = [];
+let isProcessing = false;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -41,11 +45,12 @@ export async function POST(req: NextRequest) {
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
-      try {
-        await sendMessageSequence(groupId, text);
-      } catch (whatsappError) {
-        // Return success but log error - don't fail the webhook
-        return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed but webhook succeeded' });
+      // Tambahkan pesan ke queue
+      messageQueue.push({ phoneOrGroup: groupId, message: text });
+      
+      // Mulai proses queue jika belum berjalan
+      if (!isProcessing) {
+        processMessageQueue();
       }
     }
 
@@ -114,4 +119,24 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
 function randomDelay(min: number, max: number) {
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function processMessageQueue() {
+  if (isProcessing || messageQueue.length === 0) return;
+  
+  isProcessing = true;
+  
+  while (messageQueue.length > 0) {
+    const message = messageQueue[0];
+    try {
+      await sendMessageSequence(message.phoneOrGroup, message.message);
+      // Tunggu 5 detik sebelum mengirim pesan berikutnya
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+    messageQueue.shift(); // Hapus pesan yang sudah diproses
+  }
+  
+  isProcessing = false;
 } 
