@@ -58,12 +58,19 @@ export async function POST(req: NextRequest) {
     // Tambahkan ke queue
     customerMessageQueue.push({ chatId, message });
     
-    // Mulai proses queue jika belum berjalan
-    if (!isCustomerProcessing) {
-      processCustomerMessageQueue();
-    }
+    // Mulai proses queue secara async tanpa menunggu
+    Promise.resolve().then(() => {
+      if (!isCustomerProcessing) {
+        processCustomerMessageQueue();
+      }
+    });
     
-    return NextResponse.json({ ok: true });
+    // Respond immediately to Supabase
+    return NextResponse.json({ 
+      ok: true,
+      message: "Message queued for delivery",
+      queueLength: customerMessageQueue.length
+    });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -106,24 +113,58 @@ async function sendMessageSequence(chatId: string, text: string) {
   if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
   const session = process.env.WAHA_SESSION || 'default';
 
-  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`,    { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
-  await randomDelay(Number(process.env.MIN_DELAY_MS ?? 15000), Number(process.env.MAX_DELAY_MS ?? 35000));
-  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`,  { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+  // Helper function for retrying failed requests
+  async function retryFetch(url: string, options: RequestInit, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await fetch(url, options);
+        if (res.ok) return res;
+        // If response not OK, wait before retry
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      } catch (err) {
+        if (i === retries - 1) throw err;
+        // If network error, wait before retry
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      }
+    }
+    throw new Error(`Failed after ${retries} retries`);
+  }
 
-  const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      chatId,
-      text,
-      session,
-      reply_to: null,
-      linkPreview: true,
-      linkPreviewHighQuality: false
-    })
-  });
-  if (!res.ok) throw new Error(await res.text());
+  try {
+    // Send seen status
+    await retryFetch(`${process.env.WAHA_API_URL}/api/sendSeen`, 
+      { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+
+    // Start typing
+    await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`,
+      { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+
+    // Random delay
+    await randomDelay(Number(process.env.MIN_DELAY_MS ?? 15000), Number(process.env.MAX_DELAY_MS ?? 35000));
+
+    // Stop typing
+    await retryFetch(`${process.env.WAHA_API_URL}/api/stopTyping`,
+      { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+
+    // Send the actual message
+    const res = await retryFetch(`${process.env.WAHA_API_URL}/api/sendText`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        chatId,
+        text,
+        session,
+        reply_to: null,
+        linkPreview: true,
+        linkPreviewHighQuality: false
+      })
+    });
+    
+    return res;
+  } catch (error) {
+    console.error('Failed to send message sequence:', error);
+    throw error;
+  }
 }
 
 function randomDelay(min: number, max: number) {
