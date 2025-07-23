@@ -67,53 +67,88 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
   if (process.env.WAHA_API_KEY) {
     headers['X-Api-Key'] = process.env.WAHA_API_KEY;
   }
-  // 1. Send seen
-  await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
-    })
-  });
-  // 2. Start typing
-  await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
-    })
-  });
-  // 3. Wait random 30-60 seconds
-  await randomDelay(30000, 60000);
-  // 4. Stop typing
-  await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
-    })
-  });
-  // 5. Send text message
-  const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      chatId: phoneOrGroup,
-      text: message,
-      session: process.env.WAHA_SESSION || 'default',
-      reply_to: null,
-      linkPreview: true,
-      linkPreviewHighQuality: false
-    })
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`WhatsApp API error: ${res.status} - ${errorText}`);
+  const session = process.env.WAHA_SESSION || 'default';
+  console.log(`[WA] Starting message sequence for ${phoneOrGroup}`);
+
+  try {
+    // 1. Send seen with retry and timeout
+    await retryOperation(async () => {
+      console.log(`[WA] Sending seen to ${phoneOrGroup}`);
+      const response = await fetchWithTimeout(
+        `${process.env.WAHA_API_URL}/api/sendSeen`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ chatId: phoneOrGroup, session })
+        },
+        3000
+      );
+      if (!response.ok) throw new Error(await response.text());
+    }, 2, 1000);
+
+    // 2. Start typing
+    console.log(`[WA] Starting typing for ${phoneOrGroup}`);
+    await fetchWithTimeout(
+      `${process.env.WAHA_API_URL}/api/startTyping`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ chatId: phoneOrGroup, session })
+      },
+      3000
+    );
+
+    // 3. Wait random 5-10 seconds
+    const delay = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000;
+    console.log(`[WA] Waiting ${delay}ms before sending message`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // 4. Stop typing
+    console.log(`[WA] Stopping typing for ${phoneOrGroup}`);
+    await fetchWithTimeout(
+      `${process.env.WAHA_API_URL}/api/stopTyping`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ chatId: phoneOrGroup, session })
+      },
+      3000
+    );
+    // 5. Send text message with retry and timeout
+    const result = await retryOperation(async () => {
+      console.log(`[WA] Sending message to ${phoneOrGroup}`);
+      const response = await fetchWithTimeout(
+        `${process.env.WAHA_API_URL}/api/sendText`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            chatId: phoneOrGroup,
+            text: message,
+            session,
+            reply_to: null,
+            linkPreview: true,
+            linkPreviewHighQuality: false
+          })
+        },
+        3000
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[WA] API error: ${response.status} - ${errorText}`);
+        throw new Error(errorText);
+      }
+
+      console.log(`[WA] Message sent successfully to ${phoneOrGroup}`);
+      return response.json();
+    }, 3, 1000); // 3 retries with 1s delay
+
+    return result;
+  } catch (error) {
+    console.error(`[WA] Error in message sequence:`, error);
+    throw error;
   }
-  return res.json();
 }
 
 function randomDelay(min: number, max: number) {
@@ -121,22 +156,63 @@ function randomDelay(min: number, max: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url: string, options: any, timeout = 3000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
+async function retryOperation<T>(operation: () => Promise<T>, maxRetries = 2, delay = 1000): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.log(`[Retry] Attempt ${i + 1} failed:`, error);
+      if (i === maxRetries - 1) throw error;
+      console.log(`[Retry] Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Retry operation failed');
+}
+
 async function processMessageQueue() {
   if (isProcessing || messageQueue.length === 0) return;
   
   isProcessing = true;
+  console.log(`[Queue] Starting to process ${messageQueue.length} messages`);
   
   while (messageQueue.length > 0) {
     const message = messageQueue[0];
     try {
+      console.log(`[Queue] Processing message for ${message.phoneOrGroup}`);
       await sendMessageSequence(message.phoneOrGroup, message.message);
-      // Tunggu 5 detik sebelum mengirim pesan berikutnya
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.log(`[Queue] Message processed successfully`);
+      
+      // Tunggu 3 detik sebelum next message
+      await new Promise(resolve => setTimeout(resolve, 3000));
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('[Queue] Error processing message:', error);
+      // Optional: Retry failed messages by pushing back to queue
+      if (error.message.includes('ETIMEDOUT')) {
+        console.log('[Queue] Timeout error, will retry message later');
+        messageQueue.push(message);
+      }
     }
     messageQueue.shift(); // Hapus pesan yang sudah diproses
   }
   
+  console.log('[Queue] Finished processing all messages');
   isProcessing = false;
 } 
