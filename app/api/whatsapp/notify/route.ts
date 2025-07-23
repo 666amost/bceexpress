@@ -29,23 +29,53 @@ export async function POST(req: NextRequest) {
       (type === 'INSERT' && record.status === 'delivered') ||
       (type === 'UPDATE' && record.status === 'delivered' && old_record?.status !== 'delivered')
     ) {
+      console.log('[Webhook] Processing delivery notification:', { 
+        type, 
+        status: record.status, 
+        oldStatus: old_record?.status,
+        awb: record.awb_number 
+      });
+
       // Validasi environment variables untuk WhatsApp
-      if (!process.env.WAHA_API_URL || !process.env.WA_GROUP_ID) {
-        // Return success but log error - don't fail the webhook
-        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - environment not configured' });
+      if (!process.env.WAHA_API_URL) {
+        console.error('[Config] WAHA_API_URL is missing');
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - WAHA_API_URL not configured' });
+      }
+      
+      if (!process.env.WA_GROUP_ID) {
+        console.error('[Config] WA_GROUP_ID is missing');
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - WA_GROUP_ID not configured' });
+      }
+
+      // Validasi format WAHA_API_URL
+      try {
+        new URL(process.env.WAHA_API_URL);
+      } catch (error) {
+        console.error('[Config] Invalid WAHA_API_URL:', process.env.WAHA_API_URL);
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - Invalid WAHA_API_URL' });
       }
 
       const awb = record.awb_number;
       const status = record.status;
       const note = record.notes || '';
 
-      const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
+      // WA_GROUP_ID sudah divalidasi sebelumnya, jadi pasti ada
+      const groupId = (process.env.WA_GROUP_ID as string).endsWith('@g.us')
         ? process.env.WA_GROUP_ID
         : process.env.WA_GROUP_ID + '@g.us';
+      
+      console.log('[DEBUG] WAHA Config:', {
+        apiUrl: process.env.WAHA_API_URL,
+        groupId,
+        hasApiKey: !!process.env.WAHA_API_KEY,
+        session: process.env.WAHA_SESSION || 'default'
+      });
+      
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
-      // Tambahkan pesan ke queue
+      // Tambahkan pesan ke queue dan log
+      console.log('[Queue] Adding message:', { awb, status, groupId });
       messageQueue.push({ phoneOrGroup: groupId, message: text });
       
       // Mulai proses queue jika belum berjalan
@@ -161,14 +191,37 @@ async function fetchWithTimeout(url: string, options: any, timeout = 3000) {
   const id = setTimeout(() => controller.abort(), timeout);
 
   try {
+    console.log(`[Fetch] Requesting: ${url}`, {
+      method: options.method,
+      timeout,
+      bodyLength: options.body ? options.body.length : 0
+    });
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal
     });
+
     clearTimeout(id);
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Fetch] Error response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: text
+      });
+    }
+    
     return response;
   } catch (error) {
     clearTimeout(id);
+    console.error(`[Fetch] Request failed:`, {
+      url,
+      error: error.message,
+      type: error.name,
+      cause: error.cause
+    });
     throw error;
   }
 }
