@@ -70,76 +70,179 @@ export async function POST(req: NextRequest) {
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
-      try {
-        await sendMessageSequence(groupId, text);
-      } catch (whatsappError) {
-        console.error('[WA] Error sending message:', whatsappError);
-        // Return success but log error - don't fail the webhook
-        return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed but webhook succeeded' });
-      }
+      // Langsung queue pesan tanpa menunggu
+      sendMessageSequence(groupId, text)
+        .catch(error => {
+          console.error('[WA] Error queueing message:', error);
+        });
+      
+      // Respond immediately to webhook
+      return NextResponse.json({ 
+        ok: true,
+        message: 'Message queued for delivery',
+        queueSize: messageQueue.length + 1
+      });
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error('[Webhook] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-async function sendMessageSequence(phoneOrGroup: string, message: string) {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (process.env.WAHA_API_KEY) {
-    headers['X-Api-Key'] = process.env.WAHA_API_KEY;
-  }
-  const session = process.env.WAHA_SESSION || 'default';
-  console.log(`[WA] Starting message sequence for ${phoneOrGroup}`);
+// Queue for handling concurrent messages
+const messageQueue: { phoneOrGroup: string; message: string }[] = [];
+let isProcessing = false;
+
+function randomDelay(min: number, max: number) {
+  return new Promise(resolve => {
+    const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+    setTimeout(resolve, delay);
+  });
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
 
   try {
-    // 1. Send seen
-    await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        chatId: phoneOrGroup,
-        session: process.env.WAHA_SESSION || 'default',
-      })
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
     });
-
-    // 2. Start typing
-    await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        chatId: phoneOrGroup,
-        session: process.env.WAHA_SESSION || 'default',
-      })
-    });
-
-    // 3. Wait for a short duration to simulate typing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // 4. Send message
-    console.log(`[WA] Sending message to ${phoneOrGroup}: ${message}`);
-    const response = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        chatId: phoneOrGroup,
-        text: message,
-        session: process.env.WAHA_SESSION || 'default',
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send message: ${await response.text()}`);
-    }
-
-    console.log(`[WA] Message sequence completed for ${phoneOrGroup}`);
-    return await response.json();
+    clearTimeout(id);
+    return response;
   } catch (error) {
-    console.error(`[WA] Error in message sequence:`, error);
+    clearTimeout(id);
     throw error;
   }
+}
+
+async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetchWithTimeout(url, options);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+      return response;
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      console.log(`[Retry] Attempt ${i + 1} failed, retrying in ${(i + 1) * 2}s...`);
+      await new Promise(resolve => setTimeout(resolve, (i + 1) * 2000));
+    }
+  }
+  throw new Error('Max retries reached');
+}
+
+async function sendMessageSequence(phoneOrGroup: string, message: string) {
+  // Add message to queue
+  messageQueue.push({ phoneOrGroup, message });
+  console.log(`[Queue] Added message for ${phoneOrGroup}. Queue size: ${messageQueue.length}`);
+  
+  // Start processing if not already processing
+  if (!isProcessing) {
+    processQueue();
+  }
+  
+  return { queued: true };
+}
+
+async function processQueue() {
+  if (isProcessing || messageQueue.length === 0) return;
+  
+  isProcessing = true;
+  console.log(`[Queue] Processing ${messageQueue.length} messages`);
+
+  while (messageQueue.length > 0) {
+    const { phoneOrGroup, message } = messageQueue[0];
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (process.env.WAHA_API_KEY) {
+        headers['X-Api-Key'] = process.env.WAHA_API_KEY;
+      }
+      const session = process.env.WAHA_SESSION || 'default';
+      console.log(`[WA] Starting message sequence for ${phoneOrGroup}`);
+
+      // 1. Send seen with random delay (1-3 seconds)
+      await randomDelay(1000, 3000);
+      await retryFetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          chatId: phoneOrGroup,
+          session: process.env.WAHA_SESSION || 'default',
+        })
+      });
+
+      // 2. Start typing with random delay (2-4 seconds)
+      await randomDelay(2000, 4000);
+      await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          chatId: phoneOrGroup,
+          session: process.env.WAHA_SESSION || 'default',
+        })
+      });
+
+      // 3. Simulate human typing time based on message length (50-80ms per character)
+      const typingTime = Math.max(
+        3000,
+        Math.min(15000, message.length * (Math.random() * 30 + 50))
+      );
+      await randomDelay(typingTime, typingTime + 2000);
+
+      // 4. Send message
+      console.log(`[WA] Sending message to ${phoneOrGroup}: ${message}`);
+      const response = await retryFetch(`${process.env.WAHA_API_URL}/api/sendText`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          chatId: phoneOrGroup,
+          text: message,
+          session: process.env.WAHA_SESSION || 'default',
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${await response.text()}`);
+      }
+
+      console.log(`[WA] Message sequence completed for ${phoneOrGroup}`);
+      
+      // Remove message from queue after successful sending
+      messageQueue.shift();
+      
+      // Add delay between messages (5-10 seconds)
+      if (messageQueue.length > 0) {
+        await randomDelay(5000, 10000);
+      }
+    } catch (error) {
+      console.error(`[WA] Error in message sequence for ${phoneOrGroup}:`, error);
+      
+      // On error, move message to end of queue for retry
+      if (error.message.includes('timeout') || error.message.includes('rate limit')) {
+        const failedMessage = messageQueue.shift();
+        if (failedMessage) {
+          messageQueue.push(failedMessage);
+          console.log(`[Queue] Message requeued for retry. New queue size: ${messageQueue.length}`);
+          // Add longer delay before retry (15-30 seconds)
+          await randomDelay(15000, 30000);
+        }
+      } else {
+        // For other errors, remove from queue
+        messageQueue.shift();
+      }
+    }
+  }
+  
+  isProcessing = false;
+  console.log('[Queue] Queue processing completed');
 }
 
