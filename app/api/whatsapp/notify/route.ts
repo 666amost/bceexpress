@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Tambahkan queue untuk menangani pesan
-let messageQueue: {phoneOrGroup: string, message: string}[] = [];
-let isProcessing = false;
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -60,7 +56,7 @@ export async function POST(req: NextRequest) {
       const note = record.notes || '';
 
       // WA_GROUP_ID sudah divalidasi sebelumnya, jadi pasti ada
-      const groupId = (process.env.WA_GROUP_ID as string).endsWith('@g.us')
+      const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
         ? process.env.WA_GROUP_ID
         : process.env.WA_GROUP_ID + '@g.us';
       
@@ -74,13 +70,12 @@ export async function POST(req: NextRequest) {
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
-      // Tambahkan pesan ke queue dan log
-      console.log('[Queue] Adding message:', { awb, status, groupId });
-      messageQueue.push({ phoneOrGroup: groupId, message: text });
-      
-      // Mulai proses queue jika belum berjalan
-      if (!isProcessing) {
-        processMessageQueue();
+      try {
+        await sendMessageSequence(groupId, text);
+      } catch (whatsappError) {
+        console.error('[WA] Error sending message:', whatsappError);
+        // Return success but log error - don't fail the webhook
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed but webhook succeeded' });
       }
     }
 
@@ -101,171 +96,50 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
   console.log(`[WA] Starting message sequence for ${phoneOrGroup}`);
 
   try {
-    // 1. Send seen with retry and timeout
-    await retryOperation(async () => {
-      console.log(`[WA] Sending seen to ${phoneOrGroup}`);
-      const response = await fetchWithTimeout(
-        `${process.env.WAHA_API_URL}/api/sendSeen`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ chatId: phoneOrGroup, session })
-        },
-        3000
-      );
-      if (!response.ok) throw new Error(await response.text());
-    }, 2, 1000);
+    // 1. Send seen
+    await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        chatId: phoneOrGroup,
+        session: process.env.WAHA_SESSION || 'default',
+      })
+    });
 
     // 2. Start typing
-    console.log(`[WA] Starting typing for ${phoneOrGroup}`);
-    await fetchWithTimeout(
-      `${process.env.WAHA_API_URL}/api/startTyping`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ chatId: phoneOrGroup, session })
-      },
-      3000
-    );
+    await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        chatId: phoneOrGroup,
+        session: process.env.WAHA_SESSION || 'default',
+      })
+    });
 
-    // 3. Wait random 5-10 seconds
-    const delay = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000;
-    console.log(`[WA] Waiting ${delay}ms before sending message`);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    // 3. Wait for a short duration to simulate typing
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // 4. Stop typing
-    console.log(`[WA] Stopping typing for ${phoneOrGroup}`);
-    await fetchWithTimeout(
-      `${process.env.WAHA_API_URL}/api/stopTyping`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ chatId: phoneOrGroup, session })
-      },
-      3000
-    );
-    // 5. Send text message with retry and timeout
-    const result = await retryOperation(async () => {
-      console.log(`[WA] Sending message to ${phoneOrGroup}`);
-      const response = await fetchWithTimeout(
-        `${process.env.WAHA_API_URL}/api/sendText`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            chatId: phoneOrGroup,
-            text: message,
-            session,
-            reply_to: null,
-            linkPreview: true,
-            linkPreviewHighQuality: false
-          })
-        },
-        3000
-      );
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[WA] API error: ${response.status} - ${errorText}`);
-        throw new Error(errorText);
-      }
+    // 4. Send message
+    console.log(`[WA] Sending message to ${phoneOrGroup}: ${message}`);
+    const response = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        chatId: phoneOrGroup,
+        text: message,
+        session: process.env.WAHA_SESSION || 'default',
+      })
+    });
 
-      console.log(`[WA] Message sent successfully to ${phoneOrGroup}`);
-      return response.json();
-    }, 3, 1000); // 3 retries with 1s delay
+    if (!response.ok) {
+      throw new Error(`Failed to send message: ${await response.text()}`);
+    }
 
-    return result;
+    console.log(`[WA] Message sequence completed for ${phoneOrGroup}`);
+    return await response.json();
   } catch (error) {
     console.error(`[WA] Error in message sequence:`, error);
     throw error;
   }
 }
 
-function randomDelay(min: number, max: number) {
-  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function fetchWithTimeout(url: string, options: any, timeout = 3000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    console.log(`[Fetch] Requesting: ${url}`, {
-      method: options.method,
-      timeout,
-      bodyLength: options.body ? options.body.length : 0
-    });
-
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-
-    clearTimeout(id);
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[Fetch] Error response:`, {
-        status: response.status,
-        statusText: response.statusText,
-        body: text
-      });
-    }
-    
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    console.error(`[Fetch] Request failed:`, {
-      url,
-      error: error.message,
-      type: error.name,
-      cause: error.cause
-    });
-    throw error;
-  }
-}
-
-async function retryOperation<T>(operation: () => Promise<T>, maxRetries = 2, delay = 1000): Promise<T> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      console.log(`[Retry] Attempt ${i + 1} failed:`, error);
-      if (i === maxRetries - 1) throw error;
-      console.log(`[Retry] Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  throw new Error('Retry operation failed');
-}
-
-async function processMessageQueue() {
-  if (isProcessing || messageQueue.length === 0) return;
-  
-  isProcessing = true;
-  console.log(`[Queue] Starting to process ${messageQueue.length} messages`);
-  
-  while (messageQueue.length > 0) {
-    const message = messageQueue[0];
-    try {
-      console.log(`[Queue] Processing message for ${message.phoneOrGroup}`);
-      await sendMessageSequence(message.phoneOrGroup, message.message);
-      console.log(`[Queue] Message processed successfully`);
-      
-      // Tunggu 3 detik sebelum next message
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    } catch (error) {
-      console.error('[Queue] Error processing message:', error);
-      // Optional: Retry failed messages by pushing back to queue
-      if (error.message.includes('ETIMEDOUT')) {
-        console.log('[Queue] Timeout error, will retry message later');
-        messageQueue.push(message);
-      }
-    }
-    messageQueue.shift(); // Hapus pesan yang sudah diproses
-  }
-  
-  console.log('[Queue] Finished processing all messages');
-  isProcessing = false;
-} 
