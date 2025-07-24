@@ -25,29 +25,26 @@ export async function POST(req: NextRequest) {
       (type === 'INSERT' && record.status === 'delivered') ||
       (type === 'UPDATE' && record.status === 'delivered' && old_record?.status !== 'delivered')
     ) {
-      console.log('[Webhook] Processing delivery notification:', { 
-        type, 
-        status: record.status, 
-        oldStatus: old_record?.status,
-        awb: record.awb_number 
-      });
+
 
       // Validasi environment variables untuk WhatsApp
       if (!process.env.WAHA_API_URL) {
-        console.error('[Config] WAHA_API_URL is missing');
         return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - WAHA_API_URL not configured' });
       }
       
       if (!process.env.WA_GROUP_ID) {
-        console.error('[Config] WA_GROUP_ID is missing');
         return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - WA_GROUP_ID not configured' });
       }
 
       // Validasi format WAHA_API_URL
+      const wahaApiUrl = process.env.WAHA_API_URL;
+      if (!wahaApiUrl) {
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - WAHA_API_URL not configured' });
+      }
+
       try {
-        new URL(process.env.WAHA_API_URL);
+        new URL(wahaApiUrl);
       } catch (error) {
-        console.error('[Config] Invalid WAHA_API_URL:', process.env.WAHA_API_URL);
         return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - Invalid WAHA_API_URL' });
       }
 
@@ -56,24 +53,23 @@ export async function POST(req: NextRequest) {
       const note = record.notes || '';
 
       // WA_GROUP_ID sudah divalidasi sebelumnya, jadi pasti ada
-      const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
+      const groupId = (process.env.WA_GROUP_ID || '').endsWith('@g.us')
         ? process.env.WA_GROUP_ID
-        : process.env.WA_GROUP_ID + '@g.us';
+        : `${process.env.WA_GROUP_ID}@g.us`;
       
-      console.log('[DEBUG] WAHA Config:', {
-        apiUrl: process.env.WAHA_API_URL,
-        groupId,
-        hasApiKey: !!process.env.WAHA_API_KEY,
-        session: process.env.WAHA_SESSION || 'default'
-      });
+
       
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
+      if (!groupId) {
+        return NextResponse.json({ ok: true, warning: 'WhatsApp notification skipped - Invalid WA_GROUP_ID' });
+      }
+
       // Langsung queue pesan tanpa menunggu
       sendMessageSequence(groupId, text)
         .catch(error => {
-          console.error('[WA] Error queueing message:', error);
+          console.error('Failed to send WhatsApp message:', error);
         });
       
       // Respond immediately to webhook
@@ -86,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[Webhook] Error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -130,7 +126,7 @@ async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Pr
       return response;
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      console.log(`[Retry] Attempt ${i + 1} failed, retrying in ${(i + 1) * 2}s...`);
+
       await new Promise(resolve => setTimeout(resolve, (i + 1) * 2000));
     }
   }
@@ -138,24 +134,29 @@ async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Pr
 }
 
 async function sendMessageSequence(phoneOrGroup: string, message: string) {
-  // Add message to queue
-  messageQueue.push({ phoneOrGroup, message });
-  console.log(`[Queue] Added message for ${phoneOrGroup}. Queue size: ${messageQueue.length}`);
+  // Check for duplicate messages in queue
+  const isDuplicate = messageQueue.some(item => 
+    item.phoneOrGroup === phoneOrGroup && 
+    item.message === message
+  );
+
+  if (!isDuplicate) {
+    // Add message to queue only if not duplicate
+    messageQueue.push({ phoneOrGroup, message });
   
-  // Start processing if not already processing
-  if (!isProcessing) {
-    processQueue();
+    // Start processing if not already processing
+    if (!isProcessing) {
+      processQueue();
+    }
   }
-  
-  return { queued: true };
+
+  return { queued: !isDuplicate };
 }
 
 async function processQueue() {
   if (isProcessing || messageQueue.length === 0) return;
   
   isProcessing = true;
-  console.log(`[Queue] Processing ${messageQueue.length} messages`);
-
   while (messageQueue.length > 0) {
     const { phoneOrGroup, message } = messageQueue[0];
     
@@ -167,7 +168,7 @@ async function processQueue() {
         headers['X-Api-Key'] = process.env.WAHA_API_KEY;
       }
       const session = process.env.WAHA_SESSION || 'default';
-      console.log(`[WA] Starting message sequence for ${phoneOrGroup}`);
+
 
       // 1. Send seen with random delay (1-3 seconds)
       await randomDelay(1000, 3000);
@@ -199,7 +200,7 @@ async function processQueue() {
       await randomDelay(typingTime, typingTime + 2000);
 
       // 4. Send message
-      console.log(`[WA] Sending message to ${phoneOrGroup}: ${message}`);
+
       const response = await retryFetch(`${process.env.WAHA_API_URL}/api/sendText`, {
         method: 'POST',
         headers,
@@ -214,7 +215,7 @@ async function processQueue() {
         throw new Error(`Failed to send message: ${await response.text()}`);
       }
 
-      console.log(`[WA] Message sequence completed for ${phoneOrGroup}`);
+
       
       // Remove message from queue after successful sending
       messageQueue.shift();
@@ -224,14 +225,14 @@ async function processQueue() {
         await randomDelay(5000, 10000);
       }
     } catch (error) {
-      console.error(`[WA] Error in message sequence for ${phoneOrGroup}:`, error);
+
       
       // On error, move message to end of queue for retry
       if (error.message.includes('timeout') || error.message.includes('rate limit')) {
         const failedMessage = messageQueue.shift();
         if (failedMessage) {
           messageQueue.push(failedMessage);
-          console.log(`[Queue] Message requeued for retry. New queue size: ${messageQueue.length}`);
+
           // Add longer delay before retry (15-30 seconds)
           await randomDelay(15000, 30000);
         }
@@ -243,6 +244,6 @@ async function processQueue() {
   }
   
   isProcessing = false;
-  console.log('[Queue] Queue processing completed');
+
 }
 

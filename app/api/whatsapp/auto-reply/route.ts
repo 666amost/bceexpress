@@ -26,8 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { from, fromMe } = body.payload;
-    if (fromMe) {
-      return NextResponse.json({ ok: true, info: 'Message from bot, skipped' });
+    
+    // Skip messages from bot or group chats
+    if (fromMe || from.endsWith('@g.us')) {
+      return NextResponse.json({ ok: true, info: 'Message from bot or group chat, skipped' });
     }
 
     const replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan input no AWB.\n\nTERIMA KASIH.`;
@@ -35,7 +37,6 @@ export async function POST(req: NextRequest) {
     await sendTextSafe(from, replyText); // fast send, no typing/delay to avoid 524
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Error in webhook handler:', err);
     return NextResponse.json(
       { error: 'Internal server error', details: err?.message ?? String(err) },
       { status: 500 }
@@ -80,7 +81,6 @@ async function sendTextSafe(phoneOrGroup: string, text: string) {
     });
 
     const bodyText = await res.text();
-    console.log('WAHA sendText ->', res.status, bodyText);
 
     if (!res.ok) throw new Error(`WAHA ${res.status}: ${bodyText}`);
     return JSON.parse(bodyText);
