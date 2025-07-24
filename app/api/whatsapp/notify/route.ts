@@ -59,6 +59,16 @@ export async function POST(req: NextRequest) {
       
 
       
+      // Check if this AWB was recently sent
+      const now = Date.now();
+      const lastSent = recentAwbs.get(awb);
+      if (lastSent && (now - lastSent < AWB_COOLDOWN_MS)) {
+        return NextResponse.json({ 
+          ok: true, 
+          warning: `Skipped duplicate AWB ${awb} - Already sent within cooldown period`
+        });
+      }
+
       // Ubah format pesan tanpa 'Paket Terkirim!'
       const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
 
@@ -67,7 +77,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Langsung queue pesan tanpa menunggu
-      sendMessageSequence(groupId, text)
+      sendMessageSequence(groupId, text, awb)
         .catch(error => {
           console.error('Failed to send WhatsApp message:', error);
         });
@@ -88,8 +98,25 @@ export async function POST(req: NextRequest) {
 }
 
 // Queue for handling concurrent messages
-const messageQueue: { phoneOrGroup: string; message: string }[] = [];
+const messageQueue: { phoneOrGroup: string; message: string; awb?: string }[] = [];
 let isProcessing = false;
+
+// Keep track of recently sent AWBs (store for 5 minutes)
+const recentAwbs = new Map<string, number>();
+const AWB_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+// Clean up old AWBs periodically
+setInterval(() => {
+  const now = Date.now();
+  // Convert to array for compatibility with older JavaScript
+  const awbsToCheck = Array.from(recentAwbs.keys());
+  awbsToCheck.forEach(awb => {
+    const timestamp = recentAwbs.get(awb);
+    if (timestamp && now - timestamp > AWB_COOLDOWN_MS) {
+      recentAwbs.delete(awb);
+    }
+  });
+}, 60000); // Clean up every minute
 
 function randomDelay(min: number, max: number) {
   return new Promise(resolve => {
@@ -133,20 +160,25 @@ async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Pr
   throw new Error('Max retries reached');
 }
 
-async function sendMessageSequence(phoneOrGroup: string, message: string) {
+async function sendMessageSequence(phoneOrGroup: string, message: string, awb?: string) {
   // Check for duplicate messages in queue
   const isDuplicate = messageQueue.some(item => 
-    item.phoneOrGroup === phoneOrGroup && 
-    item.message === message
+    (item.phoneOrGroup === phoneOrGroup && item.message === message) ||
+    (awb && item.awb === awb)
   );
 
   if (!isDuplicate) {
     // Add message to queue only if not duplicate
-    messageQueue.push({ phoneOrGroup, message });
+    messageQueue.push({ phoneOrGroup, message, awb });
   
     // Start processing if not already processing
     if (!isProcessing) {
       processQueue();
+    }
+
+    // If it's an AWB message, mark it as recently sent
+    if (awb) {
+      recentAwbs.set(awb, Date.now());
     }
   }
 
