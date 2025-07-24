@@ -3,49 +3,100 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    // Untuk mencegah error bila webhook dipanggil tanpa body
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.log('Invalid request body');
+      return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_body' });
+    }
 
     // --- AUTH (sama seperti notify) ---
     const rawAuth = req.headers.get('authorization') ?? '';
     const token = rawAuth.replace(/^Bearer\s+/i, '').trim();
     if (!process.env.WA_WEBHOOK_SECRET) {
+      console.log('Webhook secret not configured');
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
     if (token !== process.env.WA_WEBHOOK_SECRET) {
+      console.log('Unauthorized webhook call');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    // --- Validasi tipe webhook Supabase (harus UPDATE dari tabel shipment) ---
+    const { type, table } = body;
+    if (type !== 'UPDATE' || table !== 'shipments') {
+      console.log('Skipping: Invalid trigger type or table', { type, table });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_trigger' });
+    }
+
     // --- Ambil record lama/baru (format Supabase pg_net) ---
-    const { type } = body;
-    const src    = body.record ?? body.new ?? body.data ?? body;
-    const oldSrc = body.old_record ?? body.old ?? {};
+    const src = body.new ?? body.record ?? null; // Untuk UPDATE, harus ada new record
+    const oldSrc = body.old ?? body.old_record ?? null; // Untuk UPDATE, harus ada old record
+
+    if (!src || !oldSrc) {
+      console.log('Skipping: Missing new or old record data', { hasNew: !!src, hasOld: !!oldSrc });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'missing_record_data' });
+    }
 
     // ===>> TABLE SHIPMENTS FIELDS
-    const awb_number = src?.awb_number ?? src?.awb ?? src?.no_awb;
-    const status     = (src?.current_status ?? src?.status ?? '').toLowerCase();
-    const oldStatus  = (oldSrc?.current_status ?? oldSrc?.status ?? '').toLowerCase();
-    const phoneRaw   = src?.receiver_phone ?? src?.receiver_number ?? src?.phone;
+    const awb_number = src.awb_number;
+    const status = (src.status ?? '').toLowerCase();
+    const oldStatus = (oldSrc.status ?? '').toLowerCase();
+    const phoneRaw = src.receiver_phone;
     const receiverNameRaw = src?.receiver_name; // <---- ADD
 
-    // Jangan bikin 400 supaya log bersih
+    // Log the incoming data for debugging
+    console.log('Incoming webhook data:', {
+      type,
+      awb_number,
+      status,
+      oldStatus,
+      phoneRaw,
+      receiverNameRaw,
+      bodyKeys: Object.keys(body)
+    });
+
+    // Validate required fields
     if (!awb_number || !status) {
+      console.log('Skipping: Missing required fields', { awb_number, status });
       return NextResponse.json({ ok: true, skipped: true, warning: 'missing fields', keys: Object.keys(src || {}) });
     }
 
-    const isDeliveredInsert =
-      type === 'INSERT' && status === 'delivered';
-    const isDeliveredUpdate =
-      type === 'UPDATE' && status === 'delivered' && oldStatus !== 'delivered';
-
-    if (!(isDeliveredInsert || isDeliveredUpdate)) {
-      return NextResponse.json({ ok: true, skipped: true });
+    // 1. Validasi perubahan status ke delivered
+    const isDeliveredStatusChange = status === 'delivered' && oldStatus !== 'delivered';
+    
+    if (!isDeliveredStatusChange) {
+      console.log('Skipping: Not a change to delivered status', { status, oldStatus });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'not_delivered_status_change' });
     }
 
+    // 2. Validasi nomor telepon
     if (!phoneRaw) {
-      return NextResponse.json({ ok: true, warning: 'receiver_phone missing' });
+      console.log('Skipping: No receiver phone number', { awb_number });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'no_phone_number' });
     }
+
+    // 3. Validasi konfigurasi WAHA
     if (!process.env.WAHA_API_URL) {
-      return NextResponse.json({ ok: true, warning: 'WAHA_API_URL missing' });
+      console.log('Skipping: WAHA not configured');
+      return NextResponse.json({ ok: true, skipped: true, reason: 'waha_not_configured' });
+    }
+
+    // Check WAHA connection first
+    try {
+      const healthCheck = await fetch(`${process.env.WAHA_API_URL}/api/status`, {
+        headers: process.env.WAHA_API_KEY ? { 'X-Api-Key': process.env.WAHA_API_KEY } : {}
+      });
+      
+      if (!healthCheck.ok) {
+        console.error('WAHA health check failed:', await healthCheck.text());
+        return NextResponse.json({ ok: true, warning: 'WAHA service unavailable' });
+      }
+    } catch (error) {
+      console.error('WAHA connection check failed:', error);
+      return NextResponse.json({ ok: true, warning: 'WAHA connection failed' });
     }
 
     const chatId  = toChatId(phoneRaw);
@@ -102,19 +153,32 @@ async function sendMessageSequence(chatId: string, text: string) {
 
   // Helper function for retrying failed requests
   async function retryFetch(url: string, options: RequestInit, retries = 3) {
+    let lastError: Error | null = null;
+    
     for (let i = 0; i < retries; i++) {
       try {
         const res = await fetch(url, options);
+        
         if (res.ok) return res;
+        
+        // Get error details from response
+        const errorText = await res.text();
+        lastError = new Error(`HTTP ${res.status}: ${errorText}`);
+        console.log(`Retry ${i + 1}/${retries} failed:`, lastError.message);
+        
         // If response not OK, wait before retry
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
       } catch (err) {
+        lastError = err as Error;
+        console.log(`Retry ${i + 1}/${retries} failed:`, err);
+        
         if (i === retries - 1) throw err;
         // If network error, wait before retry
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
       }
     }
-    throw new Error(`Failed after ${retries} retries`);
+    
+    throw new Error(`Failed after ${retries} retries. Last error: ${lastError?.message}`);
   }
 
   try {
