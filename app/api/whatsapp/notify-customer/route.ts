@@ -78,6 +78,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_phone_number' });
     }
 
+    // Validate phone number format
+    let chatId;
+    try {
+      chatId = toChatId(phoneRaw);
+    } catch (phoneError) {
+      console.log('Skipping: Invalid phone number format', { awb_number, phoneRaw, error: phoneError.message });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_phone_format' });
+    }
+
     // 3. Validasi konfigurasi WAHA
     if (!process.env.WAHA_API_URL) {
       console.log('Skipping: WAHA not configured');
@@ -99,11 +108,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, warning: 'WAHA connection failed' });
     }
 
-    const chatId  = toChatId(phoneRaw);
-    const message = buildDeliveredMsg(awb_number, receiverNameRaw); // <---- PASS NAME
+    const message = buildDeliveredMsg(awb_number, receiverNameRaw);
+
+    console.log('Attempting to send WhatsApp message:', { 
+      awb_number, 
+      chatId, 
+      messageLength: message.length,
+      receiverName: receiverNameRaw 
+    });
 
     try {
       await sendMessageSequence(chatId, message);
+      console.log('WhatsApp message sent successfully:', { awb_number, chatId });
       return NextResponse.json({ ok: true });
     } catch (error) {
       console.error('WhatsApp notification error:', error);
@@ -143,6 +159,12 @@ function toChatId(phone: string): string {
   let digits = phone.replace(/\D/g, '');
   if (digits.startsWith('0')) digits = '62' + digits.slice(1);
   if (!digits.startsWith('62')) digits = '62' + digits;
+  
+  // Validate Indonesian phone number format
+  if (digits.length < 10 || digits.length > 15) {
+    throw new Error(`Invalid phone number format: ${phone} (${digits})`);
+  }
+  
   return `${digits}@c.us`;
 }
 
@@ -157,7 +179,16 @@ async function sendMessageSequence(chatId: string, text: string) {
     
     for (let i = 0; i < retries; i++) {
       try {
-        const res = await fetch(url, options);
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const res = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
         
         if (res.ok) return res;
         
@@ -190,8 +221,8 @@ async function sendMessageSequence(chatId: string, text: string) {
     await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`,
       { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
 
-    // Random delay
-    await randomDelay(Number(process.env.MIN_DELAY_MS ?? 15000), Number(process.env.MAX_DELAY_MS ?? 35000));
+    // Random delay (reduced for better performance)
+    await randomDelay(3000, 8000);
 
     // Stop typing
     await retryFetch(`${process.env.WAHA_API_URL}/api/stopTyping`,
