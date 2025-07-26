@@ -130,7 +130,7 @@ export function CourierPortal() {
     setIsLoading(true)
 
     try {
-      let photoUrl = null
+      let photoUrl: string | null = null
 
       // Upload photo if available
       if (photo) {
@@ -152,10 +152,10 @@ export function CourierPortal() {
         awb_number: awbNumber,
         status,
         location,
-        notes: notes || null,
-        photo_url: photoUrl,
-        latitude: gpsCoords?.lat || null,
-        longitude: gpsCoords?.lng || null,
+        notes: notes || undefined,
+        photo_url: photoUrl ?? undefined,
+        latitude: gpsCoords?.lat || undefined,
+        longitude: gpsCoords?.lng || undefined,
       })
 
       if (result) {
@@ -292,7 +292,6 @@ export function CourierPortal() {
 
                   {photoPreview ? (
                     <div className="mb-4">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photoPreview || "/placeholder.svg"}
                         alt="Preview"

@@ -37,7 +37,11 @@ interface AwbEntry {
   wilayah: string;
 }
 
-const kotaWilayahPusat = {
+interface KotaWilayah {
+  [key: string]: string[]
+}
+
+const kotaWilayahPusat: KotaWilayah = {
   bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
   "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
   belitung: ["Tj Pandan"],
@@ -73,7 +77,7 @@ const kirimVia = ["udara", "darat"]
 const kotaTujuan = ["bangka", "kalimantan barat", "belitung", "bali"]
 
 // Data spesifik untuk cabang Tanjung Pandan (origin_branch = 'tanjung_pandan')
-const kotaWilayahTanjungPandan = {
+const kotaWilayahTanjungPandan: KotaWilayah = {
   jakarta: ["JKT"], // Simplified wilayah for Jakarta area
   tangerang: ["TNG"],
   bekasi: ["BKS"],
@@ -377,11 +381,12 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         });
         return true;
       }
-    } catch (err: any) {
-      setError("Terjadi kesalahan: " + err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Terjadi kesalahan yang tidak diketahui.";
+      setError("Terjadi kesalahan: " + errorMessage);
       toast({
         title: "Terjadi kesalahan.",
-        description: err.message || "Terjadi kesalahan yang tidak diketahui.",
+        description: errorMessage,
         variant: "destructive",
       });
       return false;
@@ -680,7 +685,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         } catch (error) {
           toast({
             title: "Gagal mencetak.",
-            description: "Terjadi kesalahan saat mencetak: " + error.message,
+            description: "Terjadi kesalahan saat mencetak: " + (error instanceof Error ? error.message : String(error)),
             variant: "destructive",
           });
         }
@@ -748,10 +753,10 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
                 }
               })
               .from(printElement)
-              .outputImg();
+              .output('img') as string;
 
-            // Tambahkan ke PDF
-            pdf.addImage(canvas.src, 'JPEG', 0, 0, 100, 100);
+            // Tambahkan ke PDF - canvas is a data URL string
+            pdf.addImage(canvas, 'JPEG', 0, 0, 100, 100);
             isFirstPage = false;
           }
         }
@@ -769,7 +774,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
         onSuccess();
 
       } catch (error) {
-        console.error('Error generating PDF:', error);
+        // Error generating PDF - handled by error state
         toast({
           title: "Gagal mengunduh PDF.",
           description: "Terjadi kesalahan saat membuat PDF. Silakan coba lagi.",
@@ -936,7 +941,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
                 >
                   <option value="">Pilih</option>
-                  {currentKotaWilayah[entry.kota_tujuan] && currentKotaWilayah[entry.kota_tujuan].map((opt) => (
+                  {(currentKotaWilayah as KotaWilayah)[entry.kota_tujuan] && (currentKotaWilayah as KotaWilayah)[entry.kota_tujuan].map((opt: string) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>

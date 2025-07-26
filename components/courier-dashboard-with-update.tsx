@@ -9,19 +9,38 @@ import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
+interface User {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
+interface Shipment {
+  id?: string;
+  awb_number: string;
+  receiver_name?: string;
+  receiver_address?: string;
+  created_at: string;
+  updated_at?: string;
+  location?: string;
+  latest_update?: {
+    created_at: string;
+  };
+}
+
 export function CourierDashboardWithUpdate() {
   const [isLoading, setIsLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [completedCount, setCompletedCount] = useState(0)
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const [totalBulkShipments, setTotalBulkShipments] = useState(0)
   const [pendingDeliveries, setPendingDeliveries] = useState(0)
-  const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
-  const [pendingShipments, setPendingShipments] = useState<any[]>([])
+  const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<Shipment[]>([])
+  const [pendingShipments, setPendingShipments] = useState<Shipment[]>([])
   const [showBulkDetails, setShowBulkDetails] = useState(false)
   const [showPendingDetails, setShowPendingDetails] = useState(false)
-  const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
+  const [completedTodayShipments, setCompletedTodayShipments] = useState<Shipment[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
 
   const router = useRouter()
@@ -52,9 +71,9 @@ export function CourierDashboardWithUpdate() {
           return
         }
 
-        setCurrentUser(userData)
-        loadShipmentData(userData)
-      } catch (err) {
+        setCurrentUser(userData as User)
+        loadShipmentData(userData as User)
+      } catch (err: unknown) {
         setIsLoading(false)
       }
     }
@@ -62,7 +81,7 @@ export function CourierDashboardWithUpdate() {
     loadUserProfile()
   }, [router])
 
-  const loadShipmentData = async (user: any) => {
+  const loadShipmentData = async (user: User) => {
     setIsLoading(true)
     try {
       const today = new Date()
@@ -126,7 +145,7 @@ export function CourierDashboardWithUpdate() {
           setLastCompletedAwb("")
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
     } finally {
       setIsLoading(false)
     }
@@ -149,7 +168,7 @@ export function CourierDashboardWithUpdate() {
     try {
       await supabaseClient.auth.signOut()
       router.push("/courier")
-    } catch (err) {
+    } catch (err: unknown) {
       // Silent error during sign out
     }
   }
@@ -300,7 +319,7 @@ export function CourierDashboardWithUpdate() {
                           : "Auto Generated Shipment"}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Updated: {new Date(shipment.updated_at).toLocaleString()}
+                        Updated: {shipment.updated_at ? new Date(shipment.updated_at).toLocaleString() : "N/A"}
                       </p>
                     </div>
                     <Button size="sm" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>

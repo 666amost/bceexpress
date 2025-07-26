@@ -15,6 +15,28 @@ interface CourierShipmentListProps {
   dataRange: number;
 }
 
+interface ShipmentUpdate {
+  awb_number: string;
+  status: string;
+  location?: string;
+  notes?: string;
+  latitude?: number;
+  longitude?: number;
+  created_at: string;
+}
+
+interface Shipment {
+  awb_number: string;
+  current_status: string;
+  receiver_name?: string;
+  receiver_address?: string;
+  receiver_phone?: string;
+  updated_at?: string;
+  created_at: string;
+  latest_update?: ShipmentUpdate;
+  all_history?: ShipmentUpdate[];
+}
+
 // Utility function to get date range (copied from leader-dashboard.tsx)
 const getDateRange = (days: number) => {
   const now = new Date();
@@ -41,8 +63,8 @@ const getDateRange = (days: number) => {
 
 export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: CourierShipmentListProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [courier, setCourier] = useState<any>(null);
-  const [shipments, setShipments] = useState<any[]>([]); // State untuk semua shipment yang terkait dengan kurir
+  const [courier, setCourier] = useState<{ name?: string; email?: string } | null>(null);
+  const [shipments, setShipments] = useState<Shipment[]>([]); // State untuk semua shipment yang terkait dengan kurir
   const [activeTab, setActiveTab] = useState("ongoing");
   const [debugInfo, setDebugInfo] = useState<string>("");
 
@@ -113,7 +135,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       setDebugInfo(`Found ${awbNumbersFromHistory.length} unique AWB numbers from relevant history after filtering.`);
 
       // Pre-process courierHistoryData into a map for faster lookups
-      const historyMap = new Map<string, any[]>();
+      const historyMap = new Map<string, unknown[]>();
       for (const entry of courierHistoryData || []) {
         if (!historyMap.has(entry.awb_number)) {
           historyMap.set(entry.awb_number, []);
@@ -122,7 +144,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       }
 
       // === Ambil detail shipment dari AWB hasil history ===
-      let shipmentDetails: any[] = [];
+      let shipmentDetails: Shipment[] = [];
       if (awbNumbersFromHistory.length > 0) {
         const { data: shipmentsData, error: shipmentsError } = await supabaseClient
           .from("shipments")
@@ -147,7 +169,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       }
 
       // === Tambahkan shipment yang belum ada di shipmentDetails (tidak punya history) ===
-      const awbInDetails = new Set(shipmentDetails.map(s => s.awb_number));
+      const awbInDetails = new Set(shipmentDetails.map((s: Shipment) => s.awb_number));
       const shipmentsWithoutHistory = (shipmentsByCourier || []).filter(s => !awbInDetails.has(s.awb_number));
       for (const shipment of shipmentsWithoutHistory) {
         shipmentDetails.push({
@@ -158,7 +180,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       }
 
       // === Urutkan shipmentDetails berdasarkan created_at (terbaru di atas) ===
-      shipmentDetails.sort((a, b) => {
+      shipmentDetails.sort((a: Shipment, b: Shipment) => {
         const dateA = a.latest_update ? new Date(a.latest_update.created_at).getTime() : new Date(a.created_at).getTime();
         const dateB = b.latest_update ? new Date(b.latest_update.created_at).getTime() : new Date(b.created_at).getTime();
         return dateB - dateA;
@@ -167,7 +189,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
       setShipments(shipmentDetails);
       setDebugInfo(`Finished loading courier data for ${courierData?.name}.`);
       setIsLoading(false);
-    } catch (err) {
+    } catch (err: unknown) {
       setDebugInfo(`Error loading courier data: ${err}`);
       setIsLoading(false);
     }
@@ -302,7 +324,7 @@ function ShipmentList({
   getStatusIcon,
   formatStatus,
 }: {
-  shipments: any[];
+  shipments: Shipment[];
   getStatusIcon: (status: string) => React.ReactNode;
   formatStatus: (status: string) => string;
 }) {
@@ -395,7 +417,7 @@ function ShipmentList({
 
                     {expandedShipments.has(shipment.awb_number) && (
                       <div className="mt-3 space-y-3 max-h-60 overflow-y-auto">
-                        {shipment.all_history.map((history: any, index: number) => (
+                        {shipment.all_history.map((history: ShipmentUpdate, index: number) => (
                           <div key={`${history.awb_number}-${index}`} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 shadow-sm">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">

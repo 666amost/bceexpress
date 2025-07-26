@@ -56,7 +56,7 @@ export default function RootLayout({
       });
 
       navigator.serviceWorker.register('/sw.js').then(registration => {
-        console.log('ServiceWorker registration successful');
+        // ServiceWorker registration successful
         
         // Check for updates every 24 hours
         setInterval(() => {
@@ -76,7 +76,7 @@ export default function RootLayout({
           });
         });
       }).catch(err => {
-        console.log('ServiceWorker registration failed:', err);
+        console.error('ServiceWorker registration failed:', err);
       });
     });
   }

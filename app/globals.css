@@ -1,6 +1,9 @@
+/* @tailwind directives are valid in this context */
+/* stylelint-disable at-rule-no-unknown */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
 
 @layer base {
   :root {
@@ -103,6 +106,68 @@
   body {
     @apply bg-background text-foreground antialiased min-h-screen;
   }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    input, 
+    textarea, 
+    select,
+    button {
+      font-size: 16px; /* Prevent zoom on iOS */
+    }
+  }
+  
+  /* Safe area for devices with notch */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  
+  /* Better touch targets - exclude checkboxes from min size */
+  button, 
+  [role="button"]:not([data-radix-checkbox-trigger]) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Restore normal checkbox styling for native HTML checkboxes only - not Radix UI */
+  input[type="checkbox"]:not([data-radix-checkbox-trigger]) {
+    width: 0.75rem;
+    height: 0.75rem;
+    min-height: 0.75rem;
+    min-width: 0.75rem;
+    appearance: auto;
+    -webkit-appearance: checkbox;
+  }
+
+  /* Ensure Radix UI checkbox components maintain their proper styling */
+  [data-radix-checkbox-trigger] {
+    width: 1rem !important;
+    height: 1rem !important;
+    min-width: 1rem !important;
+    min-height: 1rem !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+  
+  input[type="radio"] {
+    width: 0.875rem;
+    height: 0.875rem;
+    min-height: 0.875rem;
+    min-width: 0.875rem;
+  }
+  
+  /* Better focus states for mobile */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #3b82f6, 0 0 0 4px rgba(59, 130, 246, 0.2);
+  }
 }
 
 .tracking-progress {
@@ -140,6 +205,10 @@
 
 .photo-preview {
   transition: all 0.3s ease;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 0.5rem;
 }
 
 .photo-preview:hover {
@@ -149,15 +218,6 @@
 @media print {
   .no-print {
     display: none !important;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
   }
 }
 
@@ -183,3 +243,58 @@
   background-size: 300% 100%;
   animation: gradient-bg 4s linear infinite;
 }
+
+/* Enhanced mobile device support and touch optimization */
+@layer utilities {
+  /* Touch target utility class */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent zoom on input focus for iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  
+  /* Improve button accessibility */
+  button:focus-visible,
+  .btn:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+  
+  /* Smooth scrolling for better UX */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Better form field styling for mobile */
+  .form-input {
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0.5rem;
+    border: 1px solid #d1d5db;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .form-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* Fix for Tailwind CSS IntelliSense warnings */
+/* These are valid Tailwind directives but may show as errors in some editors */

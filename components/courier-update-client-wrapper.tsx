@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react"
 
 // Import the component with no SSR
 const CourierUpdateForm = dynamic(
-  () => import("@/components/courier-update-form").then((mod) => mod.CourierUpdateForm),
+  () => import("@/components/courier-update-form"),
   {
     ssr: false,
     loading: () => (

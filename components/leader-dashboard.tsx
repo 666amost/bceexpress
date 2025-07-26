@@ -58,6 +58,31 @@ const LeafletMap = dynamic(() => import('./leaflet-map').then(mod => mod.Leaflet
   )
 })
 
+// Tambahkan interface untuk shipment dan courier
+interface Shipment {
+  awb_number: string;
+  current_status: string;
+  courier_id: string;
+  created_at: string;
+  updated_at: string;
+  city?: string;
+}
+
+interface Courier {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  latestLatitude?: number | null;
+  latestLongitude?: number | null;
+  latestLocationTime?: string | null;
+  latestAwb?: string | null;
+}
+
+interface SearchResult extends Shipment {
+  courier: string;
+}
+
 // Tambahkan tipe untuk live shipment activity
 interface LiveShipmentActivityItem {
   awb_number: string;
@@ -72,16 +97,16 @@ export function LeaderDashboard() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [couriers, setCouriers] = useState<any[]>([])
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null)
+  const [couriers, setCouriers] = useState<Courier[]>([])
   const [courierStats, setCourierStats] = useState<Record<string, { total: number; completed: number; pending: number }>>({})
   const [totalShipments, setTotalShipments] = useState(0)
   const [totalCompleted, setTotalCompleted] = useState(0)
   const [totalPending, setTotalPending] = useState(0)
-  const [pendingShipments, setPendingShipments] = useState<any[]>([])
+  const [pendingShipments, setPendingShipments] = useState<Shipment[]>([])
   const [dataRange, setDataRange] = useState(1) // Default to 1 day
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<any[] | { error: string } | null>(null)
+  const [searchResults, setSearchResults] = useState<SearchResult[] | { error: string } | null>(null)
   const [activeTab, setActiveTab] = useState("couriers")
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
@@ -96,7 +121,7 @@ export function LeaderDashboard() {
 
   // New states for status update functionality
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false)
-  const [selectedShipmentForUpdate, setSelectedShipmentForUpdate] = useState<any>(null)
+  const [selectedShipmentForUpdate, setSelectedShipmentForUpdate] = useState<Shipment | null>(null)
   const [newStatus, setNewStatus] = useState<string>("")
   const [updateNotes, setUpdateNotes] = useState("")
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
@@ -179,7 +204,7 @@ export function LeaderDashboard() {
     } else if (displayedShipments.length === 0) {
       setDisplayedShipments(liveShipments.slice(0, 3))
     }
-  }, [liveShipments])
+  }, [displayedShipments, liveShipments])
 
   // Auto-refresh live shipment activity setiap 10 detik
   useEffect(() => {
@@ -244,7 +269,7 @@ export function LeaderDashboard() {
 
       const { data: recentShipments, error: shipmentsError } = await supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, courier_id, created_at")
+        .select("awb_number, current_status, courier_id, created_at, updated_at")
         .gte("created_at", startDate)
         .lte("created_at", endDate)
         .order("created_at", { ascending: false })
@@ -272,7 +297,7 @@ export function LeaderDashboard() {
       ])
 
       const stats: Record<string, { total: number; completed: number; pending: number }> = {}
-      const allPendingShipments: any[] = []
+      const allPendingShipments: Shipment[] = []
       let totalShipmentCount = totalCountResult.count || 0
       let totalCompletedCount = completedCountResult.count || 0
       let totalPendingCount = 0
@@ -283,7 +308,7 @@ export function LeaderDashboard() {
         }
         acc[shipment.courier_id].push(shipment)
         return acc
-      }, {} as Record<string, any[]>)
+      }, {} as Record<string, Shipment[]>)
 
       courierData.forEach((courier) => {
         const courierShipments = shipmentsByCourier[courier.id] || []
@@ -297,7 +322,7 @@ export function LeaderDashboard() {
 
         allPendingShipments.push(...pendingShipmentsList.slice(0, 50).map(shipment => ({ 
           ...shipment, 
-          courierId: courier.id 
+          courier_id: courier.id 
         })))
       })
 
@@ -312,7 +337,7 @@ export function LeaderDashboard() {
       const couriersWithLocations = courierData.map((courier) => {
         const courierUsername = courier.email.split("@")[0]
         
-        const locationEntry = latestLocations?.find((entry: any) =>
+        const locationEntry = latestLocations?.find((entry: { notes?: string; latitude?: number; longitude?: number; created_at?: string; awb_number?: string }) =>
           entry.notes &&
           (entry.notes.toLowerCase().includes(courier.name.toLowerCase()) ||
             entry.notes.toLowerCase().includes(courierUsername.toLowerCase()))
@@ -339,7 +364,7 @@ export function LeaderDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }, [dataRange, getDateRange]);
+  }, [dataRange, getDateRange, fetchLiveShipments]);
 
   const sortedCouriers = useMemo(() => {
     const sortableCouriers = [...couriers];
@@ -364,8 +389,8 @@ export function LeaderDashboard() {
     
     // Otherwise use normal sorting
     sortableCouriers.sort((a, b) => {
-      let valA: any;
-      let valB: any;
+      let valA: string | number;
+      let valB: string | number;
 
       if (sortOption === 'name') {
         valA = a.name.toLowerCase();
@@ -387,6 +412,10 @@ export function LeaderDashboard() {
         if (valA === 0 && valB === 0) return 0;
         if (valA === 0) return sortOrder === 'asc' ? 1 : -1; // No time means less recent, so put it at the end for asc
         if (valB === 0) return sortOrder === 'asc' ? -1 : 1; // No time means less recent, so put it at the end for asc
+      } else {
+        // Default case - sort by name
+        valA = a.name.toLowerCase();
+        valB = b.name.toLowerCase();
       }
 
       if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
@@ -538,7 +567,7 @@ export function LeaderDashboard() {
   };
 
   // Function to open status update modal
-  const handleStatusUpdateClick = (shipment: any) => {
+  const handleStatusUpdateClick = (shipment: Shipment) => {
     setSelectedShipmentForUpdate(shipment);
     setNewStatus(shipment.current_status || "");
     setUpdateNotes("");
@@ -603,8 +632,9 @@ export function LeaderDashboard() {
       // Show success message
       alert(`Status updated successfully to ${newStatus}`);
 
-    } catch (err: any) {
-      setStatusUpdateError(`An unexpected error occurred: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setStatusUpdateError(`An unexpected error occurred: ${errorMessage}`);
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -639,7 +669,7 @@ export function LeaderDashboard() {
       }
     };
     fetchDailyTarget();
-  }, [dataRange]);
+  }, [dataRange, getDateRange]);
 
   // Pastikan totalCompleted juga hanya shipment hari ini yang delivered
   const [todayCompleted, setTodayCompleted] = useState(0);
@@ -659,7 +689,7 @@ export function LeaderDashboard() {
       }
     };
     fetchTodayCompleted();
-  }, [dataRange]);
+  }, [dataRange, getDateRange]);
 
   if (isLoading) {
     return (
@@ -674,28 +704,28 @@ export function LeaderDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-4 sm:p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-8">
+        <div className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div>
               <a href="https://www.bcexp.id/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">
                   BCE Express
                 </h1>
               </a>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Monitoring For Couriers BCE Express
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 sm:gap-4 justify-center sm:justify-end items-center">
-              <div className="flex flex-wrap gap-1 sm:gap-2">
+            <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:flex-wrap sm:gap-2 lg:gap-4 sm:justify-end items-stretch sm:items-center">
+              <div className="flex gap-1 sm:gap-2 justify-center sm:justify-start">
                 {[1, 2, 7, 14, 30].map((days) => (
                   <Button 
                     key={days}
                     variant={dataRange === days ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleRangeChange(days)}
-                    className={`h-8 px-3 text-xs font-bold ${dataRange === days 
+                    className={`h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold flex-1 sm:flex-none ${dataRange === days 
                         ? "bg-gray-800 hover:bg-gray-700 text-white dark:bg-gray-700 dark:hover:bg-gray-600" 
                         : "border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"}
                       shadow-sm hover:shadow transition-all duration-200`}
@@ -704,114 +734,118 @@ export function LeaderDashboard() {
                   </Button>
                 ))}
               </div>
-              <Button 
-                variant="outline" 
-                onClick={handleRefresh}
-                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
-              >
-                <RefreshIcon className="h-3 w-3 mr-1" style={{ fontWeight: 'bold' }} />
-                Refresh
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsLocationMapOpen(true)} // Open map modal
-                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
-              >
-                <LocationPointIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" />
-                Lokasi Kurir
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200"
-              >
-                <LogoutIcon className="h-4 w-4 mr-2 text-gray-700 dark:text-gray-300" />
-                Logout
-              </Button>
-              <ThemeToggle />
+              <div className="flex gap-2 justify-center sm:justify-start">
+                <Button 
+                  variant="outline" 
+                  onClick={handleRefresh}
+                  className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200 flex-1 sm:flex-none"
+                >
+                  <RefreshIcon className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" style={{ fontWeight: 'bold' }} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsLocationMapOpen(true)}
+                  className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200 flex-1 sm:flex-none"
+                >
+                  <LocationPointIcon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
+                  <span className="hidden sm:inline ml-1">Lokasi Kurir</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleLogout}
+                  className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm hover:shadow transition-all duration-200 flex-1 sm:flex-none"
+                >
+                  <LogoutIcon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
+                  <span className="hidden sm:inline ml-1">Logout</span>
+                </Button>
+                <div className="flex justify-center sm:justify-start">
+                  <ThemeToggle />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200 font-medium text-center flex items-center justify-center gap-2">
-            <ChartIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" style={{ fontWeight: 'bold' }} />
+        <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-100 dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700">
+          <p className="text-xs sm:text-sm text-gray-800 dark:text-gray-200 font-medium text-center flex items-center justify-center gap-1 sm:gap-2">
+            <ChartIcon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600 dark:text-gray-400" style={{ fontWeight: 'bold' }} />
             Monitoring data from last <strong>{dataRange} day{dataRange > 1 ? 's' : ''}</strong>
           </p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
-          {/* Live Shipment Activity Card */}
-          <div className="relative col-span-2 sm:col-span-1 bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 p-4 sm:p-6 text-center flex flex-col justify-between min-h-[170px] sm:min-h-[200px] overflow-hidden">
-            <div className="absolute top-1 sm:top-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 z-10 w-fit">
-              <span className="relative text-xs font-bold px-3 py-1 rounded-full text-white shadow-md animate-gradient-bg">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-6 mb-4 sm:mb-6">
+          {/* Live Shipment Activity Card - hanya tampil di desktop */}
+          <div className="hidden lg:flex relative col-span-1 bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 p-3 sm:p-4 lg:p-6 text-center flex-col justify-between min-h-[160px] sm:min-h-[180px] lg:min-h-[200px] overflow-hidden">
+            <div className="absolute top-1 sm:top-2 lg:top-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1 sm:gap-2 z-10 w-fit">
+              <span className="relative text-xs sm:text-sm font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-white shadow-md animate-gradient-bg">
                 Live Activity ({liveShipments.length})
               </span>
             </div>
             <div className="flex flex-col h-full justify-center items-center">
               <div
                 ref={liveListRef}
-                className="w-full flex flex-col gap-2 transition-transform duration-500 mt-8"
-                style={{ minHeight: 180 }}
+                className="w-full flex flex-col gap-1 sm:gap-2 transition-transform duration-500 mt-6 sm:mt-8"
+                style={{ minHeight: 140 }}
               >
                 {displayedShipments.map((item, idx) => (
                   <div
                     key={item.awb_number}
-                    className={`rounded-xl px-2 py-2 sm:py-3 flex flex-col items-start sm:items-center sm:flex-row justify-between gap-1 sm:gap-4 text-left border border-blue-100 dark:border-blue-800 bg-white dark:bg-gray-900 shadow-sm w-full mx-auto ${idx === 0 ? "font-bold" : "opacity-80"}`}
-                    style={{ minHeight: 48 }}
+                    className={`rounded-lg sm:rounded-xl px-2 sm:px-3 py-2 sm:py-3 flex flex-col gap-1 text-left border border-blue-100 dark:border-blue-800 bg-white dark:bg-gray-900 shadow-sm w-full mx-auto ${idx === 0 ? "font-bold" : "opacity-80"}`}
+                    style={{ minHeight: 40 }}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base sm:text-lg">{item.awb_number}</span>
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm sm:text-base lg:text-lg">{item.awb_number}</span>
                         {item.current_status === 'delivered' ? (
-                          <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-2 py-0.5 ml-1">Delivered</span>
+                          <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-1.5 py-0.5">Delivered</span>
                         ) : (
-                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded px-2 py-0.5 capitalize whitespace-nowrap ml-1">{item.current_status.replace(/_/g, " ")}</span>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded px-1.5 py-0.5 capitalize whitespace-nowrap">{item.current_status.replace(/_/g, " ")}</span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
                         <span>by <span className="font-semibold text-gray-700 dark:text-gray-200">{item.courier_name}</span></span>
                         <span className="hidden sm:inline">•</span>
                         <span>{new Date(item.updated_at).toLocaleTimeString()}</span>
-                        {item.city && <span className="hidden sm:inline">• {item.city}</span>}
+                        {item.city && <span className="hidden lg:inline">• {item.city}</span>}
                       </div>
                     </div>
                   </div>
                 ))}
                 {displayedShipments.length === 0 && (
-                  <div className="py-8 flex flex-col items-center justify-center">
-                    <svg className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="py-6 sm:py-8 flex flex-col items-center justify-center">
+                    <svg className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
                     </svg>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm">No recent shipment activity</span>
+                    <span className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">No recent shipment activity</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
           {/* END Live Shipment Activity Card */}
-          {/* Card 2, 3, 4 tetap seperti sebelumnya, geser indexnya */}
           
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <DeliveryParcelIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
+          {/* Card statistik - grid 2x2 di mobile, 4 kolom di desktop */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-gray-200 dark:bg-gray-700 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <DeliveryParcelIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-gray-700 dark:text-gray-300" style={{ fontWeight: 'bold' }} />
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">
               {dataRange === 1 ? "Today's" : "Recent"}
             </span>
-            <span className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white">{totalShipments}</span>
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-gray-900 dark:text-white">{totalShipments}</span>
             <span className="text-xs text-gray-500 dark:text-gray-400 block">shipments</span>
           </div>
           
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-red-200 dark:border-red-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-100 dark:bg-red-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3 relative">
-              <WarningIcon className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" style={{ fontWeight: 'bold' }} />
+          <div className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-lg border border-red-200 dark:border-red-700 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-red-100 dark:bg-red-900/60 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 relative">
+              <WarningIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-red-600 dark:text-red-400" style={{ fontWeight: 'bold' }} />
               {totalPending > 0 && (
                 <span className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping top-0 right-0" />
               )}
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Pending</span>
-            <span className="text-2xl sm:text-4xl font-black text-red-600 dark:text-red-400 block">
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-red-600 dark:text-red-400 block">
               {totalPending}
             </span>
             <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm" className="text-xs p-0 h-auto text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mt-1">
@@ -819,87 +853,95 @@ export function LeaderDashboard() {
             </Button>
           </div>
           
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-100 dark:bg-green-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <CheckmarkIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+          <div className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-green-100 dark:bg-green-900/60 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <CheckmarkIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Completed</span>
-            <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400">{totalCompleted}</span>
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-green-600 dark:text-green-400">{totalCompleted}</span>
             <span className="text-xs text-gray-500 dark:text-gray-400 block">deliveries</span>
           </div>
-          {/* Progress Bar Card hanya di mobile, card ke-4 */}
-          <div className="block sm:hidden bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 p-4 sm:p-6 text-center flex flex-col justify-center items-center">
-            <div className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200 text-center">
-              Progress Pengiriman Hari Ini
+          
+          {/* Progress Pengiriman Hari Ini - Card ke-4 di mobile, sejajar dalam grid 2x2 */}
+          <div className="lg:hidden bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-blue-200 dark:border-blue-700 p-3 text-center flex flex-col justify-center items-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 dark:bg-blue-900/60 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2">
+              <ChartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
             </div>
-            <div className="flex items-center justify-center text-xs mb-1">
-              <span className="font-bold text-blue-700">{todayCompleted}</span>
-              <span className="text-gray-500">/</span>
-              <span className="font-bold text-gray-700">{dailyTarget}</span>
-              <span className="ml-2 text-gray-500">paket delivered</span>
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">Progress</span>
+            <div className="flex items-center justify-center text-xs mb-2">
+              <span className="font-bold text-blue-700 dark:text-blue-400">{todayCompleted}</span>
+              <span className="text-gray-500 mx-1">/</span>
+              <span className="font-bold text-gray-700 dark:text-gray-300">{dailyTarget}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-500"
                 style={{ width: `${dailyTarget > 0 ? Math.min(100, Math.round((todayCompleted/dailyTarget)*100)) : 0}%` }}
               ></div>
             </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">today</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 lg:p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 mb-6 bg-gray-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
-              <TabsTrigger value="couriers" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <UserMultipleIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
-                Couriers
+            <TabsList className="grid w-full grid-cols-3 mb-4 sm:mb-6 bg-gray-50 dark:bg-gray-800 rounded-lg sm:rounded-xl p-1 shadow-inner">
+              <TabsTrigger value="couriers" className="rounded-md sm:rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 py-2 sm:py-3">
+                <UserMultipleIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
+                <span className="hidden sm:inline">Couriers</span>
+                <span className="sm:hidden">Kurir</span>
               </TabsTrigger>
-              <TabsTrigger value="shipments" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 relative">
-                <PackageIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
-                Shipments
+              <TabsTrigger value="shipments" className="rounded-md sm:rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 relative py-2 sm:py-3">
+                <PackageIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
+                <span className="hidden sm:inline">Shipments</span>
+                <span className="sm:hidden">Paket</span>
               </TabsTrigger>
-              <TabsTrigger value="search" className="rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <SearchIcon className="h-4 w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
-                Search
+              <TabsTrigger value="search" className="rounded-md sm:rounded-lg font-bold text-xs sm:text-sm data-[state=active]:bg-gray-800 data-[state=active]:text-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 py-2 sm:py-3">
+                <SearchIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-gray-700 dark:text-gray-300 data-[state=active]:text-white dark:data-[state=active]:text-white" style={{ fontWeight: 'bold' }} />
+                <span className="hidden sm:inline">Search</span>
+                <span className="sm:hidden">Cari</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="couriers">
-              <div className="flex justify-end mb-4 gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-between mb-3 sm:mb-4">
                 <Button
                   variant={prioritySort ? "default" : "outline"}
                   onClick={() => setPrioritySort(!prioritySort)}
-                  className={`h-8 px-3 text-xs font-bold ${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'} shadow-sm`}
+                  className={`h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold ${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'} shadow-sm`}
                 >
-                  {prioritySort ? "Priority Sort: ON" : "Priority Sort: OFF"}
+                  {prioritySort ? "Priority: ON" : "Priority: OFF"}
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm">
-                      Sort By: {sortOption === 'name' ? 'Name' : sortOption === 'total' ? 'Total Shipments' : sortOption === 'pending' ? 'Pending Shipments' : sortOption === 'completed' ? 'Completed Shipments' : 'Last Seen'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-                    <DropdownMenuItem onClick={() => setSortOption('name')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Name</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortOption('total')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Total Shipments</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortOption('pending')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Pending Shipments</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortOption('completed')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Completed Shipments</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortOption('lastSeen')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Last Seen</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  variant="outline"
-                  className="h-8 px-3 text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm"
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                >
-                  {sortOrder === 'asc' ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm">
+                        <span className="hidden sm:inline">Sort By: {sortOption === 'name' ? 'Name' : sortOption === 'total' ? 'Total' : sortOption === 'pending' ? 'Pending' : sortOption === 'completed' ? 'Completed' : 'Last Seen'}</span>
+                        <span className="sm:hidden">Sort</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                      <DropdownMenuItem onClick={() => setSortOption('name')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Name</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortOption('total')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Total Shipments</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortOption('pending')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Pending Shipments</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortOption('completed')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Completed Shipments</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortOption('lastSeen')} className="text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">Last Seen</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="outline"
+                    className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm font-bold border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 shadow-sm"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  >
+                    {sortOrder === 'asc' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                    )}
+                  </Button>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
                 {sortedCouriers.map((courier) => (
                   <div
                     key={courier.id}
@@ -1127,7 +1169,7 @@ export function LeaderDashboard() {
                             </div>
                           </div>
                           <p className="text-xs text-gray-700 dark:text-gray-300">
-                            Courier: {couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'}
+                            Courier: {couriers.find(c => c.id === shipment.courier_id)?.name || 'Unknown'}
                           </p>
                         </div>
                         
@@ -1141,27 +1183,27 @@ export function LeaderDashboard() {
                             </div>
                             
                             {/* Try to find related location data */}
-                            {couriers.find(c => c.id === shipment.courierId)?.latestAwb === shipment.awb_number && (
+                            {couriers.find(c => c.id === shipment.courier_id)?.latestAwb === shipment.awb_number && (
                               <div className="mt-1">
                                 <p className="text-xs text-gray-500 dark:text-gray-400">Last Known Location</p>
                                 <div className="mt-1">
-                                  {couriers.find(c => c.id === shipment.courierId)?.latestLatitude && (
+                                  {couriers.find(c => c.id === shipment.courier_id)?.latestLatitude && (
                                     <a
-                                      href={`https://www.google.com/maps/place/${couriers.find(c => c.id === shipment.courierId)?.latestLatitude},${couriers.find(c => c.id === shipment.courierId)?.latestLongitude}`}
+                                      href={`https://www.google.com/maps/place/${couriers.find(c => c.id === shipment.courier_id)?.latestLatitude},${couriers.find(c => c.id === shipment.courier_id)?.latestLongitude}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-mono bg-blue-50 dark:bg-blue-900/30 rounded px-2 py-1 border border-blue-200 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-400 transition-colors shadow-sm"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <LocationPointIcon className="h-3 w-3 mr-1 text-blue-600 dark:text-blue-400" /> 
-                                      {couriers.find(c => c.id === shipment.courierId)?.latestLatitude?.toFixed(6)}, 
-                                      {couriers.find(c => c.id === shipment.courierId)?.latestLongitude?.toFixed(6)}
+                                      {couriers.find(c => c.id === shipment.courier_id)?.latestLatitude?.toFixed(6)}, 
+                                      {couriers.find(c => c.id === shipment.courier_id)?.latestLongitude?.toFixed(6)}
                                     </a>
                                   )}
                                 </div>
-                                {couriers.find(c => c.id === shipment.courierId)?.latestLocationTime && (
+                                {couriers.find(c => c.id === shipment.courier_id)?.latestLocationTime && (
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {new Date(couriers.find(c => c.id === shipment.courierId)?.latestLocationTime || '').toLocaleString()}
+                                    {new Date(couriers.find(c => c.id === shipment.courier_id)?.latestLocationTime || '').toLocaleString()}
                                   </p>
                                 )}
                               </div>
@@ -1173,7 +1215,9 @@ export function LeaderDashboard() {
                                 onClick={() => handleStatusUpdateClick({
                                   awb_number: shipment.awb_number,
                                   current_status: shipment.current_status,
-                                  courier: couriers.find(c => c.id === shipment.courierId)?.name || 'Unknown'
+                                  courier_id: shipment.courier_id,
+                                  created_at: shipment.created_at,
+                                  updated_at: shipment.updated_at
                                 })}
                                 size="sm"
                                 className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 font-bold text-white shadow-sm"
@@ -1261,7 +1305,7 @@ export function LeaderDashboard() {
                   <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Shipment Details:</p>
                   <p className="text-xs text-gray-600 dark:text-gray-400"><strong>AWB:</strong> {selectedShipmentForUpdate.awb_number}</p>
                   <p className="text-xs text-gray-600 dark:text-gray-400"><strong>Current Status:</strong> {selectedShipmentForUpdate.current_status?.replace(/_/g, " ") || "N/A"}</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400"><strong>Courier:</strong> {selectedShipmentForUpdate.courier || "N/A"}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400"><strong>Courier:</strong> {couriers.find(c => c.id === selectedShipmentForUpdate.courier_id)?.name || "N/A"}</p>
                 </div>
 
                 <div>

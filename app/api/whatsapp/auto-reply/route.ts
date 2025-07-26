@@ -36,9 +36,9 @@ export async function POST(req: NextRequest) {
 
     await sendTextSafe(from, replyText); // fast send, no typing/delay to avoid 524
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: 'Internal server error', details: err?.message ?? String(err) },
+      { error: 'Internal server error', details: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
   }

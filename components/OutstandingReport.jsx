@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import { FaDownload, FaPrint } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
@@ -86,6 +86,13 @@ const agentListTanjungPandan = [
  * @param {{ userRole: string, branchOrigin: string }} props
  */
 export default function OutstandingReport({ userRole, branchOrigin }) {
+  // ================== BRANCH / ROLE SWITCH ==================
+  const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
+  const isBranchMode =
+    userRole === "cabang" ||
+    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
+  // ===========================================================
+
   const [agentList, setAgentList] = useState([])
   const [selectedAgent, setSelectedAgent] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -94,18 +101,18 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const currentAgentList = userRole === 'cabang' ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) : agentList;
+  const currentAgentList = isBranchMode ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) : agentList;
 
   useEffect(() => {
     fetchAgents()
     fetchOutstandingData()
-  }, [selectedAgent, startDate, endDate])
+  }, [selectedAgent, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchAgents() {
     try {
-      // Central users: query central tables, Branch users: query branch tables with filtering
+      // Branch mode: query cabang tables, Central mode: query central tables
       let query;
-      if (userRole === 'cabang') {
+      if (isBranchMode) {
         query = supabaseClient
           .from("manifest_cabang")
           .select("agent_customer")
@@ -131,9 +138,9 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
   async function fetchOutstandingData() {
     setLoading(true)
     try {
-      // Central users: query central tables, Branch users: query branch tables with filtering
+      // Branch mode: query cabang tables, Central mode: query central tables
       let query;
-      if (userRole === 'cabang') {
+      if (isBranchMode) {
         // For bangka branch use kecamatan, for tanjung_pandan use wilayah
         const locationColumn = branchOrigin === 'bangka' ? 'kecamatan' : 'wilayah';
         
@@ -232,29 +239,29 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
     }
 
     const headers = [
-      'No AWB',
-      'Tanggal', 
+      'AWB Number',
+      'Date', 
       'Wilayah',
-      'Pengirim',
-      'Penerima',
-      'Ongkir',
-      'Kg',
-      'Adm',
-      'Packing',
+      'Sender',
+      'Recipient',
+      'Rate/Ongkir',
+      'Weight (Kg)',
+      'Admin Fee',
+      'Packaging',
       'Transit',
       'Total Ongkir'
     ]
 
     const formattedData = outstandingData.map(item => ({
-      'No AWB': item.awb_no,
-      'Tanggal': item.awb_date,
+      'AWB Number': item.awb_no,
+      'Date': item.awb_date,
       'Wilayah': item.wilayah,
-      'Pengirim': item.nama_pengirim,
-      'Penerima': item.nama_penerima,
-      'Ongkir': item.ongkir || 0,
-      'Kg': item.kg || 0,
-      'Adm': item.adm || 0,
-      'Packing': item.packing || 0,
+      'Sender': item.nama_pengirim,
+      'Recipient': item.nama_penerima,
+      'Rate/Ongkir': item.ongkir || 0,
+      'Weight (Kg)': item.kg || 0,
+      'Admin Fee': item.adm || 0,
+      'Packaging': item.packing || 0,
       'Transit': item.transit || 0,
       'Total Ongkir': item.tot_ongkir || 0
     }))
@@ -287,8 +294,8 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       data: formattedData,
       fileName: `outstanding_report_${selectedAgent ? selectedAgent + '_' : ''}${new Date().toISOString().split('T')[0]}.xls`,
       currency: 'Rp',
-      currencyColumns: [5, 7, 8, 9, 10], // Ongkir, Adm, Packing, Transit, Total Ongkir
-      numberColumns: [6], // Kg
+      currencyColumns: [5, 7, 8, 9, 10], // Rate/Ongkir, Admin Fee, Packaging, Transit, Total Ongkir columns
+      numberColumns: [6], // Weight (Kg) column
       dateRange: dateRange
     })
   }

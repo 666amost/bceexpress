@@ -40,7 +40,7 @@ export default function BranchPage() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [branchOrigin, setBranchOrigin] = useState<string | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
-  const [selectedAwb, setSelectedAwb] = useState<any>(null)
+  const [selectedAwb, setSelectedAwb] = useState<Record<string, unknown> | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
 
@@ -124,8 +124,8 @@ export default function BranchPage() {
                     onCancel={handleCancel}
                     initialData={selectedAwb}
                     isEditing={isEditing}
-                    userRole={userRole as any}
-                    branchOrigin={branchOrigin as any}
+                    userRole={userRole}
+                    branchOrigin={branchOrigin}
                   />
                 ) : (
                   <AwbForm 
@@ -133,28 +133,28 @@ export default function BranchPage() {
                     onCancel={handleCancel}
                     initialData={selectedAwb}
                     isEditing={isEditing}
-                    userRole={userRole as any}
-                    branchOrigin={branchOrigin as any}
+                    userRole={userRole}
+                    branchOrigin={branchOrigin}
                   />
                 )
               ) : (
                 <BranchDashboard 
-                  userRole={userRole as any}
-                  branchOrigin={branchOrigin as any}
+                  userRole={userRole}
+                  branchOrigin={branchOrigin}
                   onShowAwbForm={setShowAwbForm}
                 />
               )
             )}
             {selectedSubMenu === "search_manifest" && userRole && (
               <HistoryManifest mode="pelunasan" 
-                userRole={userRole as any}
+                userRole={userRole as 'admin' | 'cabang' | 'couriers' | 'branch'}
                 branchOrigin={branchOrigin || ''}
               />
             )}
             {selectedSubMenu === "pelunasan" && userRole && (
               userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
                 <PelunasanResi 
-                  userRole={userRole as any}
+                  userRole={userRole}
                   branchOrigin={branchOrigin || ''}
                 />
               ) : (
@@ -166,17 +166,17 @@ export default function BranchPage() {
         {selectedMenu === "report" && userRole && (
           userRole === 'admin' || userRole === 'branch' || userRole === 'cabang' ? (
             <div className="py-6">
-              {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole as any} branchOrigin={branchOrigin || ''} />}
+              {selectedSubMenu === "daily_report" && <DailyReport userRole={userRole} branchOrigin={branchOrigin || ''} />}
               {selectedSubMenu === "recap" && <RecapManifest 
-                userRole={userRole as any}
+                userRole={userRole}
                 branchOrigin={branchOrigin || ''}
               />}
               {selectedSubMenu === "outstanding" && <OutstandingReport 
-                userRole={userRole as any}
+                userRole={userRole}
                 branchOrigin={branchOrigin || ''}
               />}
               {selectedSubMenu === "sale" && <Salesreport 
-                userRole={userRole as any}
+                userRole={userRole}
                 branchOrigin={branchOrigin || ''}
               />}
             </div>
@@ -190,15 +190,15 @@ export default function BranchPage() {
             <BangkaBulkAwbForm
               onSuccess={handleSuccess}
               onCancel={handleCancel}
-              userRole={userRole as any}
-              branchOrigin={branchOrigin as any}
+              userRole={userRole}
+              branchOrigin={branchOrigin}
             />
           ) : (
             <BulkAwbForm
               onSuccess={handleSuccess}
               onCancel={handleCancel}
-              userRole={userRole as any}
-              branchOrigin={branchOrigin as any}
+              userRole={userRole}
+              branchOrigin={branchOrigin}
             />
           )
         )}

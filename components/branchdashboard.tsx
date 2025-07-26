@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabaseClient } from "../lib/auth";
 import { FaTruck, FaUser, FaMapMarkerAlt, FaCalendarDay, FaCalendarWeek, FaHistory, FaPlus, FaBox, FaChartLine, FaSearch } from "react-icons/fa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,30 @@ interface RecentAwbItem {
   kirim_via?: string;
 }
 
+interface ChartData {
+  labels: string[];
+  datasets: {
+    label: string;
+    data: number[];
+    backgroundColor: string | string[];
+    borderColor?: string | string[];
+    borderWidth?: number;
+  }[];
+}
+
+interface DashboardStats {
+  totalAWB: number;
+  totalAgents: number;
+  totalWilayah: number;
+  totalAWBToday: number;
+  totalAWBThisWeek: number;
+  recentAWBs: RecentAwbItem[];
+  awbPerKotaChartData: ChartData | null;
+  awbPerAgentChartData: ChartData | null;
+  awbPerDayChartData: ChartData | null;
+  awbPerViaChartData: ChartData | null;
+}
+
 interface UserInfo {
   id: string;
   email: string;
@@ -52,18 +76,19 @@ interface BranchDashboardProps {
 }
 
 export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm }: BranchDashboardProps) {
-  const [dashboardStats, setDashboardStats] = useState<{ totalAWB: number, totalAgents: number, totalWilayah: number, totalAWBToday: number, totalAWBThisWeek: number, recentAWBs: RecentAwbItem[], awbPerKotaChartData: any, awbPerAgentChartData: any, awbPerDayChartData: any, awbPerViaChartData: any }>({ totalAWB: 0, totalAgents: 0, totalWilayah: 0, totalAWBToday: 0, totalAWBThisWeek: 0, recentAWBs: [], awbPerKotaChartData: null, awbPerAgentChartData: null, awbPerDayChartData: null, awbPerViaChartData: null });
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ totalAWB: 0, totalAgents: 0, totalWilayah: 0, totalAWBToday: 0, totalAWBThisWeek: 0, recentAWBs: [], awbPerKotaChartData: null, awbPerAgentChartData: null, awbPerDayChartData: null, awbPerViaChartData: null });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [allManifestData, setAllManifestData] = useState<RecentAwbItem[]>([]);
   const [activeChart, setActiveChart] = useState<'kota' | 'agent' | 'trend'>('kota');
   const [showBulkAwbForm, setShowBulkAwbForm] = useState(false);
   const [showAwbForm, setShowAwbForm] = useState(false);
+  let delayed = false;
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   const { toast } = useToast();
 
-  let delayed: boolean;
+  const delayedRef = useRef<boolean>(false);
 
   // Fetch user information
   useEffect(() => {
@@ -88,7 +113,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           }
         }
       } catch (error) {
-        console.error('Error fetching user info:', error);
+        // Error fetching user info - handled by toast notification
       }
     };
 
@@ -122,7 +147,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           query = query.eq('origin_branch', branchOrigin);
         }
         
-        const { data: manifestData, error } = await query as { data: RecentAwbItem[] | null, error: any };
+        const { data: manifestData, error } = await query as { data: RecentAwbItem[] | null, error: Error | null };
         
         if (error) {
           toast({
@@ -243,7 +268,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
               acc[item.awb_date][item.kirim_via] = (acc[item.awb_date][item.kirim_via] || 0) + 1;
             }
             return acc;
-          }, {});
+          }, {} as Record<string, Record<string, number>>);
 
           const sortedDates = Object.keys(awbCountsByDateAndVia).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
           const uniqueVias = Array.from(new Set(manifestDataWithDate.map(item => item.kirim_via).filter(Boolean))) as string[];
@@ -276,10 +301,11 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           setAllManifestData([]);
           setDashboardStats({ totalAWB: 0, totalAgents: 0, totalWilayah: 0, totalAWBToday: 0, totalAWBThisWeek: 0, recentAWBs: [], awbPerKotaChartData: null, awbPerAgentChartData: null, awbPerDayChartData: null, awbPerViaChartData: null });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan saat mengambil data.";
         toast({
           title: "Gagal memuat data dashboard.",
-          description: error.message || "Terjadi kesalahan saat mengambil data.",
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {
@@ -287,9 +313,9 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
       }
     };
 
-    delayed = false;
+    delayedRef.current = false;
     fetchDashboardStats();
-  }, [userRole, branchOrigin]);
+  }, [userRole, branchOrigin, toast]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -637,13 +663,13 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
                     <div className="text-gray-800 dark:text-gray-200 md:col-span-1">
                       <h4 className="font-semibold mb-2">Detail Agent:</h4>
                       <ul className="text-sm max-h-48 overflow-y-auto">
-                        {dashboardStats.awbPerAgentChartData.labels.map((agent: string, index: number) => (
+                        {dashboardStats.awbPerAgentChartData?.labels.map((agent: string, index: number) => (
                           <li key={agent} className="mb-1">
                             <span
                               className="inline-block w-3 h-3 mr-2 rounded-full"
-                              style={{ backgroundColor: dashboardStats.awbPerAgentChartData.datasets[0].backgroundColor[index % dashboardStats.awbPerAgentChartData.datasets[0].backgroundColor.length] }}
+                              style={{ backgroundColor: dashboardStats.awbPerAgentChartData?.datasets[0].backgroundColor[index % dashboardStats.awbPerAgentChartData.datasets[0].backgroundColor.length] }}
                             ></span>
-                            {agent}: <span className="font-medium">{dashboardStats.awbPerAgentChartData.datasets[0].data[index]} AWB</span>
+                            {agent}: <span className="font-medium">{dashboardStats.awbPerAgentChartData?.datasets[0].data[index]} AWB</span>
                           </li>
                         ))}
                       </ul>

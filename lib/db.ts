@@ -1,5 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
-import type { Database } from "@/lib/database.types"
+import { Database } from "@/lib/database.types"
+
+// Interface for manifest data
+interface ManifestData {
+  nama_penerima: string;
+  alamat_penerima: string;
+  nomor_penerima?: string;
+  manifest_source?: string;
+}
 
 // Initialize Supabase client with explicit URL and key values
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
@@ -124,7 +132,7 @@ export async function uploadImage(file: File, awbNumber: string): Promise<string
 }
 
 // Check if AWB exists in manifest
-export async function checkManifestAwb(awbNumber: string): Promise<any> {
+export async function checkManifestAwb(awbNumber: string): Promise<ManifestData | null> {
   try {
     // Bersihkan AWB number dari karakter tidak perlu
     const cleanAwb = awbNumber.trim().toUpperCase();
@@ -171,7 +179,7 @@ export async function checkManifestAwb(awbNumber: string): Promise<any> {
 
     // Jika tidak ditemukan di keduanya dengan semua format yang dicoba
     return null;
-  } catch (err) {
+  } catch (err: unknown) {
     return null;
   }
 }
@@ -209,7 +217,7 @@ export async function createShipmentFromManifest(awbNumber: string): Promise<boo
     }]);
     
     return !error;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 }
@@ -272,7 +280,7 @@ export async function getPhotoUrlFromHistory(awb_number: string): Promise<string
     } else {
       return null;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     return null;
   }
 }

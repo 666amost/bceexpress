@@ -1,34 +1,42 @@
 "use client"
 
+// Type definitions for courier dashboard
+interface User {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
+interface Shipment {
+  awb_number: string;
+  current_status: string;
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  updated_at?: string;
+  created_at?: string;
+}
+
+interface ShipmentHistory {
+  awb_number: string;
+  status: string;
+  created_at: string;
+  location?: string;
+}
+
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
-import { Camera } from 'lucide-react'
+import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle, faBarcode } from '@fortawesome/free-solid-svg-icons'
+import { Camera, Box, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { ContinuousScanModal } from "./continuous-scan-modal"
 import { useToast } from "@/hooks/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
-import { GoogleMapsButton } from "@/components/google-maps-button"
-import {
-  DeliveryParcel as DeliveryParcelIcon,
-  Logout as LogoutIcon,
-  CheckmarkFilled as CheckmarkIcon,
-  WarningFilled as WarningIcon,
-  View as ViewIcon,
-  Map as MapIcon,
-  Chat as ChatIcon,
-  Box as BoxIcon,
-  InProgress as InProgressIcon,
-  Barcode as BarcodeIcon,
-  Scan as ScanIcon,
-  ChevronDown, ChevronUp
-} from '@carbon/icons-react'
 
 // Function to format phone number for WhatsApp
 const formatPhoneForWhatsApp = (phoneNumber: string): string => {
@@ -114,7 +122,7 @@ const MapsButton = ({ address }: { address: string }) => {
 };
 
 export function CourierDashboard() {
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [completedCount, setCompletedCount] = useState(0)
   const [lastCompletedAwb, setLastCompletedAwb] = useState("")
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
@@ -122,11 +130,11 @@ export function CourierDashboard() {
   const [isDeliveredScanOpen, setIsDeliveredScanOpen] = useState(false)
   const [totalBulkShipments, setTotalBulkShipments] = useState(0)
   const [pendingDeliveries, setPendingDeliveries] = useState(0)
-  const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<any[]>([])
-  const [pendingShipments, setPendingShipments] = useState<any[]>([])
+  const [bulkShipmentAwbs, setBulkShipmentAwbs] = useState<Shipment[]>([])
+  const [pendingShipments, setPendingShipments] = useState<Shipment[]>([])
   const [showBulkDetails, setShowBulkDetails] = useState(false)
   const [showPendingDetails, setShowPendingDetails] = useState(false)
-  const [completedTodayShipments, setCompletedTodayShipments] = useState<any[]>([])
+  const [completedTodayShipments, setCompletedTodayShipments] = useState<ShipmentHistory[]>([])
   const [showCompletedTodayDetails, setShowCompletedTodayDetails] = useState(false)
   const [hasCompletedFirstDelivery, setHasCompletedFirstDelivery] = useState(false)
   const [expandAssignments, setExpandAssignments] = useState(false);
@@ -141,7 +149,7 @@ export function CourierDashboard() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const loadShipmentData = useCallback(async (user: any) => {
+  const loadShipmentData = useCallback(async (user: User) => {
     setIsShipmentsLoading(true)
     try {
       const today = new Date()
@@ -154,22 +162,22 @@ export function CourierDashboard() {
       const courierId = user?.id
       const courierName = user?.name || user?.email?.split("@")[0] || ""
 
-      // Add timeout to all database queries
+      // Add timeout to all database queries (OPTIMASI: Kurangi timeout untuk device low-end)
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database timeout')), 15000)
+        setTimeout(() => reject(new Error('Database timeout')), 8000)  // Kurangi dari 15 detik ke 8 detik
       );
 
-      // Get today's bulk shipments (Today's Assignment) - shipments created today that are not yet delivered/cancelled
+      // Get today's bulk shipments (OPTIMASI: Kurangi limit untuk performa)
       const bulkShipmentsPromise = supabaseClient
         .from("shipments")
-        .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, updated_at")
+        .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, updated_at")  // Hapus created_at yang tidak perlu
         .eq("courier_id", courierId)
         .gte("created_at", todayISOString)
-        .not("current_status", "in", '("delivered", "cancelled")') // Filter out delivered and cancelled shipments
+        .not("current_status", "in", '("delivered", "cancelled")')
         .order("updated_at", { ascending: false })
-        .limit(50); 
+        .limit(15);  // Kurangi lagi dari 20 ke 15 untuk low-end devices
 
-      // Get pending deliveries with only necessary fields - with timeout
+      // Get pending deliveries (OPTIMASI: Kurangi field yang diambil)
       const pendingPromise = supabaseClient
         .from("shipments")
         .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, created_at")
@@ -177,17 +185,17 @@ export function CourierDashboard() {
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
         .order("created_at", { ascending: false })
-        .limit(50); // Limit results to improve performance
+        .limit(15);  // Kurangi dari 20 ke 15
 
-      // Get completed today with only necessary fields - with timeout
+      // Get completed today (OPTIMASI: Kurangi field dan limit)
       const completedTodayPromise = supabaseClient
         .from("shipment_history")
-        .select("awb_number, status, created_at, location")
+        .select("awb_number, status, created_at, location")  // Hanya field yang perlu
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
         .order("created_at", { ascending: false })
-        .limit(100); // Limit results to improve performance
+        .limit(10);  // Kurangi dari 15 ke 10
 
       // Execute all queries in parallel with timeout
       const [bulkShipmentsResult, pendingResult, completedTodayResult] = await Promise.allSettled([
@@ -198,7 +206,7 @@ export function CourierDashboard() {
 
       // Handle bulk shipments result
       if (bulkShipmentsResult.status === 'fulfilled') {
-        const { data: bulkShipmentsData, error: bulkShipmentsError } = bulkShipmentsResult.value as any;
+        const { data: bulkShipmentsData, error: bulkShipmentsError } = bulkShipmentsResult.value as { data: Shipment[] | null; error: unknown };
         if (bulkShipmentsError) {
           setTotalBulkShipments(0);
           setBulkShipmentAwbs([]);
@@ -213,7 +221,7 @@ export function CourierDashboard() {
 
       // Handle pending deliveries result
       if (pendingResult.status === 'fulfilled') {
-        const { data: pendingData, error: pendingError } = pendingResult.value as any;
+        const { data: pendingData, error: pendingError } = pendingResult.value as { data: Shipment[] | null; error: unknown };
         if (pendingError) {
           setPendingDeliveries(0);
           setPendingShipments([]);
@@ -228,7 +236,7 @@ export function CourierDashboard() {
 
       // Handle completed today result
       if (completedTodayResult.status === 'fulfilled') {
-        const { data: completedTodayData, error: completedTodayError } = completedTodayResult.value as any;
+        const { data: completedTodayData, error: completedTodayError } = completedTodayResult.value as { data: ShipmentHistory[] | null; error: unknown };
         if (completedTodayError) {
           setCompletedCount(0);
           setCompletedTodayShipments([]);
@@ -262,21 +270,22 @@ export function CourierDashboard() {
     }
   }, [toast]);
 
-  const debouncedRefresh = useCallback((user: any) => {
+  const debouncedRefresh = useCallback((user: User) => {
     if (refreshTimeout.current) {
       clearTimeout(refreshTimeout.current)
     }
     
+    // OPTIMASI: Tingkatkan debounce time untuk mengurangi API calls di device low-end
     const timeout = setTimeout(() => {
       loadShipmentData(user)
       refreshTimeout.current = null
-    }, 1000)
+    }, 2000)  // Naikan dari 1 detik ke 2 detik
     
     refreshTimeout.current = timeout
   }, [loadShipmentData])
 
   // Function to check if courier has completed any deliveries today
-  const checkFirstDeliveryStatus = useCallback(async (user: any) => {
+  const checkFirstDeliveryStatus = useCallback(async (user: User) => {
     try {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -346,11 +355,12 @@ export function CourierDashboard() {
       
       loadShipmentData(userData);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsProfileLoading(false);
+      const errorMessage = err instanceof Error ? err.message : "Failed to load user profile. Please try again.";
       toast({
         title: "Error",
-        description: err.message || "Failed to load user profile. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -410,10 +420,11 @@ export function CourierDashboard() {
               }
             }
 
-          } catch (dbError: any) {
+          } catch (dbError: unknown) {
+            const errorMessage = dbError instanceof Error ? dbError.message : "An unexpected database error occurred for location.";
             toast({
               title: "Location DB Error",
-              description: dbError.message || "An unexpected database error occurred for location.",
+              description: errorMessage,
               variant: "destructive",
             });
           }
@@ -476,128 +487,151 @@ export function CourierDashboard() {
       }
 
       const { data: sessionData } = await supabaseClient.auth.getSession();
-      const currentUserId = sessionData?.session?.user?.id || null;
+      if (!sessionData?.session?.user?.id) return;
 
-      if (currentUserId) {
-        // Clear any existing interval first
-        if (locationUpdateInterval.current) {
-          clearInterval(locationUpdateInterval.current);
-          locationUpdateInterval.current = null;
-        }
+      const userId = sessionData.session.user.id;
 
-        // Function to start/resume interval
-        const startLocationInterval = () => {
-          if (locationUpdateInterval.current) {
-            clearInterval(locationUpdateInterval.current);
-          }
-          // Initial location update immediately
-          updateCourierLocation(currentUserId);
-          
-          // Set up interval for every 5 minutes (reduced from 1 minute to save bandwidth)
-          locationUpdateInterval.current = setInterval(() => {
-            updateCourierLocation(currentUserId);
-          }, 5 * 60 * 1000); // Update every 5 minutes (300 seconds)
-        };
+      // Initial location update
+      updateCourierLocation(userId);
 
-        // Function to pause interval
-        const pauseLocationInterval = () => {
-          if (locationUpdateInterval.current) {
-            clearInterval(locationUpdateInterval.current);
-            locationUpdateInterval.current = null;
-          }
-        };
-
-        // Handle visibility changes
-        const handleVisibilityChange = () => {
-          if (document.hidden) {
-            pauseLocationInterval();
-          } else {
-            startLocationInterval(); // Resume when tab becomes active
-          }
-        };
-
-        // Initial start if tab is visible
-        if (!document.hidden) {
-          startLocationInterval();
-        }
-
-        // Add event listener for visibility change
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
-        // Return cleanup function
-        return () => {
-          if (locationUpdateInterval.current) {
-            clearInterval(locationUpdateInterval.current);
-            locationUpdateInterval.current = null;
-          }
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-
+      // Set up interval for periodic updates (OPTIMASI: Lebih jarang untuk low-end devices)
+      if (!locationUpdateInterval.current) {
+        locationUpdateInterval.current = setInterval(() => {
+          updateCourierLocation(userId);
+        }, 60000);  // Ubah dari 30 detik ke 60 detik untuk menghemat battery dan performa
       }
     };
 
     setupLocationUpdates();
 
+    // Cleanup interval on dependency change
     return () => {
-      // This outer return cleanup handles unmount of the component
-      // Inner return from setupLocationUpdates handles specific interval and listener cleanup
+      if (locationUpdateInterval.current) {
+        clearInterval(locationUpdateInterval.current);
+        locationUpdateInterval.current = null;
+      }
     };
   }, [hasCompletedFirstDelivery, updateCourierLocation]);
 
-  const handleBulkUpdateSuccess = (count: number) => {
-    toast({
-      title: "Bulk Update Successful",
-      description: `${count} shipments have been updated to "Out For Delivery" status.`,
-    })
+  const handleLogout = async () => {
+    try {
+      await supabaseClient.auth.signOut()
+      router.push("/courier")
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  const refreshData = () => {
     if (currentUser) {
       debouncedRefresh(currentUser)
-      // Re-check delivery status after bulk update
-      checkFirstDeliveryStatus(currentUser)
+    }
+  }
+
+  const handleBulkUpdateSuccess = (count: number) => {
+    if (currentUser) {
+      debouncedRefresh(currentUser)
     }
   }
 
   const handleContinuousScanSuccess = () => {
     if (currentUser) {
       debouncedRefresh(currentUser)
-      // Re-check delivery status after continuous scan
-      checkFirstDeliveryStatus(currentUser)
     }
   }
 
-  const handleDeliveredScanSuccess = () => {
-    if (currentUser) {
-      debouncedRefresh(currentUser)
-      // Re-check delivery status after delivered scan
-      checkFirstDeliveryStatus(currentUser)
-    }
+  const renderShipmentCard = (shipment: Shipment, type: "bulk" | "pending") => {
+    const courierName = currentUser?.name || currentUser?.email?.split("@")[0] || ""
+    
+    return (
+      <div key={shipment.awb_number} className="border rounded-lg p-2 mb-2 bg-white">
+        <div className="flex justify-between items-start mb-1">
+          <div>
+            <p className="font-semibold text-sm">{shipment.awb_number}</p>
+            <p className="text-xs text-gray-600 truncate">{shipment.receiver_name}</p>
+          </div>
+          <Badge variant={shipment.current_status === "out_for_delivery" ? "default" : "secondary"} className="text-xs">
+            {shipment.current_status === "out_for_delivery" ? "OFD" : shipment.current_status}
+          </Badge>
+        </div>
+        {/* OPTIMASI: Hanya tampilkan alamat singkat untuk menghemat space dan rendering */}
+        <p className="text-xs text-gray-500 mb-1 truncate">{shipment.receiver_address}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <WhatsAppButton 
+              phoneNumber={shipment.receiver_phone} 
+              recipientName={shipment.receiver_name}
+              courierName={courierName}
+            />
+            <MapsButton address={shipment.receiver_address} />
+          </div>
+          {/* OPTIMASI: Tampilkan tanggal lebih sederhana */}
+          <p className="text-xs text-gray-400">
+            {type === "bulk" ? 
+              (shipment.updated_at ? new Date(shipment.updated_at).toLocaleDateString('id-ID') : "") :
+              (shipment.created_at ? new Date(shipment.created_at).toLocaleDateString('id-ID') : "")
+            }
+          </p>
+        </div>
+      </div>
+    )
   }
 
-  const handleLogout = async () => {
-    try {
-      await supabaseClient.auth.signOut()
-      router.push("/courier")
-    } catch (err) {
-    }
+  const renderCompletedCard = (shipment: ShipmentHistory) => {
+    return (
+      <div key={shipment.awb_number} className="border rounded-lg p-2 mb-2 bg-green-50">
+        <div className="flex justify-between items-start mb-1">
+          <div>
+            <p className="font-semibold text-sm">{shipment.awb_number}</p>
+            <p className="text-xs text-green-600">{shipment.status}</p>
+          </div>
+          <Badge variant="outline" className="bg-green-100 text-green-800 text-xs">
+            ✓
+          </Badge>
+        </div>
+        {/* OPTIMASI: Tampilkan lokasi singkat */}
+        {shipment.location && (
+          <p className="text-xs text-gray-500 mb-1 truncate">{shipment.location}</p>
+        )}
+        {/* OPTIMASI: Format tanggal sederhana */}
+        <p className="text-xs text-gray-400">
+          {new Date(shipment.created_at).toLocaleDateString('id-ID')}
+        </p>
+      </div>
+    )
   }
 
   if (isProfileLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center">
-        <div className="text-center">
-          <InProgressIcon className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse mt-2">Loading user profile...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <FontAwesomeIcon icon={faSpinner} spin className="h-8 w-8" />
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Please log in to access the courier dashboard.</p>
       </div>
     )
   }
 
   const displayName = currentUser?.name || currentUser?.email?.split("@")[0] || ""
   const emailDisplay = currentUser?.email || ""
-  // Tambahkan logo (bisa pakai /images/bce-logo.png)
+  // Logo URL 
   const logoUrl = "/images/bce-logo.png";
 
-  // Urutkan assignments berdasarkan created_at ASC (terlama di atas)
-  const sortedAssignments = [...bulkShipmentAwbs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  // Sort assignments by created_at ASC (oldest first)
+  const sortedAssignments = [...bulkShipmentAwbs].sort((a, b) => {
+    const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aDate - bDate;
+  });
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
@@ -612,7 +646,7 @@ export function CourierDashboard() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-4 bg-white/70 backdrop-blur rounded-b-2xl shadow-md border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          <Image src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
+          <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
         </div>
         <div className="flex-1 text-center">
           <span className="font-bold text-lg text-gray-900">{displayName}</span>
@@ -627,7 +661,7 @@ export function CourierDashboard() {
           onClick={handleLogout}
           className="h-8 px-2 text-xs font-bold text-gray-700"
         >
-          <LogoutIcon className="h-5 w-5" />
+          <FontAwesomeIcon icon={faSignOutAlt} className="h-5 w-5" />
         </Button>
       </header>
 
@@ -639,7 +673,7 @@ export function CourierDashboard() {
           <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandAssignments(v => !v)}>
             <div className="flex items-center gap-3">
               <div className="bg-blue-50 rounded-full p-2">
-                <DeliveryParcelIcon className="h-7 w-7 text-blue-600" />
+                <Box className="h-7 w-7 text-blue-600" />
               </div>
               <div className="text-xs text-gray-500 font-semibold">Assignments</div>
             </div>
@@ -649,28 +683,35 @@ export function CourierDashboard() {
           {expandAssignments && (
             <div className="mt-3 flex flex-col gap-2 z-10 relative">
               {sortedAssignments.length === 0 ? (
-                <div className="text-gray-400 text-sm">Tidak ada tugas hari ini.</div>
+                <div className="text-gray-400 text-sm">No assignments for today.</div>
               ) : (
                 <>
-                  {sortedAssignments.slice(0, 5).map((shipment) => (
+                  {/* OPTIMASI: Tampilkan maksimal 5 items untuk low-end devices, sisanya dengan "Show More" */}
+                  {sortedAssignments.slice(0, showAllAssignments ? sortedAssignments.length : 5).map((shipment) => (
                     <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
-                      <div>
-                        <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base">{shipment.awb_number}</div>
-                        <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
-                        <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
-                        <div className="flex gap-2 mt-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{shipment.awb_number}</div>
+                        <div className="text-xs text-gray-500 truncate">{shipment.receiver_name}</div>
+                        <div className="text-xs text-gray-400 truncate">{shipment.receiver_address}</div>
+                        <div className="flex gap-1 mt-1">
                           <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
                           <MapsButton address={shipment.receiver_address} />
                         </div>
                       </div>
-                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                      <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg ml-2" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
                         Update
                       </Button>
                     </div>
                   ))}
+                  {/* Show More/Less button jika ada lebih dari 5 items */}
                   {sortedAssignments.length > 5 && (
-                    <Button variant="ghost" className="w-full text-blue-600 font-bold mt-2" onClick={() => setShowAllAssignments(true)}>
-                      Lihat Semua
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowAllAssignments(!showAllAssignments)}
+                      className="mt-2 text-xs"
+                    >
+                      {showAllAssignments ? `Show Less` : `Show ${sortedAssignments.length - 5} More`}
                     </Button>
                   )}
                 </>
@@ -684,7 +725,7 @@ export function CourierDashboard() {
           <div className="flex items-center w-full justify-between z-10 relative">
             <div className="flex items-center gap-3">
               <div className="bg-green-50 rounded-full p-2">
-                <CheckmarkIcon className="h-7 w-7 text-green-600" />
+                <FontAwesomeIcon icon={faCheckCircle} className="h-7 w-7 text-green-600" />
               </div>
               <div className="text-xs text-gray-500 font-semibold">Completed</div>
             </div>
@@ -697,7 +738,7 @@ export function CourierDashboard() {
           <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandPending(v => !v)}>
             <div className="flex items-center gap-3">
               <div className="bg-yellow-50 rounded-full p-2">
-                <WarningIcon className="h-7 w-7 text-yellow-600" />
+                <FontAwesomeIcon icon={faExclamationTriangle} className="h-7 w-7 text-yellow-600" />
               </div>
               <div className="text-xs text-gray-500 font-semibold">Pending</div>
             </div>
@@ -707,7 +748,7 @@ export function CourierDashboard() {
           {expandPending && (
             <div className="mt-3 flex flex-col gap-2 z-10 relative">
               {pendingShipments.length === 0 ? (
-                <div className="text-gray-400 text-sm">Tidak ada pending deliveries.</div>
+                <div className="text-gray-400 text-sm">No pending deliveries.</div>
               ) : (
                 pendingShipments.map((shipment) => (
                   <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
@@ -734,221 +775,67 @@ export function CourierDashboard() {
       {/* Quick Actions */}
       <div className="flex flex-col gap-3 px-3 mb-4">
         <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsContinuousScanOpen(true)}>
-          <BarcodeIcon className="h-5 w-5" /> Scan Resi
+          <FontAwesomeIcon icon={faBarcode} className="h-5 w-5" /> Scan Resi
         </Button>
         <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsBulkModalOpen(true)}>
-          <BoxIcon className="h-5 w-5" /> Update Manual
+          <FontAwesomeIcon icon={faEye} className="h-5 w-5" /> Update Manual
         </Button>
       </div>
 
       {/* Floating DLVD Scan Button (mobile only) */}
       <Button onClick={() => setIsDeliveredScanOpen(true)} className="fixed bottom-5 right-5 z-50 bg-black hover:bg-gray-900 text-white rounded-full shadow-lg p-0 w-16 h-16 flex items-center justify-center sm:hidden">
-        <BarcodeIcon className="h-10 w-10 text-white" />
+        <FontAwesomeIcon icon={faBarcode} className="h-10 w-10 text-white" />
       </Button>
 
-      {/* Modals tetap ada, tidak diubah */}
+            {/* Pending Details Modal */}
+      {showPendingDetails && (
+        <Dialog open={showPendingDetails} onOpenChange={setShowPendingDetails}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Pending Deliveries ({pendingDeliveries})</DialogTitle>
+              <DialogDescription>
+                Shipments from previous days that need to be delivered
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {pendingShipments.map((shipment) => renderShipmentCard(shipment, "pending"))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modals */}
       <BulkUpdateModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
         onSuccess={handleBulkUpdateSuccess}
+        currentUser={currentUser}
       />
+
       <ContinuousScanModal
         isOpen={isContinuousScanOpen}
         onClose={() => setIsContinuousScanOpen(false)}
         onSuccess={handleContinuousScanSuccess}
       />
+
       <ContinuousScanModal
         isOpen={isDeliveredScanOpen}
         onClose={() => setIsDeliveredScanOpen(false)}
-        onSuccess={handleDeliveredScanSuccess}
+        onSuccess={handleContinuousScanSuccess}
         prefillStatus="delivered"
       />
-      {/* Dialog detail tetap ada, tidak diubah */}
-      {/* Bulk Shipments Details Dialog */}
-      <Dialog open={showBulkDetails} onOpenChange={setShowBulkDetails}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Bulk Shipments Details</DialogTitle>
-            <DialogDescription>
-              These are the shipments that have been marked as "Out For Delivery" and are pending delivery
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {isShipmentsLoading && (bulkShipmentAwbs.length === 0) ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
-                <div className="space-y-2">
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                </div>
-              </div>
-            ) : bulkShipmentAwbs.length > 0 ? (
-              <div className="space-y-3">
-                {bulkShipmentAwbs.map((shipment) => (
-                  <div
-                    key={shipment.awb_number}
-                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <DeliveryParcelIcon className="h-4 w-4 text-blue-500" />
-                        <span className="font-mono font-medium">{shipment.awb_number}</span>
-                        <Badge variant="outline" className="ml-2">
-                          Out For Delivery
-                        </Badge>
-                      </div>
-                      <p className="text-sm mt-1">Receiver: {shipment.receiver_name !== "Auto Generated" ? shipment.receiver_name : "Auto Generated Shipment"}</p>
-                      <div className="flex items-center mt-1">
-                        <p className="text-sm">Phone: {shipment.receiver_phone || "N/A"}</p>
-                        {shipment.receiver_phone && (
-                          <WhatsAppButton 
-                            phoneNumber={shipment.receiver_phone} 
-                            recipientName={shipment.receiver_name || "Customer"} 
-                            courierName={displayName}
-                          />
-                        )}
-                      </div>
-                      <div className="flex items-center mt-1">
-                        <p className="text-sm">Address: {shipment.receiver_address}</p>
-                        <MapsButton address={shipment.receiver_address} />
-                      </div>
-                      <p className="text-sm mt-1">Current Status: {shipment.current_status}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Updated: {new Date(shipment.updated_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <Button size="sm" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
-                      Update
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">No bulk shipments found</div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Pending Deliveries Dialog */}
-      <Dialog open={showPendingDetails} onOpenChange={setShowPendingDetails}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Pending Deliveries</DialogTitle>
-            <DialogDescription>
-              These are shipments from previous days that are still pending delivery
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {isShipmentsLoading && (pendingShipments.length === 0) ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
-                <div className="space-y-2">
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                </div>
-              </div>
-            ) : pendingShipments.length > 0 ? (
-              <div className="space-y-3">
-                {pendingShipments.map((shipment) => (
-                  <div
-                    key={shipment.awb_number}
-                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <DeliveryParcelIcon className="h-4 w-4 text-yellow-500" />
-                        <span className="font-mono font-medium">{shipment.awb_number}</span>
-                        <Badge variant="outline" className="text-xs">OFD</Badge>
-                      </div>
-                      <p className="text-sm mt-1">Receiver: {shipment.receiver_name !== "Auto Generated" ? shipment.receiver_name : "Auto Generated Shipment"}</p>
-                      <div className="flex items-center mt-1">
-                        <p className="text-sm">Phone: {shipment.receiver_phone || "N/A"}</p>
-                        {shipment.receiver_phone && (
-                          <WhatsAppButton 
-                            phoneNumber={shipment.receiver_phone} 
-                            recipientName={shipment.receiver_name || "Customer"} 
-                            courierName={displayName}
-                          />
-                        )}
-                      </div>
-                      <div className="flex items-center mt-1">
-                        <p className="text-sm">Address: {shipment.receiver_address}</p>
-                        <MapsButton address={shipment.receiver_address} />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Created: {new Date(shipment.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <Button size="sm" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
-                      Update
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">No pending deliveries found</div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Completed Today Details Dialog */}
-      <Dialog open={showCompletedTodayDetails} onOpenChange={setShowCompletedTodayDetails}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Shipments Completed Today</DialogTitle>
-            <DialogDescription>These are the shipments that you have marked as "Delivered" today.</DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[60vh] overflow-y-auto mt-4">
-            {isShipmentsLoading && (completedTodayShipments.length === 0) ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
-                <div className="space-y-2">
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                </div>
-              </div>
-            ) : completedTodayShipments.length > 0 ? (
-              <div className="space-y-3">
-                {completedTodayShipments.map((shipment) => (
-                  <div
-                    key={shipment.awb_number}
-                    className="p-3 border rounded-md flex justify-between items-center hover:bg-muted/50 transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4 text-green-500" />
-                        <span className="font-mono font-medium">{shipment.awb_number}</span>
-                      </div>
-                      <p className="text-sm mt-1">Location: {shipment.location}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Completed at: {new Date(shipment.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">No shipments completed today</div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal All Assignments */}
       <Dialog open={showAllAssignments} onOpenChange={setShowAllAssignments}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Semua Tugas Hari Ini</DialogTitle>
-            <DialogDescription>Daftar lengkap resi assignments hari ini.</DialogDescription>
+            <DialogTitle>All Today's Assignments</DialogTitle>
+            <DialogDescription>Complete list of today's assignment AWBs.</DialogDescription>
           </DialogHeader>
+          <DialogClose className="absolute right-4 top-4 rounded-full w-8 h-8 bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-900 border border-gray-200 transition-all">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
           <div className="max-h-[60vh] overflow-y-auto mt-4 flex flex-col gap-2">
             {sortedAssignments.map((shipment) => (
               <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">

@@ -107,9 +107,15 @@ export async function GET(request: Request) {  // Ubah untuk menerima parameter 
                 } else {
                   throw new Error(`Respons tidak sukses: ${response.status}`);
                 }
-              } catch (err: any) {
-                if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
-                  await new Promise(resolve => setTimeout(resolve, retryDelay(retries)));
+              } catch (err: unknown) {
+                // Type guard untuk axios error
+                if (err && typeof err === 'object' && 'response' in err) {
+                  const axiosError = err as { response: { status: number } };
+                  if (axiosError.response && axiosError.response.status === 429 && retries < MAX_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, retryDelay(retries)));
+                  } else {
+                    throw err;
+                  }
                 } else {
                   throw err;
                 }

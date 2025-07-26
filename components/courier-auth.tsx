@@ -147,18 +147,26 @@ export function CourierAuth() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3 py-1">
                 <Checkbox
                   id="remember"
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    minWidth: '16px',
+                    minHeight: '16px',
+                    appearance: 'none',
+                    WebkitAppearance: 'none'
+                  }}
                 />
-                <label
+                <Label
                   htmlFor="remember"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
                 >
                   Remember me
-                </label>
+                </Label>
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>

@@ -5,9 +5,28 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabaseClient } from '@/lib/auth'
 import React from 'react'
+import { RealtimeChannel } from '@supabase/supabase-js';
+
+interface IconPrototype extends L.Icon.Default {
+  _getIconUrl?: string;
+}
+
+interface Location {
+  courier_id: string;
+  latitude: number;
+  longitude: number;
+  updated_at: string;
+  created_at: string;
+  notes: string;
+}
+
+interface Courier {
+  id: string;
+  name: string;
+}
 
 // Fix for default icon issues with Leaflet and Webpack/Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as IconPrototype)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'leaflet/images/marker-icon-2x.png',
   iconUrl: 'leaflet/images/marker-icon.png',
@@ -56,7 +75,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
   const isFetching = React.useRef<boolean>(false) // Prevent concurrent fetches
   const [lastMapUpdateTime, setLastMapUpdateTime] = React.useState<string | null>(null); // Track when map data was last updated
   const [lastRealtimeUpdate, setLastRealtimeUpdate] = React.useState<string | null>(null); // Track realtime updates
-  const subscriptionRef = React.useRef<any>(null); // Reference to store subscription
+  const subscriptionRef = React.useRef<RealtimeChannel | null>(null); // Reference to store subscription
 
   const mapRef = React.useRef<L.Map | null>(null)
   const markersRef = React.useRef<Record<string, L.Marker>>({})
@@ -125,7 +144,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     'shipment_history' // Karena mungkin lokasi tersimpan di sini
   ], []);
 
-  const processLocations = React.useCallback(async (locations: any[], couriers: any[]) => {
+  const processLocations = React.useCallback(async (locations: Location[], couriers: Courier[]) => {
     // Define an inactivity threshold (e.g., 30 minutes for active couriers - diperpanjang)
     const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
     const currentTime = Date.now();
@@ -194,7 +213,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
 
         if (!historyError && shipmentHistory && shipmentHistory.length > 0) {
           // Ambil lokasi terbaru untuk setiap kurir dari shipment_history
-          const latestLocationByCourier = new Map();
+          const latestLocationByCourier = new Map<string, Location>();
           
           // Pastikan hanya mengambil data dengan courier_id yang valid
           shipmentHistory.forEach(entry => {
@@ -209,28 +228,29 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
                 latitude: entry.latitude,
                 longitude: entry.longitude,
                 updated_at: entry.created_at,
-                notes: entry.notes
+                notes: entry.notes,
+                created_at: entry.created_at
               });
             }
           });
           
           const locations = Array.from(latestLocationByCourier.values());
-          await processLocations(locations, couriers);
+          await processLocations(locations, couriers as Courier[]);
         }
       } else {
         // Gunakan data dari courier_current_locations
         // Ambil hanya lokasi terbaru untuk setiap kurir
-        const latestLocationByCourier = new Map();
+        const latestLocationByCourier = new Map<string, Location>();
         
-        currentLocations.forEach(loc => {
+        currentLocations.forEach((loc: Location) => {
           if (!latestLocationByCourier.has(loc.courier_id) || 
-              new Date(loc.updated_at) > new Date(latestLocationByCourier.get(loc.courier_id).updated_at)) {
+              new Date(loc.updated_at) > new Date(latestLocationByCourier.get(loc.courier_id)!.updated_at)) {
             latestLocationByCourier.set(loc.courier_id, loc);
           }
         });
         
         const uniqueLocations = Array.from(latestLocationByCourier.values());
-        await processLocations(uniqueLocations, couriers);
+        await processLocations(uniqueLocations, couriers as Courier[]);
       }
 
     } catch (error) {
@@ -357,7 +377,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
 
       if (courierLocations.length > 0) {
         // Create a unique set of courier IDs to prevent duplicates
-        const uniqueCouriers = new Map();
+        const uniqueCouriers = new Map<string, CourierLocation>();
         
         // Only keep the most recent location for each courier
         courierLocations.forEach(loc => {
@@ -419,4 +439,4 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
   return (
     <div key={mapKey} id="map-container" className="w-full h-full rounded-lg" />
   );
-} 
+}

@@ -39,10 +39,7 @@ export async function POST(request: NextRequest) {
         const WA_GROUP_ID = process.env.WA_GROUP_ID;
         
         if (!WAHA_API_URL || !WA_GROUP_ID) {
-          console.error('WhatsApp environment variables not configured for shipment update:', {
-            WAHA_API_URL: WAHA_API_URL ? 'SET' : 'NOT SET',
-            WA_GROUP_ID: WA_GROUP_ID ? 'SET' : 'NOT SET'
-          });
+          // WhatsApp environment variables not configured for shipment update
           // Continue without WhatsApp notification
         } else {
           // Delay random 15-35 detik
@@ -63,18 +60,18 @@ export async function POST(request: NextRequest) {
           });
           
           if (!whatsappResponse.ok) {
-            console.error('WhatsApp notification failed:', await whatsappResponse.text());
+            // WhatsApp notification failed - continuing with main operation
           }
         }
       } catch (whatsappError) {
-        console.error('WhatsApp notification error:', whatsappError);
+        // WhatsApp notification error - don't fail the main operation
         // Don't fail the main operation due to WhatsApp error
       }
     }
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error('Shipment update error:', error);
+    // Shipment update error - handled by error response
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

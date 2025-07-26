@@ -1,6 +1,6 @@
 declare module '@zxing/browser' {
   export class BrowserQRCodeReader {
-    constructor(options?: any);
+    constructor(options?: Record<string, unknown>);
     static listVideoInputDevices(): Promise<MediaDeviceInfo[]>;
     decodeFromVideoDevice(
       deviceId: string | undefined,

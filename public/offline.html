@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BCE Express - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            padding: 20px;
+        }
+        
+        .offline-container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.6s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .offline-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: #f1f5f9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+        
+        .offline-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+        }
+        
+        .offline-message {
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        
+        .retry-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .retry-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .retry-btn:active {
+            transform: translateY(0);
+        }
+        
+        .offline-tips {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        
+        .offline-tips h3 {
+            color: #1e293b;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .offline-tips ul {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+            padding-left: 20px;
+        }
+        
+        .offline-tips li {
+            margin-bottom: 5px;
+        }
+        
+        .connection-status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .connection-status.online {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .connection-status.offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 480px) {
+            .offline-container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+            
+            .offline-title {
+                font-size: 20px;
+            }
+            
+            .offline-icon {
+                width: 60px;
+                height: 60px;
+                font-size: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="logo">BCE Express</div>
+        
+        <div class="offline-icon">
+            <span id="connectionIcon">📶</span>
+        </div>
+        
+        <h1 class="offline-title">Tidak Ada Koneksi</h1>
+        
+        <p class="offline-message">
+            Aplikasi BCE Express sedang offline. Periksa koneksi internet Anda dan coba lagi.
+        </p>
+        
+        <button class="retry-btn" onclick="retryConnection()">
+            Coba Lagi
+        </button>
+        
+        <div class="connection-status offline" id="connectionStatus">
+            <span class="pulse">●</span> Offline - Tidak ada koneksi internet
+        </div>
+        
+        <div class="offline-tips">
+            <h3>Tips Koneksi:</h3>
+            <ul>
+                <li>Pastikan WiFi atau data seluler aktif</li>
+                <li>Periksa sinyal internet Anda</li>
+                <li>Restart aplikasi jika masalah berlanjut</li>
+                <li>Coba pindah ke area dengan sinyal lebih baik</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let retryAttempts = 0;
+        const maxRetries = 3;
+        
+        // Check connection status
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connectionStatus');
+            const iconEl = document.getElementById('connectionIcon');
+            
+            if (navigator.onLine) {
+                statusEl.className = 'connection-status online';
+                statusEl.innerHTML = '<span>●</span> Online - Koneksi tersedia';
+                iconEl.textContent = '📶';
+                
+                // Try to reload the page after a short delay
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                statusEl.className = 'connection-status offline';
+                statusEl.innerHTML = '<span class="pulse">●</span> Offline - Tidak ada koneksi internet';
+                iconEl.textContent = '📵';
+            }
+        }
+        
+        // Retry connection
+        function retryConnection() {
+            const btn = document.querySelector('.retry-btn');
+            const originalText = btn.textContent;
+            
+            retryAttempts++;
+            
+            btn.textContent = 'Menghubungkan...';
+            btn.disabled = true;
+            
+            // Check if we're back online
+            setTimeout(() => {
+                if (navigator.onLine) {
+                    // Try to fetch a simple resource to verify connection
+                    fetch('/', { method: 'HEAD', cache: 'no-cache' })
+                        .then(() => {
+                            btn.textContent = 'Berhasil! Memuat ulang...';
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        })
+                        .catch(() => {
+                            handleRetryFailure(btn, originalText);
+                        });
+                } else {
+                    handleRetryFailure(btn, originalText);
+                }
+            }, 2000);
+        }
+        
+        function handleRetryFailure(btn, originalText) {
+            if (retryAttempts >= maxRetries) {
+                btn.textContent = 'Masih Offline';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    retryAttempts = 0;
+                }, 3000);
+            } else {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+            
+            updateConnectionStatus();
+        }
+        
+        // Listen for online/offline events
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+        
+        // Initial status check
+        updateConnectionStatus();
+        
+        // Periodic connection check (every 30 seconds)
+        setInterval(() => {
+            if (navigator.onLine) {
+                // Ping the server to verify actual connectivity
+                fetch('/', { method: 'HEAD', cache: 'no-cache' })
+                    .then(() => {
+                        updateConnectionStatus();
+                    })
+                    .catch(() => {
+                        // False positive, we're not really online
+                        const statusEl = document.getElementById('connectionStatus');
+                        statusEl.className = 'connection-status offline';
+                        statusEl.innerHTML = '<span class="pulse">●</span> Koneksi bermasalah - Coba lagi';
+                    });
+            }
+        }, 30000);
+        
+        // Service worker message handling
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data.type === 'UPDATE_AVAILABLE') {
+                    const statusEl = document.getElementById('connectionStatus');
+                    statusEl.className = 'connection-status online';
+                    statusEl.innerHTML = '<span>●</span> Update tersedia - Memuat ulang...';
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+            });
+        }
+        
+        // Auto-retry when connection is restored
+        let autoRetryTimeout;
+        window.addEventListener('online', () => {
+            clearTimeout(autoRetryTimeout);
+            autoRetryTimeout = setTimeout(() => {
+                retryConnection();
+            }, 2000);
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                retryConnection();
+            }
+            
+            if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                window.location.reload();
+            }
+        });
+        
+        // Touch-friendly retry
+        let touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+        
+        document.addEventListener('touchend', (e) => {
+            const touchEndY = e.changedTouches[0].clientY;
+            const swipeDistance = touchStartY - touchEndY;
+            
+            // Pull down to retry (swipe down more than 100px)
+            if (swipeDistance < -100) {
+                retryConnection();
+            }
+        });
+        
+        // Prevent zooming on double tap for better UX
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>

@@ -12,6 +12,13 @@ const kotaTujuanOptions = ["bangka", "kalimantan barat", "belitung", "bali"]  //
  * @param {{ userRole: string, branchOrigin: string }} props
  */
 export default function RecapManifest({ userRole, branchOrigin }) {
+  // ================== BRANCH / ROLE SWITCH ==================
+  const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
+  const isBranchMode =
+    userRole === "cabang" ||
+    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
+  // ===========================================================
+
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
   const [selectedKirimVia, setSelectedKirimVia] = useState("")  // Filter Kirim via
   const [selectedTujuan, setSelectedTujuan] = useState("")  // Filter Tujuan
@@ -20,16 +27,20 @@ export default function RecapManifest({ userRole, branchOrigin }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const kotaTujuanOptionsFinal = userRole === 'cabang' ? branchOrigin === 'bangka' ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"] : ["jakarta", "tangerang", "bekasi", "depok", "bogor"] : ["bangka", "kalimantan barat", "belitung", "bali"];
+  const kotaTujuanOptionsFinal = isBranchMode 
+    ? (branchOrigin === 'bangka' 
+        ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"] 
+        : ["jakarta", "tangerang", "bekasi", "depok", "bogor"]) 
+    : ["bangka", "kalimantan barat", "belitung", "bali"];
 
   // Fungsi untuk fetch data dengan filter
   async function fetchRecapData() {
     setLoading(true)
     setError("")
     try {
-      // Central users: query central tables, Branch users: query branch tables with filtering
+      // Branch mode: query cabang tables, Central mode: query central tables
       let query;
-      if (userRole === 'cabang') {
+      if (isBranchMode) {
         query = supabaseClient
           .from("manifest_cabang")
           .select("*")
@@ -109,25 +120,25 @@ export default function RecapManifest({ userRole, branchOrigin }) {
     }
 
     const headers = [
-      'Tgl',
+      'Date',
       'Total AWB',
-      'Total Coli',
-      'Kg',
+      'Coli',
+      'Weight (Kg)',
       'Cash',
       'Transfer',
       'COD',
-      'Total Pembayaran'
+      'Total Payment'
     ]
 
     const formattedData = data.map(item => ({
-      'Tgl': item.date,
+      'Date': item.date,
       'Total AWB': item.totalAWB,
-      'Total Coli': item.totalColi,
-      'Kg': item.totalKg,
+      'Coli': item.totalColi,
+      'Weight (Kg)': item.totalKg,
       'Cash': item.cash,
       'Transfer': item.transfer,
       'COD': item.cod,
-      'Total Pembayaran': item.cash + item.transfer + item.cod
+      'Total Payment': item.cash + item.transfer + item.cod
     }))
 
     // Create date range string if filters are applied
@@ -165,8 +176,8 @@ export default function RecapManifest({ userRole, branchOrigin }) {
       data: formattedData,
       fileName: `recap_manifest_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xls`,
       currency: 'Rp',
-      currencyColumns: [4, 5, 6, 7], // Cash, Transfer, COD, Total Pembayaran
-      numberColumns: [1, 2, 3], // Total AWB, Total Coli, Kg
+      currencyColumns: [4, 5, 6, 7], // Cash, Transfer, COD, Total Payment
+      numberColumns: [1, 2, 3], // Total AWB, Coli, Weight (Kg)
       dateRange: dateRange
     })
   };
@@ -183,57 +194,426 @@ export default function RecapManifest({ userRole, branchOrigin }) {
         <head>
           <title>Recap Manifest</title>
           <style>
-            table { width: 100%; border-collapse: collapse; font-size: 10px; }
-            th, td { border: 1px solid black; padding: 4px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .totals-section { margin-top: 10px; padding: 8px; background-color: #e0f2f7; border: 1px solid #b0bec5; border-radius: 4px; font-size: 10px; }
-            .totals-section h3 { font-weight: bold; margin-bottom: 5px; }
-            .totals-section p { margin: 2px 0; }
+            @page {
+              margin: 20mm;
+              size: A4;
+            }
+            
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+              font-size: 10px;
+              line-height: 1.5;
+              color: #1f2937;
+              background: #ffffff;
+              font-weight: 400;
+            }
+            
+            .document-header {
+              border-bottom: 2px solid #e5e7eb;
+              padding-bottom: 24px;
+              margin-bottom: 32px;
+            }
+            
+            .header-top {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              margin-bottom: 16px;
+            }
+            
+            .company-info {
+              display: block;
+            }
+            
+            .company-name {
+              display: block;
+              font-size: 28px;
+              font-weight: 700;
+              color: #1e40af;
+              letter-spacing: -0.5px;
+              margin-bottom: 2px;
+            }
+            
+            .company-tagline {
+              display: block;
+              font-size: 11px;
+              color: #6b7280;
+              font-weight: 500;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-top: 0;
+            }
+            
+            .document-meta {
+              text-align: right;
+              color: #4b5563;
+              font-size: 9px;
+              line-height: 1.4;
+            }
+            
+            .report-title-section {
+              text-align: center;
+              margin: 24px 0;
+            }
+            
+            .report-title {
+              font-size: 22px;
+              font-weight: 600;
+              color: #111827;
+              margin-bottom: 8px;
+              letter-spacing: -0.3px;
+            }
+            
+            .report-subtitle {
+              font-size: 12px;
+              color: #6b7280;
+              font-weight: 500;
+            }
+            
+            .report-parameters {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              padding: 16px 20px;
+              margin-bottom: 28px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            
+            .param-group {
+              display: flex;
+              gap: 24px;
+            }
+            
+            .param-item {
+              font-size: 10px;
+            }
+            
+            .param-label {
+              color: #6b7280;
+              font-weight: 500;
+              margin-right: 6px;
+            }
+            
+            .param-value {
+              color: #1f2937;
+              font-weight: 600;
+            }
+            
+            .data-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 32px;
+              background: #ffffff;
+              border: 1px solid #e5e7eb;
+            }
+            
+            .data-table thead th {
+              background: #1e40af;
+              color: #ffffff;
+              font-weight: 600;
+              padding: 14px 10px;
+              text-align: left;
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: 0.8px;
+              border-bottom: 1px solid #1d4ed8;
+            }
+            
+            .data-table thead th.text-right {
+              text-align: right;
+            }
+            
+            .data-table tbody td {
+              padding: 12px 10px;
+              border-bottom: 1px solid #f3f4f6;
+              font-size: 9px;
+              color: #374151;
+            }
+            
+            .data-table tbody tr:nth-child(even) {
+              background: #f9fafb;
+            }
+            
+            .data-table tbody tr:hover {
+              background: #f3f4f6;
+            }
+            
+            .text-right {
+              text-align: right;
+            }
+            
+            .text-center {
+              text-align: center;
+            }
+            
+            .font-medium {
+              font-weight: 500;
+            }
+            
+            .font-semibold {
+              font-weight: 600;
+            }
+            
+            .currency {
+              font-weight: 500;
+              color: #374151;
+            }
+            
+            .total-currency {
+              font-weight: 600;
+              color: #1e40af;
+            }
+            
+            .summary-section {
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border: 1px solid #cbd5e1;
+              padding: 24px;
+              margin-top: 32px;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            
+            .summary-title {
+              font-size: 14px;
+              font-weight: 600;
+              color: #1e40af;
+              margin-bottom: 20px;
+              text-align: center;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 16px;
+              margin-bottom: 20px;
+            }
+            
+            .summary-item {
+              background: #ffffff;
+              padding: 16px;
+              border: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            
+            .summary-label {
+              font-size: 9px;
+              color: #6b7280;
+              font-weight: 500;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 6px;
+            }
+            
+            .summary-value {
+              font-size: 12px;
+              font-weight: 600;
+              color: #1f2937;
+            }
+            
+            .grand-total-section {
+              background: #1e40af;
+              color: #ffffff;
+              padding: 20px;
+              text-align: center;
+              margin-top: 16px;
+            }
+            
+            .grand-total-label {
+              font-size: 11px;
+              font-weight: 500;
+              margin-bottom: 6px;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #bfdbfe;
+            }
+            
+            .grand-total-value {
+              font-size: 18px;
+              font-weight: 700;
+              color: #ffffff;
+            }
+            
+            .document-footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 8px;
+              color: #9ca3af;
+            }
+            
+            .footer-left {
+              font-weight: 500;
+            }
+            
+            .footer-right {
+              text-align: right;
+            }
+            
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              
+              .no-print {
+                display: none !important;
+              }
+              
+              .summary-section {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
           </style>
         </head>
         <body>
-          <h2>Recap Manifest</h2>
-          <table>
+          <div class="document-header">
+            <div class="header-top">
+              <div class="company-info">
+                <div class="company-name">BCE EXPRESS</div>
+                <div class="company-tagline">BETTER CARGO EXPERIENCE</div>
+              </div>
+              <div class="document-meta">
+                <div><strong>Document ID:</strong> RCP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
+                <div><strong>Generated:</strong> ${new Date().toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })} at ${new Date().toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
+              </div>
+            </div>
+            
+            <div class="report-title-section">
+              <div class="report-title">RECAP MANIFEST</div>
+              <div class="report-subtitle">Rekapitulasi Pengiriman Harian</div>
+            </div>
+          </div>
+          
+          <div class="report-parameters">
+            <div class="param-group">
+              <div class="param-item">
+                <span class="param-label">PERIOD:</span>
+                <span class="param-value">${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</span>
+              </div>
+              ${selectedKirimVia ? `
+              <div class="param-item">
+                <span class="param-label">VIA:</span>
+                <span class="param-value">${selectedKirimVia.toUpperCase()}</span>
+              </div>
+              ` : ''}
+              ${selectedTujuan ? `
+              <div class="param-item">
+                <span class="param-label">DESTINATION:</span>
+                <span class="param-value">${selectedTujuan.toUpperCase()}</span>
+              </div>
+              ` : ''}
+            </div>
+            <div class="param-item">
+              <span class="param-label">TOTAL RECORDS:</span>
+              <span class="param-value">${data.length}</span>
+            </div>
+          </div>
+          
+          <table class="data-table">
             <thead>
               <tr>
-                <th>No</th>
-                <th>Tgl</th>
-                <th>Total AWB</th>
-                <th>Total Coli</th>
-                <th>Kg</th>
-                <th class="text-right">Cash</th>
-                <th class="text-right">Transfer</th>
-                <th class="text-right">COD</th>
-                <th class="text-right">Total Pembayaran</th>
+                <th style="width: 5%;">#</th>
+                <th style="width: 12%;">DATE</th>
+                <th class="text-right" style="width: 10%;">TOTAL AWB</th>
+                <th class="text-right" style="width: 10%;">TOTAL COLI</th>
+                <th class="text-right" style="width: 8%;">WEIGHT (KG)</th>
+                <th class="text-right" style="width: 13%;">CASH</th>
+                <th class="text-right" style="width: 13%;">TRANSFER</th>
+                <th class="text-right" style="width: 13%;">COD</th>
+                <th class="text-right" style="width: 16%;">TOTAL PAYMENT</th>
               </tr>
             </thead>
             <tbody>
               ${data.map((item, index) => `
                 <tr>
-                  <td>${index + 1}</td>
-                  <td>${item.date}</td>
-                  <td>${item.totalAWB || 0}</td>
-                  <td>${item.totalColi || 0}</td>
-                  <td>${item.totalKg || 0}</td>
-                  <td class="text-right">Rp. ${(item.cash || 0).toLocaleString('en-US')}</td>
-                  <td class="text-right">Rp. ${(item.transfer || 0).toLocaleString('en-US')}</td>
-                  <td class="text-right">Rp. ${(item.cod || 0).toLocaleString('en-US')}</td>
-                  <td class="text-right font-bold">Rp. ${((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)).toLocaleString('en-US')}</td>
+                  <td class="text-center font-medium">${index + 1}</td>
+                  <td class="font-medium">${new Date(item.date).toLocaleDateString('en-GB')}</td>
+                  <td class="text-right font-medium">${(item.totalAWB || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right font-medium">${(item.totalColi || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right font-medium">${(item.totalKg || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.cash || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.transfer || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.cod || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right total-currency">${((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)).toLocaleString('id-ID')}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-          <div class="totals-section">
-            <h3>Total:</h3>
-            <p>Total AWB: ${data.reduce((sum, item) => sum + (item.totalAWB || 0), 0)}</p>
-            <p>Total Coli: ${data.reduce((sum, item) => sum + (item.totalColi || 0), 0)}</p>
-            <p>Total Kg: ${data.reduce((sum, item) => sum + (item.totalKg || 0), 0)}</p>
-            <p>Total Cash: Rp. ${data.reduce((sum, item) => sum + (item.cash || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Transfer: Rp. ${data.reduce((sum, item) => sum + (item.transfer || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total COD: Rp. ${data.reduce((sum, item) => sum + (item.cod || 0), 0).toLocaleString('en-US')}</p>
-            <p>Total Pembayaran: Rp. ${data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('en-US')}</p>
+          
+          <div class="summary-section">
+            <div class="summary-title">SUMMARY</div>
+            
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Total AWB</div>
+                <div class="summary-value">${data.reduce((sum, item) => sum + (item.totalAWB || 0), 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Total Coli</div>
+                <div class="summary-value">${data.reduce((sum, item) => sum + (item.totalColi || 0), 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Total Weight</div>
+                <div class="summary-value">${data.reduce((sum, item) => sum + (item.totalKg || 0), 0).toLocaleString('id-ID')} kg</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Avg per Day</div>
+                <div class="summary-value">${data.length > 0 ? Math.round(data.reduce((sum, item) => sum + (item.totalAWB || 0), 0) / data.length).toLocaleString('id-ID') : '0'} AWB</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Cash Payments</div>
+                <div class="summary-value">Rp ${data.reduce((sum, item) => sum + (item.cash || 0), 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Transfer Payments</div>
+                <div class="summary-value">Rp ${data.reduce((sum, item) => sum + (item.transfer || 0), 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">COD Payments</div>
+                <div class="summary-value">Rp ${data.reduce((sum, item) => sum + (item.cod || 0), 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Report Date</div>
+                <div class="summary-value">${new Date().toLocaleDateString('en-GB')}</div>
+              </div>
+            </div>
+            
+            <div class="grand-total-section">
+              <div class="grand-total-label">TOTAL REVENUE</div>
+              <div class="grand-total-value">Rp ${data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('id-ID')}</div>
+            </div>
+          </div>
+          
+          <div class="document-footer">
+            <div class="footer-left">
+              <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
+              <div>This report contains business information</div>
+              <div>Periksa kembali data yang tercantum dalam laporan ini</div>
+            </div>
+            <div class="footer-right">
+              <div>Page 1 of 1</div>
+              <div>Generated by BCE Management System v2.0</div>
+            </div>
           </div>
         </body>
       </html>

@@ -294,7 +294,7 @@ const canDelete = (role: UserRole): boolean => {
 
 export default function HistoryManifest({ mode, userRole, branchOrigin }: HistoryManifestProps) {
   // DEBUG: log userRole dan branchOrigin
-  console.log('DEBUG userRole:', userRole, 'branchOrigin:', branchOrigin);
+  // DEBUG: Removed debug log for production
 
   const [data, setData] = useState<ManifestData[]>([])
   const [loading, setLoading] = useState(true)
@@ -336,7 +336,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
         + (parseFloat(String(selectedItem.biaya_transit) || '0'));
       setSelectedItem(prev => prev ? { ...prev, sub_total, total } : null);
     }
-  }, [selectedItem?.berat_kg, selectedItem?.harga_per_kg, selectedItem?.biaya_admin, selectedItem?.biaya_packaging, selectedItem?.biaya_transit]);
+  }, [selectedItem?.berat_kg, selectedItem?.harga_per_kg, selectedItem?.biaya_admin, selectedItem?.biaya_packaging, selectedItem?.biaya_transit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setLoading(true)
@@ -357,11 +357,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
       setData(data || [])
       setLoading(false)
     })
-  }, [saving, userRole, branchOrigin])
+  }, [saving, userRole, branchOrigin, isCabangTable])
 
-  const openEditModal = (row) => {
+  const openEditModal = (row: ManifestData) => {
     setEditData(row)
-    setEditPotongan(row.potongan || 0)
+    setEditPotongan(Number(row.potongan) || 0)
     setEditStatus(row.status_pelunasan || "lunas")
   }
 
@@ -382,7 +382,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   }
 
   // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
-  const handlePrint = (row) => {
+  const handlePrint = (row: ManifestData) => {
     setPrintData(row)
     setShowPrintLayout(true)
 
@@ -792,7 +792,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   }
   // === AKHIR FUNGSI HANDLE PRINT YANG DIUPDATE ===
 
-  const handleEditAwb = (item) => {
+  const handleEditAwb = (item: ManifestData) => {
     setSelectedItem({
       ...item,
       kirim_via: item.kirim_via || "",
@@ -868,7 +868,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     setSelectedItem(null);
   }
 
-  const handleDownloadPDF = async (row) => {
+  const handleDownloadPDF = async (row: ManifestData) => {
     setPrintData(row);
     
     setTimeout(async () => {
@@ -926,7 +926,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             },
             jsPDF: { 
               unit: 'mm', 
-              format: [100, 100], 
+              format: [100, 100] as [number, number], 
               orientation: 'portrait',
               compress: true
             }
@@ -952,7 +952,13 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   };
 
   if (showEditForm && selectedItem) {
-    const wilayahOptions = currentKotaWilayah[selectedItem.kota_tujuan]?.kecamatan || currentKotaWilayah[selectedItem.kota_tujuan] || [];
+    const getWilayahOptions = (kotaWilayah: Record<string, string[] | { kecamatan: string[], harga: number }>, kotaTujuan: string): string[] => {
+      const area = kotaWilayah[kotaTujuan];
+      if (!area) return [];
+      return Array.isArray(area) ? area : (area.kecamatan || []);
+    };
+
+    const wilayahOptions = getWilayahOptions(currentKotaWilayah, selectedItem.kota_tujuan);
 
     return (
       <div className="mt-6">
@@ -1024,7 +1030,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                 disabled={!selectedItem.kota_tujuan}
               >
                 <option value="">Pilih</option>
-                {wilayahOptions.map((opt) => (
+                {wilayahOptions.map((opt: string) => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>

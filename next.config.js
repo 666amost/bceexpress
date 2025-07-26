@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'qvuvgfvvsmmuiunlajud.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+    minimumCacheTTL: 60,
+    unoptimized: true,
   },
   webpack: (config) => {
     // Ini adalah pendekatan yang tepat untuk mengatasi peringatan dari kode pihak ketiga
@@ -13,18 +23,11 @@ const nextConfig = {
         message: /Critical dependency: the request of a dependency is an expression/,
       }
     ];
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+    };
     return config;
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'qvuvgfvvsmmuiunlajud.supabase.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-    minimumCacheTTL: 60,
   },
   // Reduce bundle size and improve performance
   // swcMinify is default in Next.js 12.2+ and can be removed or configured

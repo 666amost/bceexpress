@@ -49,7 +49,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     fetchPaymentHistory()
     fetchUnpaidData()
     fetchAgents()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchPaymentHistory() {
     setLoading(true)
@@ -78,7 +78,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         setPaymentHistory(data || [])
       }
     } catch (err) {
-      setError(`Unexpected error: ${err.message}`)
+      setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
@@ -126,7 +126,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         setUnpaidData(processedData)
       }
     } catch (err) {
-      setError(`Unexpected error: ${err.message}`)
+      setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -150,7 +150,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       if (error) {
         // Silent error - agents are not critical
       } else {
-        const distinctAgents = Array.from(new Set(data.map((item: any) => item.agent_customer).filter(Boolean))) as string[]
+        const distinctAgents = Array.from(new Set(data.map((item: { agent_customer: string }) => item.agent_customer).filter(Boolean))) as string[]
         setAgentList(distinctAgents)
       }
     } catch (err) {
@@ -158,7 +158,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     }
   }
 
-  const handleRowChange = (index, field, value) => {
+  const handleRowChange = (index: number, field: string, value: unknown) => {
     setUnpaidData((prevData) => {
       const newData = [...prevData]
       const dataIndex = newData.findIndex((item) => item.index === index)
@@ -166,7 +166,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       if (dataIndex === -1) return prevData
 
       if (field === "selected") {
-        newData[dataIndex].selected = value
+        newData[dataIndex].selected = Boolean(value)
       } else if (field === "potongan") {
         const newPotongan = Number(value) || 0
         const balance = Number(newData[dataIndex].balance) || 0
@@ -178,7 +178,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     })
   }
 
-  const handleSelectAll = (checked) => {
+  const handleSelectAll = (checked: boolean) => {
     setUnpaidData((prevData) =>
       prevData.map((row) => ({
         ...row,
@@ -206,7 +206,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         const manifestTable = userRole === 'cabang' || userRole === 'couriers' ? "manifest_cabang" : "manifest"
         
         // 1. Insert into pelunasan table
-        const pelunasanData: any = {
+        const pelunasanData: Record<string, unknown> = {
           awb_no: row.awb_no,
           awb_date: row.awb_date,
           nama_pengirim: row.nama_pengirim,
@@ -249,7 +249,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       fetchPaymentHistory()
       fetchUnpaidData()
     } catch (err) {
-      setError(`Error processing payments: ${err.message}`)
+      setError(`Error processing payments: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
@@ -261,7 +261,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   }
 
   // Enhanced downloadXLSXForDate function with guaranteed styling
-  const downloadXLSXForDate = (date: string, items: any[]) => {
+  const downloadXLSXForDate = (date: string, items: PaymentHistoryType[]) => {
     if (items.length === 0) return;
     
     // Headers sesuai dengan tabel yang ditampilkan di Payment History
@@ -299,16 +299,16 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     })
   };
 
-  // Function to toggle expansion
-  const toggleGroup = (date) => {
+    // Function to toggle expansion
+  const toggleGroup = (date: string) => {
     setExpandedGroups((prev) => ({
       ...prev,
       [date]: !prev[date],  // Toggle the state for the specific date
     }));
   };
 
-  // Add this new function to format the date
-  const formatDateToInvoice = (dateString) => {
+    // Add this new function to format the date
+  const formatDateToInvoice = (dateString: string) => {
     const [year, month, day] = dateString.split('-');  // Assuming date is in YYYY-MM-DD format
     return `INV/${year}/${month}/${day}`;
   };

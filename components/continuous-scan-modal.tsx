@@ -36,7 +36,7 @@ interface ScannedItem {
 export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus }: ContinuousScanModalProps) {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: string } | null>(null)
   const [showScanner, setShowScanner] = useState(false)
   const processedAwbsRef = useRef<string[]>([])
   const { toast } = useToast()
@@ -65,8 +65,10 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         } else {
           const username = data.session.user.email?.split("@")[0] || "courier"
           setCurrentUser({
+            id: data.session.user.id || "",
             name: username,
-            email: data.session.user.email,
+            email: data.session.user.email || "",
+            role: "courier",
           })
         }
       }
@@ -140,7 +142,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
     }
   }
 
-  const createShipmentWithManifestData = async (awb: string, manifestData: any, courierId: string) => {
+  const createShipmentWithManifestData = async (awb: string, manifestData: Record<string, unknown>, courierId: string) => {
     try {
       // Pastikan data lengkap dan valid
       const shipmentData = {

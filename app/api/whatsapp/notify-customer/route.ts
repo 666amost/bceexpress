@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     try {
       body = await req.json();
     } catch (e) {
-      console.log('Invalid request body');
+      // Invalid request body
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_body' });
     }
 
@@ -16,18 +16,18 @@ export async function POST(req: NextRequest) {
     const rawAuth = req.headers.get('authorization') ?? '';
     const token = rawAuth.replace(/^Bearer\s+/i, '').trim();
     if (!process.env.WA_WEBHOOK_SECRET) {
-      console.log('Webhook secret not configured');
+      // Webhook secret not configured
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
     if (token !== process.env.WA_WEBHOOK_SECRET) {
-      console.log('Unauthorized webhook call');
+      // Unauthorized webhook call
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // --- Validasi tipe webhook Supabase (harus UPDATE dari tabel shipment) ---
     const { type, table } = body;
     if (type !== 'UPDATE' || table !== 'shipments') {
-      console.log('Skipping: Invalid trigger type or table', { type, table });
+// Skipping: Invalid trigger type or table
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_trigger' });
     }
 
@@ -36,31 +36,31 @@ export async function POST(req: NextRequest) {
     const oldSrc = body.old ?? body.old_record ?? null; // Untuk UPDATE, harus ada old record
 
     if (!src || !oldSrc) {
-      console.log('Skipping: Missing new or old record data', { hasNew: !!src, hasOld: !!oldSrc });
+// Skipping: Missing new or old record data
       return NextResponse.json({ ok: true, skipped: true, reason: 'missing_record_data' });
     }
 
     // ===>> TABLE SHIPMENTS FIELDS
     const awb_number = src.awb_number;
-    const status = (src.status ?? '').toLowerCase();
-    const oldStatus = (oldSrc.status ?? '').toLowerCase();
+    const status = (src.current_status ?? src.status ?? '').toLowerCase();
+    const oldStatus = (oldSrc.current_status ?? oldSrc.status ?? '').toLowerCase();
     const phoneRaw = src.receiver_phone;
-    const receiverNameRaw = src?.receiver_name; // <---- ADD
+    const receiverNameRaw = src?.receiver_name;
 
     // Log the incoming data for debugging
-    console.log('Incoming webhook data:', {
-      type,
-      awb_number,
-      status,
-      oldStatus,
-      phoneRaw,
-      receiverNameRaw,
-      bodyKeys: Object.keys(body)
-    });
+    // console.log('Incoming webhook data:', {
+    //   type,
+    //   awb_number,
+    //   status,
+    //   oldStatus,
+    //   phoneRaw,
+    //   receiverNameRaw,
+    //   bodyKeys: Object.keys(body)
+    // });
 
     // Validate required fields
     if (!awb_number || !status) {
-      console.log('Skipping: Missing required fields', { awb_number, status });
+      // console.log('Skipping: Missing required fields', { awb_number, status });
       return NextResponse.json({ ok: true, skipped: true, warning: 'missing fields', keys: Object.keys(src || {}) });
     }
 
@@ -68,13 +68,13 @@ export async function POST(req: NextRequest) {
     const isDeliveredStatusChange = status === 'delivered' && oldStatus !== 'delivered';
     
     if (!isDeliveredStatusChange) {
-      console.log('Skipping: Not a change to delivered status', { status, oldStatus });
+      // console.log('Skipping: Not a change to delivered status', { status, oldStatus });
       return NextResponse.json({ ok: true, skipped: true, reason: 'not_delivered_status_change' });
     }
 
     // 2. Validasi nomor telepon
     if (!phoneRaw) {
-      console.log('Skipping: No receiver phone number', { awb_number });
+      // console.log('Skipping: No receiver phone number', { awb_number });
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_phone_number' });
     }
 
@@ -83,13 +83,13 @@ export async function POST(req: NextRequest) {
     try {
       chatId = toChatId(phoneRaw);
     } catch (phoneError) {
-      console.log('Skipping: Invalid phone number format', { awb_number, phoneRaw, error: phoneError.message });
+      // console.log('Skipping: Invalid phone number format', { awb_number, phoneRaw, error: phoneError.message });
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_phone_format' });
     }
 
     // 3. Validasi konfigurasi WAHA
     if (!process.env.WAHA_API_URL) {
-      console.log('Skipping: WAHA not configured');
+      // console.log('Skipping: WAHA not configured');
       return NextResponse.json({ ok: true, skipped: true, reason: 'waha_not_configured' });
     }
 
@@ -110,16 +110,16 @@ export async function POST(req: NextRequest) {
 
     const message = buildDeliveredMsg(awb_number, receiverNameRaw);
 
-    console.log('Attempting to send WhatsApp message:', { 
-      awb_number, 
-      chatId, 
-      messageLength: message.length,
-      receiverName: receiverNameRaw 
-    });
+    // console.log('Attempting to send WhatsApp message:', { 
+    //   awb_number, 
+    //   chatId, 
+    //   messageLength: message.length,
+    //   receiverName: receiverNameRaw 
+    // });
 
     try {
       await sendMessageSequence(chatId, message);
-      console.log('WhatsApp message sent successfully:', { awb_number, chatId });
+      // console.log('WhatsApp message sent successfully:', { awb_number, chatId });
       return NextResponse.json({ ok: true });
     } catch (error) {
       console.error('WhatsApp notification error:', error);
@@ -143,7 +143,7 @@ const DELIVERED_TEMPLATES = [
   (awb: string, name?: string) =>
     `Hai${name ? ` ${name}` : ''}! Paket dengan AWB ${awb} statusnya *DELIVERED*. Lihat detail tracking di bcexp.id.`,
   (awb: string, name?: string) =>
-    `Hello${name ? ` ${name}` : ''}, paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan balas pesan ini ya.`,
+    `Hello${name ? ` ${name}` : ''}, Paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan cek bcexp.id`,
   (awb: string, name?: string) =>
     `Salam${name ? ` ${name}` : ''}, paket Anda (AWB ${awb}) telah terkirim. Terima kasih!`
 ];
@@ -195,13 +195,13 @@ async function sendMessageSequence(chatId: string, text: string) {
         // Get error details from response
         const errorText = await res.text();
         lastError = new Error(`HTTP ${res.status}: ${errorText}`);
-        console.log(`Retry ${i + 1}/${retries} failed:`, lastError.message);
+        // console.log(`Retry ${i + 1}/${retries} failed:`, lastError.message);
         
         // If response not OK, wait before retry
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
       } catch (err) {
         lastError = err as Error;
-        console.log(`Retry ${i + 1}/${retries} failed:`, err);
+        // console.log(`Retry ${i + 1}/${retries} failed:`, err);
         
         if (i === retries - 1) throw err;
         // If network error, wait before retry

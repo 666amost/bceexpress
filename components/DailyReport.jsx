@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 
@@ -23,6 +23,56 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [error, setError] = useState("")
 
   // ================== LISTS ==================
+  // ...existing code...
+
+  // Fetch function must be defined after all dependencies
+  const fetchDailyReport = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      let query;
+      if (isBranchMode) {
+        query = supabaseClient
+          .from("manifest_cabang")
+          .select("*")
+          .eq('origin_branch', branchOrigin)
+          .order("awb_date", { ascending: false })
+      } else {
+        query = supabaseClient
+          .from("manifest")
+          .select("*")
+          .order("awb_date", { ascending: false })
+      }
+
+      // Apply date range filter
+      if (selectedDateFrom && selectedDateTo) {
+        query = query.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
+      } else if (selectedDateFrom) {
+        query = query.gte("awb_date", selectedDateFrom)
+      } else if (selectedDateTo) {
+        query = query.lte("awb_date", selectedDateTo)
+      }
+
+      if (selectedKirimVia) query = query.eq("kirim_via", selectedKirimVia)
+      if (selectedAgentCustomer) query = query.eq("agent_customer", selectedAgentCustomer)
+      if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
+      if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
+
+      const { data: fetchedData, error: fetchError } = await query
+
+      if (fetchError) {
+        setError(`Error fetching data: ${fetchError.message}`)
+      } else {
+        setData(fetchedData || [])
+      }
+    } catch (err) {
+      setError(`Unexpected error: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah]);
+
+  // Now declare agentList and other variables below
   const agentList = isBranchMode
     ? (branchOrigin === 'bangka'
         ? [
@@ -138,161 +188,116 @@ export default function DailyReport({ userRole, branchOrigin }) {
         : ["jakarta", "tangerang", "bekasi", "depok", "bogor"])
     : ["bangka", "kalimantan barat", "belitung", "bali"];
 
-  const kotaWilayah = isBranchMode
-    ? (branchOrigin === 'bangka'
-        ? {
-            "JAKARTA BARAT": ["Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", "Taman sari", "Tambora"],
-            "JAKARTA PUSAT": ["Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang"],
-            "JAKARTA SELATAN": ["Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"],
-            "JAKARTA TIMUR": ["Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"],
-            "JAKARTA UTARA": ["Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", "Kebon Bawang", "Papanggo", "Sungai Bambu", "Tj Priok", "Warakas", "Sunter Jaya", "Sunter Agung"],
-            "TANGERANG": ["Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"],
-            "TANGERANG SELATAN": ["Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"],
-            "TANGERANG KABUPATEN": ["Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"],
-            "BEKASI KOTA": ["Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede", "pondokmelati", "Rawalumbu"],
-            "BEKASI KABUPATEN": ["Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat", "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia", "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"],
-            "DEPOK": ["Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung", "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"],
-            "BOGOR KOTA": ["Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"],
-            "BOGOR KABUPATEN": ["Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang", "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"]
-          }
-        : {
-            jakarta: ["JKT"],
-            tangerang: ["TGT"],
-            bekasi: ["BKS"],
-            depok: ["DPK"],
-            bogor: ["BGR"]
-          })
-    : {
-        bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
-        "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
-        belitung: ["Tj Pandan"],
-        bali: ["Denpasar"]
-      };
+  const kotaWilayah = useMemo(() => {
+    return isBranchMode
+      ? (branchOrigin === 'bangka'
+          ? {
+              "JAKARTA BARAT": ["Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", "Taman sari", "Tambora"],
+              "JAKARTA PUSAT": ["Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang"],
+              "JAKARTA SELATAN": ["Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"],
+              "JAKARTA TIMUR": ["Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"],
+              "JAKARTA UTARA": ["Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", "Kebon Bawang", "Papanggo", "Sungai Bambu", "Tj Priok", "Warakas", "Sunter Jaya", "Sunter Agung"],
+              "TANGERANG": ["Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"],
+              "TANGERANG SELATAN": ["Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"],
+              "TANGERANG KABUPATEN": ["Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"],
+              "BEKASI KOTA": ["Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede", "pondokmelati", "Rawalumbu"],
+              "BEKASI KABUPATEN": ["Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat", "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia", "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"],
+              "DEPOK": ["Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung", "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"],
+              "BOGOR KOTA": ["Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"],
+              "BOGOR KABUPATEN": ["Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang", "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"]
+            }
+          : {
+              jakarta: ["JKT"],
+              tangerang: ["TGT"],
+              bekasi: ["BKS"],
+              depok: ["DPK"],
+              bogor: ["BGR"]
+            })
+      : {
+          bangka: ["Pangkal Pinang", "Sungailiat", "Belinyu", "Jebus", "Koba", "Toboali", "Mentok"],
+          "kalimantan barat": ["Pontianak", "Singkawang", "Sungai Pinyuh"],
+          belitung: ["Tj Pandan"],
+          bali: ["Denpasar"]
+        };
+  }, [isBranchMode, branchOrigin]);
 
   const wilayahOptions = useMemo(() => kotaWilayah[selectedKotaTujuan] || [], [selectedKotaTujuan, kotaWilayah]);
 
-  // Fetch data berdasarkan filter yang dipilih, termasuk kota tujuan dan rentang tanggal
+  // useEffect hook to fetch data on component mount and when filters change
   useEffect(() => {
-    if (selectedDateFrom || selectedDateTo || selectedKirimVia || selectedAgentCustomer || selectedKotaTujuan || selectedWilayah) {
-      fetchDailyReport()
-    }
-  }, [selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah])
+    fetchDailyReport();
+  }, [fetchDailyReport]);
 
-  async function fetchDailyReport() {
-    setLoading(true)
-    setError("")
-    try {
-      let query;
-      if (isBranchMode) {
-        query = supabaseClient
-          .from("manifest_cabang")
-          .select("*")
-          .eq('origin_branch', branchOrigin)
-          .order("awb_date", { ascending: false })
-      } else {
-        query = supabaseClient
-          .from("manifest")
-          .select("*")
-          .order("awb_date", { ascending: false })
-      }
-
-      // Apply date range filter
-      if (selectedDateFrom && selectedDateTo) {
-        query = query.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
-      } else if (selectedDateFrom) {
-        query = query.gte("awb_date", selectedDateFrom)
-      } else if (selectedDateTo) {
-        query = query.lte("awb_date", selectedDateTo)
-      }
-
-      if (selectedKirimVia) query = query.eq("kirim_via", selectedKirimVia)
-      if (selectedAgentCustomer) query = query.eq("agent_customer", selectedAgentCustomer)
-      if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
-      if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
-
-      const { data: fetchedData, error: fetchError } = await query
-
-      if (fetchError) {
-        setError(`Error fetching data: ${fetchError.message}`)
-      } else {
-        setData(fetchedData || [])
-      }
-    } catch (err) {
-      setError(`Unexpected error: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Enhanced downloadXLSX with HTML approach first, then reliable XLSX fallback
-  const downloadXLSX = () => {
+  // Function to download Excel file
+  const downloadXLSX = useCallback(() => {
     if (data.length === 0) {
-      alert("No data to download")
-      return
+      alert('Tidak ada data untuk diexport.');
+      return;
     }
 
     const headers = [
-      'AWB (No Resi)',
-      'Pengirim', 
-      'Penerima',
+      'AWB Number',
+      'Date',
+      'Sender',
+      'Recipient', 
       'Coli',
-      'Kg',
-      'Harga (Ongkir)',
-      'Admin',
+      'Weight (Kg)',
+      'Rate/Ongkir',
+      'Admin Fee',
       'Packaging',
+      'Transit',
       'Cash',
       'Transfer', 
       'COD',
       'Wilayah'
-    ]
+    ];
 
-    const formattedData = data.map(item => ({
-      'AWB (No Resi)': item.awb_no,
-      'Pengirim': item.nama_pengirim,
-      'Penerima': item.nama_penerima,
+    // Format data as objects with key-value pairs matching headers
+    const excelData = data.map((item) => ({
+      'AWB Number': item.awb_no,
+      'Date': new Date(item.awb_date).toLocaleDateString('en-GB'),
+      'Sender': item.nama_pengirim,
+      'Recipient': item.nama_penerima,
       'Coli': item.coli,
-      'Kg': item.berat_kg,
-      'Harga (Ongkir)': item.harga_per_kg || item.ongkir || 0,
-      'Admin': item.biaya_admin || item.admin || 0,
+      'Weight (Kg)': item.berat_kg || 0,
+      'Rate/Ongkir': item.harga_per_kg || item.ongkir || 0,
+      'Admin Fee': item.biaya_admin || item.admin || 0,
       'Packaging': item.biaya_packaging || 0,
-      'Cash': item.metode_pembayaran === 'cash' ? item.total : 0,
-      'Transfer': item.metode_pembayaran === 'transfer' ? item.total : 0,
-      'COD': item.metode_pembayaran === 'cod' ? item.total : 0,
+      'Transit': item.biaya_transit || 0,
+      'Cash': item.metode_pembayaran === 'cash' ? (item.total || 0) : 0,
+      'Transfer': item.metode_pembayaran === 'transfer' ? (item.total || 0) : 0,
+      'COD': item.metode_pembayaran === 'cod' ? (item.total || 0) : 0,
       'Wilayah': item.wilayah
-    }))
+    }));
 
-    const today = new Date().toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-
-    let dateRange = ''
-    if (selectedDateFrom || selectedDateTo) {
-      if (selectedDateFrom && selectedDateTo) {
-        const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
-        const toFormatted = selectedDateTo.split('-').reverse().join('-')
-        dateRange = `${fromFormatted} s/d ${toFormatted}`
-      } else if (selectedDateFrom) {
-        const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
-        dateRange = `Dari ${fromFormatted}`
-      } else if (selectedDateTo) {
-        const toFormatted = selectedDateTo.split('-').reverse().join('-')
-        dateRange = `Sampai ${toFormatted}`
-      }
+    let dateRangeText = '';
+    if (selectedDateFrom && selectedDateTo) {
+      const fromFormatted = selectedDateFrom.split('-').reverse().join('-');
+      const toFormatted = selectedDateTo.split('-').reverse().join('-');
+      dateRangeText = `${fromFormatted} s/d ${toFormatted}`;
+    } else if (selectedDateFrom) {
+      const fromFormatted = selectedDateFrom.split('-').reverse().join('-');
+      dateRangeText = `Dari ${fromFormatted}`;
+    } else if (selectedDateTo) {
+      const toFormatted = selectedDateTo.split('-').reverse().join('-');
+      dateRangeText = `Sampai ${toFormatted}`;
+    } else {
+      dateRangeText = 'Semua Periode';
     }
+
+    const filename = `DailyReport_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xls`;
 
     createStyledExcelWithHTML({
       title: 'Daily Report',
       headers,
-      data: formattedData,
-      fileName: `daily_report_${today.replace(/\s+/g, '_')}.xls`,
+      data: excelData,
+      fileName: filename,
       currency: 'Rp',
-      currencyColumns: [5, 6, 7, 8, 9, 10],
-      numberColumns: [3, 4],
-      dateRange
-    })
-  }
+      currencyColumns: [6, 7, 8, 9, 10, 11, 12], // Rate, Admin, Packaging, Transit, Cash, Transfer, COD columns
+      numberColumns: [4, 5], // Coli and Weight columns
+      dateRange: dateRangeText
+    });
+  }, [data, selectedDateFrom, selectedDateTo]);
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
@@ -303,6 +308,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
 
     const totalKg = data.reduce((sum, item) => sum + (item.berat_kg || 0), 0)
     const totalAdmin = data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0)
+    const totalTransit = data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0)
     const totalCash = data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0)
     const totalTransfer = data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0)
     const totalCOD = data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0)
@@ -413,6 +419,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                 <th class="text-right" style="width: 8%;">BASE RATE</th>
                 <th class="text-right" style="width: 6%;">ADMIN</th>
                 <th class="text-right" style="width: 6%;">PACKAGING</th>
+                <th class="text-right" style="width: 6%;">TRANSIT</th>
                 <th class="text-right" style="width: 7%;">CASH</th>
                 <th class="text-right" style="width: 7%;">TRANSFER</th>
                 <th class="text-right" style="width: 7%;">COD</th>
@@ -432,6 +439,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   <td class="text-right currency">${(item.harga_per_kg || item.ongkir || 0).toLocaleString('id-ID')}</td>
                   <td class="text-right currency">${(item.biaya_admin || item.admin || 0).toLocaleString('id-ID')}</td>
                   <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
+                  <td class="text-right currency">${(item.biaya_transit || 0).toLocaleString('id-ID')}</td>
                   <td class="text-right total-currency">${item.metode_pembayaran === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
                   <td class="text-right total-currency">${item.metode_pembayaran === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
                   <td class="text-right total-currency">${item.metode_pembayaran === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
@@ -449,6 +457,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
               <div class="summary-item"><div class="summary-label">Total Weight</div><div class="summary-value">${totalKg.toLocaleString('id-ID')} kg</div></div>
               <div class="summary-item"><div class="summary-label">Admin Fees</div><div class="summary-value">Rp ${(totalAdmin).toLocaleString('id-ID')}</div></div>
               <div class="summary-item"><div class="summary-label">Packaging</div><div class="summary-value">Rp ${(data.reduce((s,i)=>s+(i.biaya_packaging||0),0)).toLocaleString('id-ID')}</div></div>
+              <div class="summary-item"><div class="summary-label">Transit Fees</div><div class="summary-value">Rp ${(totalTransit).toLocaleString('id-ID')}</div></div>
               <div class="summary-item"><div class="summary-label">Total Cash</div><div class="summary-value">Rp ${(totalCash).toLocaleString('id-ID')}</div></div>
               <div class="summary-item"><div class="summary-label">Total Transfer</div><div class="summary-value">Rp ${(totalTransfer).toLocaleString('id-ID')}</div></div>
               <div class="summary-item"><div class="summary-label">Total COD</div><div class="summary-value">Rp ${(totalCOD).toLocaleString('id-ID')}</div></div>
@@ -531,6 +540,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Harga(Ongkir)</th>
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Admin</th>
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Packaging</th>
+                  <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Transit</th>
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Cash</th>
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Transfer</th>
                   <th className="px-4 py-2 text-left font-semibold border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">COD</th>
@@ -549,6 +559,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.harga_per_kg || item.ongkir}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_admin || item.admin || 0}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_packaging || 0}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_transit || 0}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
@@ -563,6 +574,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Total Keseluruhan:</h3>
               <p className="text-gray-800 dark:text-gray-200">Total Kg: {data.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Admin: Rp. {data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Transit: Rp. {data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>

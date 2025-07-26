@@ -3,11 +3,12 @@
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
+import { AwbFormData, ChangeEvent, FormEvent } from "../types"
 
 interface AwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
-  initialData: any | null;
+  initialData: Partial<AwbFormData> | null;
   isEditing: boolean;
   userRole: string | null;
   branchOrigin: string | null;
@@ -109,8 +110,8 @@ function generateAwbNo() {
 }
 
 export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: AwbFormProps) {
-  const [form, setForm] = useState(
-    initialData || {
+  const [form, setForm] = useState<AwbFormData>(
+    {
       awb_no: "",
       awb_date: new Date().toISOString().slice(0, 10),
       kirim_via: "",
@@ -132,6 +133,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
       biaya_transit: 0,
       total: 0,
       isi_barang: "",
+      ...initialData
     },
   )
   const [error, setError] = useState("")
@@ -146,39 +148,42 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
   const currentKirimVia = branchOrigin === 'tanjung_pandan' ? kirimViaTanjungPandan : kirimVia;
   const currentKotaTujuan = Object.keys(currentKotaWilayah);
 
-  const wilayahOptions = useMemo(() => currentKotaWilayah[form.kota_tujuan] || [], [form.kota_tujuan, currentKotaWilayah])
+  const wilayahOptions = useMemo(() => {
+    const options = currentKotaWilayah[form.kota_tujuan as keyof typeof currentKotaWilayah];
+    return (options as string[]) || [];
+  }, [form.kota_tujuan, currentKotaWilayah])
 
   React.useEffect(() => {
-    if (form.wilayah && currentHargaPerKg[form.wilayah]) {
-      setForm((f) => ({ ...f, harga_per_kg: currentHargaPerKg[form.wilayah] }))
+    if (form.wilayah && currentHargaPerKg[form.wilayah as keyof typeof currentHargaPerKg]) {
+      setForm((f) => ({ ...f, harga_per_kg: currentHargaPerKg[form.wilayah as keyof typeof currentHargaPerKg] }))
     }
   }, [form.wilayah, currentHargaPerKg])
 
   React.useEffect(() => {
-    const sub_total = form.berat_kg * form.harga_per_kg
+    const sub_total = Number(form.berat_kg) * Number(form.harga_per_kg)
     const total = sub_total + Number(form.biaya_admin) + Number(form.biaya_packaging) + Number(form.biaya_transit)
     setForm((f) => ({ ...f, sub_total, total }))
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent) => {
     const { name, value } = e.target
     setForm((f) => ({ ...f, [name]: value }))
     setError("")
     setSuccess("")
   }
 
-  const handleSelectChange = (name, value) => {
+  const handleSelectChange = (name: string, value: string) => {
     setForm((f) => ({ ...f, [name]: value }))
     setError("")
     setSuccess("")
   }
 
-  const handleGenerateAwb = (e) => {
+  const handleGenerateAwb = (e: FormEvent) => {
     e.preventDefault()
     setForm((f) => ({ ...f, awb_no: generateAwbNo() }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
@@ -270,12 +275,15 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
         }
       }
     } catch (err) {
-      setError("Terjadi kesalahan: " + err.message)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError("Terjadi kesalahan: " + errorMessage)
     }
   }
 
-  const handleDownloadPDF = async (e) => {
-    e.preventDefault && e.preventDefault();
+  const handleDownloadPDF = async (e?: FormEvent) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
     setError("");
     setSuccess("");
     if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
@@ -349,7 +357,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 },
                 jsPDF: { 
                   unit: 'mm', 
-                  format: [100, 100], 
+                  format: [100, 100] as [number, number], 
                   orientation: 'portrait',
                   compress: true
                 }
@@ -396,12 +404,13 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
         }, 600); // Tunggu lebih lama untuk memastikan rendering selesai
       }
     } catch (err) {
-      setError("Terjadi kesalahan: " + err.message);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError("Terjadi kesalahan: " + errorMessage);
     }
   }
 
   // === FUNGSI HANDLE PRINT YANG DIUPDATE ===
-  const handlePrint = (onAfterPrint) => {
+  const handlePrint = (onAfterPrint: () => void) => {
     // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
     const printLayoutCss = `
       /* === START: CSS disinkronkan dari PrintLayout.jsx === */
@@ -808,7 +817,8 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           
           setTimeout(() => printWindow.print(), 750);
         } catch (error) {
-          alert('Terjadi kesalahan saat mencetak: ' + error.message + '. Silakan coba lagi atau periksa pengaturan browser.');
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+          alert('Terjadi kesalahan saat mencetak: ' + errorMessage + '. Silakan coba lagi atau periksa pengaturan browser.');
         }
       }
     }, 100);

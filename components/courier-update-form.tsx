@@ -24,6 +24,49 @@ import browserBeep from "browser-beep"
 import { toast } from "sonner"
 import debounce from "lodash/debounce"
 
+// Type definitions
+interface ShipmentDetails {
+  awb_number: string;
+  receiver_name: string;
+  receiver_address: string;
+  receiver_phone: string;
+  current_status: string;
+  from_manifest?: boolean;
+}
+
+interface ManifestData {
+  awb_no: string;
+  nama_pengirim: string;
+  alamat_pengirim: string;
+  nomor_pengirim: string;
+  nama_penerima: string;
+  alamat_penerima: string;
+  nomor_penerima: string;
+  berat_kg: number;
+  dimensi: string;
+}
+
+interface ShipmentCheckResult {
+  exists: boolean;
+  current_status?: string;
+}
+
+// Extended shipment details with manifest data
+interface ExtendedShipmentDetails extends ShipmentDetails {
+  sender_name?: string;
+  sender_address?: string;
+  sender_phone?: string;
+  weight?: number;
+  dimensions?: string;
+  service_type?: string;
+  manifest_source?: string;
+}
+
+interface DatabaseResponse<T> {
+  data: T | null;
+  error: Error | null;
+}
+
 // Lazy load komponen preview foto
 const PhotoPreview = lazy(() => Promise.resolve({
   default: ({ src }: { src: string }) => (
@@ -50,7 +93,7 @@ function CourierUpdateFormComponent() {
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [shipmentDetails, setShipmentDetails] = useState<any>(null)
+  const [shipmentDetails, setShipmentDetails] = useState<ExtendedShipmentDetails | null>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const beepTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [useHighCompression, setUseHighCompression] = useState(false)
@@ -117,7 +160,7 @@ function CourierUpdateFormComponent() {
       const { data: shipmentData, error: shipmentError } = await Promise.race([
         shipmentPromise,
         timeoutPromise
-      ]) as any;
+      ]) as DatabaseResponse<ShipmentDetails>;
 
       if (!shipmentError && shipmentData) {
         setShipmentDetails(shipmentData)
@@ -134,7 +177,7 @@ function CourierUpdateFormComponent() {
       const { data: manifestData, error: manifestError } = await Promise.race([
         manifestPromise,
         timeoutPromise
-      ]) as any;
+      ]) as DatabaseResponse<ManifestData>;
 
       if (!manifestError && manifestData) {
         // If found in central manifest, show the data
@@ -168,7 +211,7 @@ function CourierUpdateFormComponent() {
       const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
         manifestCabangPromise,
         timeoutPromise
-      ]) as any;
+      ]) as DatabaseResponse<ManifestData>;
 
       if (!manifestCabangError && manifestCabangData) {
         // If found in branch manifest, show the data
@@ -233,46 +276,70 @@ function CourierUpdateFormComponent() {
         return
       }
 
-      // Show loading toast
-      const loadingToast = toast.loading("Memproses foto...", { duration: 10000 })
+      // Show loading toast dengan timeout yang lebih panjang untuk low-end
+      const loadingToast = toast.loading("Memproses foto...", { duration: 15000 })
 
-      // Adaptive compression based on file size and device capabilities
+      // OPTIMIZED: Adaptive compression for low-end devices
       const getCompressionOptions = (fileSize: number) => {
+        // Detect low-end device capabilities with safe type casting
+        const navigatorExtended = navigator as Navigator & { deviceMemory?: number };
+        const isLowEndDevice = navigator.hardwareConcurrency <= 2 || 
+                              (navigatorExtended.deviceMemory && navigatorExtended.deviceMemory <= 2) ||
+                              /Android [1-6]|iPhone [1-7]|iPad [1-6]/.test(navigator.userAgent);
+        
+        // OPTIMIZED: Manual toggle overrides auto-detection
         if (useHighCompression) {
           return {
-            maxSizeMB: 0.2, // 200KB
-            maxWidthOrHeight: 1200,
+            maxSizeMB: 0.1, // 100KB for manual high compression
+            maxWidthOrHeight: 600, // Even smaller resolution
             useWebWorker: false,
-            initialQuality: 0.65,
+            initialQuality: 0.5, // Lower quality
             alwaysKeepResolution: false,
+            fileType: 'image/jpeg',
             onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         }
-        if (fileSize > 5 * 1024 * 1024) { // > 5MB
+        
+        if (isLowEndDevice) {
           return {
-            maxSizeMB: 1.5,
-            maxWidthOrHeight: 1600,
-            useWebWorker: false, // Disable web worker for better compatibility
-            initialQuality: 0.7,
+            maxSizeMB: 0.15, // 150KB for auto-detected low-end
+            maxWidthOrHeight: 800, // Smaller resolution
+            useWebWorker: false,
+            initialQuality: 0.6,
             alwaysKeepResolution: false,
+            fileType: 'image/jpeg',
             onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
-        } else if (fileSize > 2 * 1024 * 1024) { // > 2MB
+        }
+        
+        if (fileSize > 8 * 1024 * 1024) { // > 8MB - aggressive compression
           return {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1920,
+            maxSizeMB: 0.8, // Reduced from 1.5MB
+            maxWidthOrHeight: 1200, // Reduced from 1600
             useWebWorker: false,
-            initialQuality: 0.8,
+            initialQuality: 0.65, // Reduced quality
             alwaysKeepResolution: false,
+            fileType: 'image/jpeg',
+            onProgress: (p: number) => setPhotoProgress(Math.round(p))
+          }
+        } else if (fileSize > 3 * 1024 * 1024) { // > 3MB (reduced from 2MB)
+          return {
+            maxSizeMB: 0.6, // Reduced from 1MB
+            maxWidthOrHeight: 1400, // Reduced from 1920
+            useWebWorker: false,
+            initialQuality: 0.7, // Reduced quality
+            alwaysKeepResolution: false,
+            fileType: 'image/jpeg',
             onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         } else {
           return {
-            maxSizeMB: 0.8,
-            maxWidthOrHeight: 2048,
+            maxSizeMB: 0.4, // Reduced from 0.8MB
+            maxWidthOrHeight: 1600, // Reduced from 2048
             useWebWorker: false,
-            initialQuality: 0.9,
+            initialQuality: 0.75, // Reduced from 0.9
             alwaysKeepResolution: false,
+            fileType: 'image/jpeg',
             onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
         }
@@ -290,15 +357,16 @@ function CourierUpdateFormComponent() {
         }
         
       } catch (compressionError) {
-        console.warn("Compression failed, trying with reduced options:", compressionError)
+        // console.warn("Compression failed, trying with reduced options:", compressionError)
         
-        // Fallback compression with minimal settings
+        // OPTIMIZED: Fallback compression for low-end devices
         try {
           const fallbackOptions = {
-            maxSizeMB: 2,
-            maxWidthOrHeight: 1280,
+            maxSizeMB: useHighCompression ? 0.08 : 0.3, // Even smaller if toggle is on
+            maxWidthOrHeight: useHighCompression ? 500 : 1000, // Smaller resolution if toggle is on
             useWebWorker: false,
-            initialQuality: 0.6,
+            initialQuality: useHighCompression ? 0.4 : 0.5, // Lower quality if toggle is on
+            fileType: 'image/jpeg', // Force JPEG
             onProgress: (p: number) => setPhotoProgress(Math.round(p))
           }
           processedFile = await imageCompression(file, fallbackOptions)
@@ -308,8 +376,14 @@ function CourierUpdateFormComponent() {
           }
           
         } catch (fallbackError) {
-          console.warn("All compression attempts failed, using original file:", fallbackError)
+          // Last resort: Use original but show warning for large files
           processedFile = file
+          if (file.size > 2 * 1024 * 1024) { // > 2MB
+            toast.warning("Foto tidak dikompres", { 
+              description: "Upload mungkin lambat pada koneksi lemah",
+              duration: 3000
+            })
+          }
         }
       }
       
@@ -336,10 +410,10 @@ function CourierUpdateFormComponent() {
             }
           }
           
-          // Add timeout for FileReader
+          // OPTIMIZED: Timeout yang lebih panjang untuk low-end devices
           setTimeout(() => {
             reject(new Error("FileReader timeout"))
-          }, 10000)
+          }, 15000) // Increased from 10s to 15s
           
           reader.readAsDataURL(fileToProcess)
         })
@@ -356,7 +430,7 @@ function CourierUpdateFormComponent() {
         })
         
       } catch (error) {
-        console.error("Photo processing error:", error)
+        // console.error("Photo processing error:", error)
         setPhoto(null)
         setPhotoPreview(null)
         toast.dismiss(loadingToast)
@@ -434,9 +508,9 @@ function CourierUpdateFormComponent() {
       const arrayBuffer = await file.arrayBuffer()
       const buffer = new Uint8Array(arrayBuffer)
 
-      // Shorter timeout for upload operation
+      // OPTIMIZED: Timeout yang disesuaikan untuk low-end devices dan koneksi lemah
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout')), 15000)
+        setTimeout(() => reject(new Error('Upload timeout')), 30000) // Increased from 15s to 30s
       );
 
       const uploadPromise = supabaseClient.storage
@@ -445,7 +519,7 @@ function CourierUpdateFormComponent() {
           contentType: file.type,
         });
 
-      const { error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
+      const { error } = await Promise.race([uploadPromise, timeoutPromise]) as DatabaseResponse<unknown>;
 
       if (error) {
         return null;
@@ -475,7 +549,7 @@ function CourierUpdateFormComponent() {
       const { data: manifestData, error: manifestError } = await Promise.race([
         centralManifestPromise,
         timeoutPromise
-      ]) as any;
+      ]) as DatabaseResponse<ManifestData>;
 
       if (!manifestError && manifestData) {
         // Create shipment from central manifest with upsert for safety
@@ -500,7 +574,7 @@ function CourierUpdateFormComponent() {
           ignoreDuplicates: false 
         });
 
-        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
 
         if (!insertError) {
           toast.success("Shipment dibuat dari manifest pusat")
@@ -518,7 +592,7 @@ function CourierUpdateFormComponent() {
       const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
         branchManifestPromise,
         timeoutPromise
-      ]) as any;
+      ]) as DatabaseResponse<ManifestData>;
 
       if (!manifestCabangError && manifestCabangData) {
         // Create shipment from branch manifest with upsert for safety
@@ -543,7 +617,7 @@ function CourierUpdateFormComponent() {
           ignoreDuplicates: false 
         });
 
-        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
 
         if (!insertError) {
           toast.success("Shipment dibuat dari manifest cabang")
@@ -588,7 +662,7 @@ function CourierUpdateFormComponent() {
           ignoreDuplicates: false 
         });
 
-        const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        const { error } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
 
         return !error
       } else {
@@ -614,7 +688,7 @@ function CourierUpdateFormComponent() {
           ignoreDuplicates: false 
         });
         
-        const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        const { error } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
         return !error
       }
     } catch (error) {
@@ -622,7 +696,7 @@ function CourierUpdateFormComponent() {
     }
   }
 
-  const checkShipmentExists = async (awbNumber: string): Promise<{ exists: boolean, current_status?: string }> => {
+  const checkShipmentExists = async (awbNumber: string): Promise<ShipmentCheckResult> => {
     try {
       const { data, error } = await supabaseClient
         .from("shipments")
@@ -672,7 +746,7 @@ function CourierUpdateFormComponent() {
         setTimeout(() => reject(new Error('History timeout')), 10000)
       );
       
-      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      const { error } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
       return !error
     } catch (error) {
       return false
@@ -810,14 +884,21 @@ function CourierUpdateFormComponent() {
                 <CheckmarkIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Status Updated Successfully!</h3>
-              <p className="text-muted-foreground mb-6">
-                The shipment status for AWB <span className="font-mono font-medium">{awbNumber}</span> has been updated to <span className="font-medium">{status.replace(/_/g, " ")}</span>.
+              <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm">
+                Shipment <span className="font-semibold">{awbNumber}</span> has been updated to <span className="font-semibold text-green-600">{status.replace(/_/g, " ")}</span>
               </p>
-              <div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0 justify-center">
-                <Button onClick={() => router.push(`/track/${awbNumber}`)} className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600">
+              <div className="flex flex-col space-y-3 justify-center">
+                <Button 
+                  onClick={() => router.push(`/track/${awbNumber}`)} 
+                  className="font-bold bg-blue-600 hover:bg-blue-700 text-white h-11 px-6"
+                >
                   View Tracking
                 </Button>
-                <Button variant="outline" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50">
+                <Button 
+                  variant="outline" 
+                  onClick={() => router.push("/courier/dashboard")} 
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100 h-11 px-6"
+                >
                   Back to Dashboard
                 </Button>
               </div>
@@ -833,245 +914,245 @@ function CourierUpdateFormComponent() {
       <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
         <CardContent className="p-4 sm:p-6">
           <div className="mb-4 sm:mb-6">
-            <Button variant="outline" size="sm" onClick={() => router.push("/courier/dashboard")} className="border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm">
-              <ChevronLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-            </Button>
-          </div>
-
-          {shipmentDetails && (
-            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-muted/50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white text-sm sm:text-base">Shipment Details</h3>
-              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Receiver: <span className="font-medium">{shipmentDetails.receiver_name}</span></p>
-              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Phone: <span className="font-medium">{shipmentDetails.receiver_phone || "N/A"}</span></p>
-              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">Address: <span className="font-medium">{shipmentDetails.receiver_address}</span></p>
-              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 mt-1">
-                Current Status: <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "New from Manifest"}</span>
-              </p>
-              {shipmentDetails.from_manifest && (
-                <p className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-medium mt-1">Data loaded from manifest ({shipmentDetails.manifest_source})</p>
-              )}
+            <div className="flex items-center gap-3 mb-4">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => router.push("/courier/dashboard")}
+                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 p-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="text-sm">Back</span>
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Update Shipment Status</h1>
             </div>
-          )}
+          </div>
+        {shipmentDetails && (
+          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Shipment Details</h3>
+            <div className="space-y-1 text-sm">
+              <p><span className="text-gray-500 dark:text-gray-400">Receiver:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_name}</span></p>
+              <p><span className="text-gray-500 dark:text-gray-400">Phone:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_phone || "Auto Generated"}</span></p>
+              <p><span className="text-gray-500 dark:text-gray-400">Address:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_address}</span></p>
+              <p><span className="text-gray-500 dark:text-gray-400">Current Status:</span> <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "out for delivery"}</span></p>
+            </div>
+          </div>
+        )}
 
-          {error && (
-            <Alert variant="destructive" className="mb-4 sm:mb-6 border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
-              <AlertDescription className="text-red-700 dark:text-red-300 text-sm">{error}</AlertDescription>
-            </Alert>
-          )}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription className="text-sm">{error}</AlertDescription>
+          </Alert>
+        )}
 
-          {initialStatus === 'delivered' && (
-            <Alert className="mb-4 sm:mb-6 border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
-              <AlertDescription className="text-green-700 dark:text-green-300 text-sm">
-                <strong>Quick Delivery Mode:</strong> Status telah dikunci ke "Delivered" dan GPS location akan otomatis diambil.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">AWB Number</Label>
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* AWB Number */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-medium text-sm">AWB Number</Label>
+            <div className="mt-2">
               <AwbInput awbNumber={awbNumber} setAwbNumber={setAwbNumber} fetchShipmentDetails={fetchShipmentDetails} />
             </div>
+          </div>
 
-            <div>
-              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
-                <SelectTrigger id="shipment-status" className={`bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 h-10 sm:h-11 text-sm sm:text-base ${initialStatus === 'delivered' ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  <SelectValue placeholder="Select Status" className="text-gray-400 dark:text-gray-600" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
-                  <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                </SelectContent>
-              </Select>
-              {initialStatus === 'delivered' && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Status dikunci dalam mode Quick Delivery</p>
-              )}
+          {/* Status */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Status</Label>
+            <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
+              <SelectTrigger className="mt-2 h-12 text-base bg-white dark:bg-gray-700">
+                <SelectValue placeholder="Select Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Current Location */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Current Location</Label>
+              <Button 
+                type="button" 
+                onClick={getCurrentLocation} 
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm"
+              >
+                <FontAwesomeIcon icon={faMapPin} className="h-3 w-3 mr-1" />
+                Get GPS
+              </Button>
             </div>
+            <Input
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Enter location or use GPS"
+              className="h-12 text-base bg-white dark:bg-gray-700"
+              required
+            />
+            {gpsCoords && (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                Lat: {gpsCoords.lat.toFixed(6)}, Lng: {gpsCoords.lng.toFixed(6)}
+              </p>
+            )}
+          </div>
 
-            <div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-1.5 gap-2">
-                 <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">
-                   Current Location
-                   {initialStatus === 'delivered' && <span className="text-green-600 dark:text-green-400 ml-1">(Auto-filling GPS)</span>}
-                 </Label>
-                 <Button type="button" onClick={getCurrentLocation} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm h-8 sm:h-9 px-3">
-                  <FontAwesomeIcon icon={faMapPin} className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>Get GPS</span>
-                </Button>
-              </div>
-              <Input
-                id="location"
-                placeholder={initialStatus === 'delivered' ? "GPS location will be auto-filled..." : "Enter location or use GPS"}
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11"
-                required={status === "delivered" && !gpsCoords} // Only require if delivered and no GPS coords
-              />
-              {gpsCoords && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Lat: {gpsCoords.lat.toFixed(6)}, Lng: {gpsCoords.lng.toFixed(6)}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <Label className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Proof of Delivery</Label>
-              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 sm:p-6 text-center bg-gray-50 dark:bg-gray-800">
-                <input
-                  type="file"
-                  id="delivery-photo-camera"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handlePhotoChange}
-                />
-                <input
-                  type="file"
-                  id="delivery-photo-gallery"
-                  accept="image/*"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handlePhotoChange}
-                />
-
-                {photoLoading ? (
-                  <div className="flex flex-col justify-center items-center h-32 w-full sm:hidden">
-                    <div className="w-3/4 bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div className="bg-blue-500 h-3 rounded-full transition-all duration-200" style={{ width: `${photoProgress}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-600 mt-1">{photoProgress}%</span>
-                  </div>
-                ) : photoPreview ? (
-                  <Suspense fallback={<div className="flex justify-center items-center h-32"><span className="text-blue-500">Loading...</span></div>}>
-                    <PhotoPreview src={photoPreview} />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={removePhoto}
-                      className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                    >
-                      <CloseIcon className="h-4 w-4 mr-1" /> Remove Photo
-                    </Button>
-                  </Suspense>
-                ) : (
-                  <div>
-                    <CameraIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2 sm:mb-3" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-2 sm:mb-3 text-sm sm:text-base">Upload photo proof of delivery (Optional)</p>
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
-                      <Button 
-                        type="button" 
-                        onClick={() => document.getElementById('delivery-photo-camera')?.click()} 
-                        className="font-bold bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-600 text-sm sm:text-base h-8 sm:h-10"
-                      >
-                        <CameraIcon className="w-4 h-4 mr-2" /> Camera
-                      </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()} 
-                        className="font-bold border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 text-sm sm:text-base h-8 sm:h-10"
-                      >
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4 mr-2" /> Gallery
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {/* Toggle for high compression */}
-                <div className="flex items-center justify-center mt-2">
+          {/* Photo Upload */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <Label className="text-gray-700 dark:text-gray-300 font-medium text-sm">Proof of Delivery</Label>
+            
+            {!photoPreview ? (
+              <div className="mt-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+                <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                  <CameraIcon className="h-6 w-6 text-gray-400" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Upload photo proof of delivery (Optional)</p>
+                <div className="space-y-3">
                   <input
-                    type="checkbox"
-                    id="high-compression-toggle"
-                    checked={useHighCompression}
-                    onChange={e => setUseHighCompression(e.target.checked)}
-                    className="mr-2 accent-blue-600"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                    id="delivery-photo-file"
                   />
-                  <label htmlFor="high-compression-toggle" className="text-xs text-red-600 font-bold select-none cursor-pointer">
-                    LOW QUALITY (for slow device/weak network)
-                  </label>
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base"
+                    disabled={photoLoading}
+                  >
+                    <CameraIcon className="h-4 w-4 mr-2" />
+                    Camera
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-11 text-base border-gray-300 dark:border-gray-600"
+                    disabled={photoLoading}
+                  >
+                    <FontAwesomeIcon icon={faUpload} className="h-4 w-4 mr-2" />
+                    Gallery
+                  </Button>
+                  <div className="flex items-center text-xs text-red-600 mt-2">
+                    <input 
+                      type="checkbox" 
+                      checked={useHighCompression} 
+                      onChange={(e) => setUseHighCompression(e.target.checked)} 
+                      className="mr-2" 
+                    />
+                    <span>LOW QUALITY (for slow device/weak network)</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-3 relative">
+                <Suspense fallback={<div className="h-48 bg-gray-200 rounded-lg animate-pulse"></div>}>
+                  <PhotoPreview src={photoPreview} />
+                </Suspense>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={removePhoto}
+                  className="absolute top-2 right-2 bg-red-100 hover:bg-red-200 text-red-700 w-7 h-7 p-0 rounded-full"
+                >
+                  <CloseIcon className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
 
-            <div>
-              <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-semibold text-sm sm:text-base">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                rows={3}
-                placeholder="Add any additional notes about this update"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base resize-none"
-              />
-              {currentUser && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your name (<span className="font-semibold">{currentUser}</span>) will be added to the update notes.
-                </p>
-              )}
-            </div>
+            {photoLoading && (
+              <div className="mt-4 text-center text-xs text-gray-600 dark:text-gray-400">
+                <p className="mb-2">Processing photo... {photoProgress}%</p>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${photoProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
 
-            <Button type="submit" className="w-full font-bold py-3 sm:py-4 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600 text-sm sm:text-base" disabled={isLoading || (status === 'delivered' && !location && !gpsCoords)}>
+          {/* Notes */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+            <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Notes (Optional)</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any additional notes about this update"
+              rows={3}
+              className="mt-2 text-base resize-none bg-white dark:bg-gray-700"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Your name ({currentUser || "admin"}) will be added to the update notes.
+            </p>
+          </div>
+
+          {/* Submit Button */}
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base h-12 rounded-lg"
+            >
               {isLoading ? (
-                 <><span className="animate-spin"><FontAwesomeIcon icon={faSpinner} className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /></span> Updating...</>
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="h-4 w-4 mr-2" />
+                  Updating Status...
+                </>
               ) : (
                 "Update Status"
               )}
             </Button>
-             {status === 'delivered' && !location && !gpsCoords && (
-                 <p className="text-sm text-red-500 mt-2 text-center">* Location is required for 'Delivered' status. Please wait for GPS or enter manually.</p>
-             )}
-          </form>
+          </div>
+        </form>
         </CardContent>
       </Card>
     </div>
   )
 }
 
-// Komponen input AWB terpisah
-const AwbInput = React.memo(function AwbInput({ awbNumber, setAwbNumber, fetchShipmentDetails }: {
-  awbNumber: string,
-  setAwbNumber: (v: string) => void,
-  fetchShipmentDetails: (awb: string) => void
-}) {
-  const [isPending, startTransition] = useTransition();
-  const debouncedFetch = React.useMemo(
-    () => debounce((awb: string) => {
-      startTransition(() => fetchShipmentDetails(awb));
-    }, 300),
-    [fetchShipmentDetails]
-  );
-  const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setAwbNumber(e.target.value)
-    if (e.target.value.length >= 10) debouncedFetch(e.target.value)
-  }, [setAwbNumber, debouncedFetch])
-  React.useEffect(() => () => debouncedFetch.cancel(), [debouncedFetch])
-  return (
-    <div className="relative">
-      <Input
-        id="courier-awb"
-        placeholder="Enter AWB Number"
-        value={awbNumber}
-        onChange={handleChange}
-        required
-        className="font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base h-10 sm:h-11 pr-10"
-      />
-      {isPending && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-500 animate-pulse">Loading...</span>
-      )}
-    </div>
-  )
-})
+// Component for AWB Input with debounced search
+const AwbInput = ({ awbNumber, setAwbNumber, fetchShipmentDetails }: {
+  awbNumber: string;
+  setAwbNumber: (value: string) => void;
+  fetchShipmentDetails: (awb: string) => void;
+}) => {
+  const debouncedFetch = debounce((awb: string) => {
+    if (awb.length >= 8) { // Minimum AWB length
+      fetchShipmentDetails(awb);
+    }
+  }, 500);
 
-export function CourierUpdateForm() {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    setAwbNumber(value);
+    debouncedFetch(value);
+  };
+
   return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      </div>
-    }>
+    <Input
+      id="courier-awb"
+      type="text"
+      value={awbNumber}
+      onChange={handleChange}
+      placeholder="Enter AWB number"
+      className="h-12 text-base font-mono tracking-wide"
+      required
+      autoComplete="off"
+      autoCapitalize="characters"
+    />
+  );
+};
+
+export default function CourierUpdateForm() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <CourierUpdateFormComponent />
     </Suspense>
   )

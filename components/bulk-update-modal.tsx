@@ -23,13 +23,36 @@ interface BulkUpdateModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (count: number) => void
+  currentUser?: {
+    id: string;
+    name?: string;
+    email?: string;
+  }
 }
 
-export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalProps) {
+interface ExistingShipment {
+  awb_number: string;
+  current_status: string;
+}
+
+interface ManifestData {
+  nama_penerima: string;
+  alamat_penerima: string;
+  nomor_penerima: string;
+}
+
+interface UpdateResult {
+  awb: string;
+  success: boolean;
+  error?: string;
+  shipmentSuccess?: boolean;
+  historySuccess?: boolean;
+}
+
+export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: BulkUpdateModalProps) {
   const [awbNumbers, setAwbNumbers] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
   const [processingStatus, setProcessingStatus] = useState<string>("")
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
@@ -148,16 +171,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           .eq("id", data.session.user.id)
           .single()
 
-        if (userData) {
-          setCurrentUser(userData)
-        } else {
-          // If user record doesn't exist but we have session, create a basic user object
-          const username = data.session.user.email?.split("@")[0] || "courier"
-          setCurrentUser({
-            name: username,
-            email: data.session.user.email,
-          })
-        }
+        // Note: currentUser is now passed as a prop, no need to set local state
       }
     }
 
@@ -238,7 +252,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             .ilike("awb_no", awbFormat)
             .maybeSingle();
 
-          const centralResult = await Promise.race([centralPromise, timeoutPromise]) as any;
+          const centralResult = await Promise.race([centralPromise, timeoutPromise]) as { data?: unknown; error?: string };
           
           if (!centralResult.error && centralResult.data) {
             return { ...centralResult.data, manifest_source: "central" }
@@ -255,7 +269,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             .ilike("awb_no", awbFormat)
             .maybeSingle();
 
-          const branchResult = await Promise.race([branchPromise, timeoutPromise]) as any;
+          const branchResult = await Promise.race([branchPromise, timeoutPromise]) as { data?: unknown; error?: string };
           
           if (!branchResult.error && branchResult.data) {
             return { ...branchResult.data, manifest_source: "cabang" }
@@ -272,218 +286,144 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
   }
 
   // Ultra-fast parallel processing with better error handling
+  // OPTIMASI: Fungsi bulk update yang efisien untuk 20-30 resi
   const processAwbsParallel = async (awbList: string[], courierId: string, courierName: string) => {
     const location = "Sorting Center"
     const status = "out_for_delivery"
     const timestamp = new Date().toISOString()
     
-    // Process all AWBs in parallel but with better error handling
-    const results = await Promise.allSettled(
-      awbList.map(async (awb, index) => {
+    // OPTIMASI: Batch processing untuk menghindari overload
+    const BATCH_SIZE = 5
+    const results: UpdateResult[] = []
+    
+    for (let i = 0; i < awbList.length; i += BATCH_SIZE) {
+      const batch = awbList.slice(i, i + BATCH_SIZE)
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(awbList.length / BATCH_SIZE)
+      
+      setProcessingStatus(`Processing batch ${batchNumber}/${totalBatches}...`)
+      
+      // Process batch in parallel
+      const batchPromises = batch.map(async (awb, index) => {
         try {
-          // Stagger requests to avoid overwhelming database
-          await new Promise(resolve => setTimeout(resolve, index * 50)); // Increased to 50ms stagger
+          // Small delay untuk menghindari collision
+          await new Promise(resolve => setTimeout(resolve, index * 20))
           
-          const client = await getPooledClient();
+          const client = await getPooledClient()
           
-          // Longer timeout for more reliable operations
-          const operationTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 2000) // Increased to 2 seconds
-          );
-
-          // Check if shipment exists
-          const existingCheck = client
+          // Quick check existing shipment
+          const { data: existing } = await client
             .from("shipments")
-            .select("awb_number, current_status")
+            .select("current_status")
             .eq("awb_number", awb)
-            .maybeSingle();
-
-          const { data: existingShipment } = await Promise.race([existingCheck, operationTimeout]) as any;
-
-          let shipmentSuccess = false;
-          let historySuccess = false;
+            .maybeSingle()
           
-          // Tambahkan log/debug
-          if (existingShipment) {
-            console.log('DEBUG: existingShipment', existingShipment);
-          }
-          // Tambahkan pengecekan jika sudah delivered
-          if (existingShipment && existingShipment.current_status && existingShipment.current_status.toLowerCase() === 'delivered') {
-            toast.error("RESI INI SUDAH DELIVERY.", {
-              description: "MOHON CEK KEMBALI RESI YG AKAN DI UPDATE.\nJIKA SUDAH BENAR. HARAP HUB AMOS",
-              duration: 6000
-            });
-            return { awb, success: false, error: 'Already delivered' };
+          // Skip jika sudah delivered
+          if (existing?.current_status === 'delivered') {
+            return { awb, success: false, error: 'Already delivered' }
           }
           
-          // Step 1: Handle shipment creation/update
-          if (!existingShipment) {
-            // Quick manifest check in parallel
-            const manifestPromise = checkManifestAwb(awb);
-            
-            // Prepare basic shipment data
-            const basicShipmentData = {
-              awb_number: awb,
-              sender_name: "Auto Generated",
-              sender_address: "Auto Generated", 
-              sender_phone: "Auto Generated",
-              receiver_name: "Auto Generated",
-              receiver_address: "Auto Generated",
-              receiver_phone: "Auto Generated",
-              weight: 1,
-              dimensions: "10x10x10",
-              service_type: "Standard",
-              current_status: status,
-              created_at: timestamp,
-              updated_at: timestamp,
-              courier_id: courierId,
-            };
-
-            // Wait for manifest check (with timeout)
-            let manifestData = await Promise.race([
-              manifestPromise,
-              new Promise(resolve => setTimeout(() => resolve(null), 500)) // Increased timeout for manifest
-            ]);
-            
-            // Validasi data penerima ada sebelum menggunakan data manifest
-            if (manifestData && (!manifestData.nama_penerima || !manifestData.alamat_penerima)) {
-              manifestData = null;
-            }
-
-            // Use manifest data if available, otherwise use basic data
-            
-            // Pastikan data valid sebelum membuat shipment
-            if (manifestData && (!manifestData.nama_penerima || !manifestData.alamat_penerima)) {
-              manifestData = null;
-            }
-            
-            const shipmentData = manifestData ? {
-              ...basicShipmentData,
-              receiver_name: manifestData.nama_penerima || "Auto Generated",
-              receiver_address: manifestData.alamat_penerima || "Auto Generated",
-              receiver_phone: manifestData.nomor_penerima || "Auto Generated",
-            } : basicShipmentData;
-            
-
-
-            // Create shipment with retry
-            try {
-              const shipmentOperation = client
-                .from("shipments")
-                .upsert([shipmentData], { 
-                  onConflict: 'awb_number',
-                  ignoreDuplicates: false 
-                });
-
-              await Promise.race([shipmentOperation, operationTimeout]);
-              shipmentSuccess = true;
-            } catch (shipmentError) {
-              // Try one more time with basic data
-              try {
-                const retryOperation = client
-                  .from("shipments")
-                  .upsert([basicShipmentData], { 
-                    onConflict: 'awb_number',
-                    ignoreDuplicates: false 
-                  });
-                await Promise.race([retryOperation, operationTimeout]);
-                shipmentSuccess = true;
-              } catch (retryError) {
-                // Shipment retry failed - continue to next step
-              }
-            }
+          let shipmentSuccess = false
+          let historySuccess = false
+          
+          // Create/update shipment dengan data minimal untuk speed
+          if (!existing) {
+            // Create new shipment
+            const { error: shipmentError } = await client
+              .from("shipments")
+              .insert({
+                awb_number: awb,
+                sender_name: "Auto Generated",
+                sender_address: "Auto Generated",
+                sender_phone: "Auto Generated",
+                receiver_name: "Auto Generated", 
+                receiver_address: "Auto Generated",
+                receiver_phone: "Auto Generated",
+                weight: 1,
+                dimensions: "10x10x10",
+                service_type: "Standard",
+                current_status: status,
+                created_at: timestamp,
+                updated_at: timestamp,
+                courier_id: courierId,
+              })
+            shipmentSuccess = !shipmentError
           } else {
             // Update existing shipment
-            try {
-              const updateOperation = client
-                .from("shipments")
-                .update({
-                  current_status: status,
-                  updated_at: timestamp,
-                  courier_id: courierId,
-                })
-                .eq("awb_number", awb);
-
-              await Promise.race([updateOperation, operationTimeout]);
-              shipmentSuccess = true;
-            } catch (updateError) {
-              // Shipment update failed - continue to next step
-            }
+            const { error: updateError } = await client
+              .from("shipments")
+              .update({
+                current_status: status,
+                updated_at: timestamp,
+                courier_id: courierId,
+              })
+              .eq("awb_number", awb)
+            shipmentSuccess = !updateError
           }
-
-          // Step 2: Insert history record (only if shipment operation succeeded)
+          
+          // Add history record if shipment successful
           if (shipmentSuccess) {
-            try {
-              const historyOperation = client
-                .from("shipment_history")
-                .insert([{
-                  awb_number: awb,
-                  status,
-                  location,
-                  notes: `Bulk update - Out for Delivery by ${courierName}`,
-                  created_at: timestamp,
-                }]);
-
-              await Promise.race([historyOperation, operationTimeout]);
-              historySuccess = true;
-            } catch (historyError) {
-              
-              // Retry history insert with different timestamp to avoid conflicts
-              try {
-                const retryTimestamp = new Date(Date.now() + index).toISOString();
-                const retryHistoryOperation = client
-                  .from("shipment_history")
-                  .insert([{
-                    awb_number: awb,
-                    status,
-                    location,
-                    notes: `Bulk update - Out for Delivery by ${courierName}`,
-                    created_at: retryTimestamp,
-                  }]);
-
-                await Promise.race([retryHistoryOperation, operationTimeout]);
-                historySuccess = true;
-              } catch (retryHistoryError) {
-                // History retry failed - operation incomplete
-              }
-            }
+            const { error: historyError } = await client
+              .from("shipment_history")
+              .insert({
+                awb_number: awb,
+                status,
+                location,
+                notes: `Bulk update - Out for Delivery by ${courierName}`,
+                created_at: new Date(Date.now() + i + index).toISOString(), // Unique timestamp
+              })
+            historySuccess = !historyError
           }
-
-          // Only consider success if both operations succeeded
-          if (shipmentSuccess && historySuccess) {
-            return { awb, success: true, shipmentSuccess, historySuccess };
-          } else {
-            return { awb, success: false, shipmentSuccess, historySuccess, error: 'Incomplete operation' };
+          
+          return {
+            awb,
+            success: shipmentSuccess && historySuccess,
+            shipmentSuccess,
+            historySuccess,
           }
-
-        } catch (err: any) {
-          // Log error but don't fail the entire batch
-          return { awb, success: false, error: err.message };
+          
+        } catch (error) {
+          return {
+            awb,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }
         }
       })
-    );
-
-    // Count successful operations (both shipment and history must succeed)
-    const successCount = results.filter(result => 
-      result.status === 'fulfilled' && result.value.success
-    ).length;
-
-    // Track failed results for debugging (without console logging)
-    const failedResults = results
-      .filter((result): result is PromiseFulfilledResult<any> => 
-        result.status === 'fulfilled' && !result.value.success
-      );
-
-    // Tambahkan notifikasi rekap jika ada yang sudah delivered
-    const deliveredAwbs = results
-      .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled' && result.value.error === 'Already delivered')
-      .map(result => result.value.awb);
-
-    if (deliveredAwbs.length > 0) {
-      setRecapModal({ successCount, deliveredAwbs });
+      
+      // Wait for batch completion
+      const batchResults = await Promise.allSettled(batchPromises)
+      
+      // Collect results
+      batchResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          results.push(result.value)
+        } else {
+          results.push({
+            awb: 'unknown',
+            success: false,
+            error: 'Processing failed'
+          })
+        }
+      })
+      
+      // Small delay between batches
+      if (i + BATCH_SIZE < awbList.length) {
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
     }
-
-    return { successCount, deliveredAwbs };
+    
+    // Process results
+    const successCount = results.filter(r => r.success).length
+    const deliveredAwbs = results
+      .filter(r => r.error === 'Already delivered')
+      .map(r => r.awb)
+    
+    if (deliveredAwbs.length > 0) {
+      setRecapModal({ successCount, deliveredAwbs })
+    }
+    
+    return { successCount, deliveredAwbs }
   }
 
   const handleSubmit = async () => {
@@ -513,7 +453,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       const { successCount, deliveredAwbs } = await processAwbsParallel(
         awbList,
         currentUser.id,
-        currentUser.name || currentUser.email.split("@")[0],
+        currentUser.name || currentUser.email?.split("@")[0] || "courier",
       )
 
       if (deliveredAwbs.length > 0) {
@@ -528,14 +468,15 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
       })
       onSuccess(successCount)
       onClose()
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         setProcessingStatus("Operation cancelled.")
         toast.info("Update Cancelled", { description: "Bulk update operation was cancelled." });
       } else {
-        setError(err.message || "An unknown error occurred during bulk update.")
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during bulk update.";
+        setError(errorMessage)
         toast.error("Bulk Update Failed", {
-          description: err.message || "An unknown error occurred.",
+          description: errorMessage,
           duration: 5000,
         });
       }
@@ -593,6 +534,19 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
             border-top-color: #374151 !important;
           }
         }
+        
+        /* Hide default dialog close button ONLY for bulk update modal */
+        .bulk-update-modal [data-radix-collection-item] button[aria-label="Close"] {
+          display: none !important;
+        }
+        
+        .bulk-update-modal button[data-state] > svg {
+          display: none !important;
+        }
+        
+        .bulk-update-modal .dialog-content button[type="button"]:has(svg) {
+          display: none !important;
+        }
       `}</style>
       
       <Dialog
@@ -614,6 +568,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
           }
         }}
       >
+        <div className="bulk-update-modal">
         {/* Recap Modal Popup */}
         {recapModal && (
           <UIDialog open={true}>
@@ -736,6 +691,9 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                         setProcessingStatus("")
                         onClose()
                       }, 1000)
+                    } else if (isLoading) {
+                      // If loading but no abort controller, just close
+                      onClose()
                     } else {
                       setShowScanner(true)
                     }
@@ -744,9 +702,18 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess }: BulkUpdateModalP
                 >
                   <span className="truncate">{isLoading ? "Batal" : "Scan QR"}</span>
                 </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={onClose}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto border-2 border-gray-400 text-gray-700 hover:bg-gray-100 hover:border-gray-500 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-800/50 dark:hover:border-gray-400 text-sm sm:text-base py-2 sm:py-3 px-4 min-w-0 order-3 disabled:opacity-50 font-medium"
+                >
+                  <span className="truncate">Tutup</span>
+                </Button>
               </div>
             </DialogFooter>
         </DialogContent>
+        </div>
       </Dialog>
     </>
   )

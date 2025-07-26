@@ -9,7 +9,7 @@ interface BangkaBulkAwbFormProps {
   onCancel: () => void;
   userRole: string | null;
   branchOrigin: string | null;
-  initialData?: any | null;
+  initialData?: Record<string, unknown> | null;
   isEditing?: boolean;
 }
 
@@ -48,6 +48,8 @@ interface Template {
   harga_per_kg: number;
 }
 
+// Type for valid kota keys
+type KotaKey = keyof typeof kotaWilayahJabodetabek;
 // Data untuk wilayah Jabodetabek
 const kotaWilayahJabodetabek = {
   "JAKARTA BARAT": {
@@ -317,12 +319,12 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
         ...kecamatanJakutKhusus.filter(k => !kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan.includes(k))
       ];
     }
-    return template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan]?.kecamatan || [] : [];
+    return template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan as KotaKey]?.kecamatan || [] : [];
   }, [template.kota_tujuan]);
 
   React.useEffect(() => {
-    if (template.kota_tujuan && kotaWilayahJabodetabek[template.kota_tujuan]) {
-      setTemplate((f) => ({ ...f, harga_per_kg: kotaWilayahJabodetabek[template.kota_tujuan].harga }))
+    if (template.kota_tujuan && kotaWilayahJabodetabek[template.kota_tujuan as KotaKey]) {
+      setTemplate((f) => ({ ...f, harga_per_kg: kotaWilayahJabodetabek[template.kota_tujuan as KotaKey].harga }))
     }
   }, [template.kota_tujuan])
 
@@ -349,7 +351,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
     setTemplate((f) => ({ ...f, sub_total, total }))
   }, [template.berat_kg, template.harga_per_kg, template.biaya_admin, template.biaya_packaging, template.biaya_transit])
 
-  const handleTemplateChange = (e) => {
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     let kotaTujuan = name === 'kota_tujuan' ? value : template.kota_tujuan;
     let kecamatan = name === 'kecamatan' ? value : template.kecamatan;
@@ -375,7 +377,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
     setSuccess("");
   };
 
-  const handleAwbEntryChange = (id: string, e) => {
+  const handleAwbEntryChange = (id: string, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setAwbEntries((prev) =>
       prev.map((entry) => {
@@ -405,7 +407,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
       coli: 1,
       isi_barang: "",
       berat_kg: 1,
-      harga_per_kg: template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan].harga : 0,
+      harga_per_kg: template.kota_tujuan ? kotaWilayahJabodetabek[template.kota_tujuan as KotaKey].harga : 0,
       sub_total: 0,
       biaya_admin: template.biaya_admin,
       biaya_packaging: template.biaya_packaging,
@@ -478,11 +480,11 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
       })
       if (onSuccess) onSuccess()
     } catch (err) {
-      setError("Terjadi kesalahan: " + err.message)
+      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : String(err)))
     }
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     await saveAwbEntries()
   }
@@ -754,7 +756,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   type="text"
                   name="nama_penerima"
                   value={entry.nama_penerima}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   required
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
                 />
@@ -765,20 +767,20 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   type="tel"
                   name="nomor_penerima"
                   value={entry.nomor_penerima}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   required
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
                 />
               </div>
               <div className="flex flex-col">
                 <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Alamat Penerima</label>
-                <textarea
-                  name="alamat_penerima"
-                  value={entry.alamat_penerima}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
-                  required
-                  className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-h-[80px]"
-                />
+                  <textarea
+  name="alamat_penerima"
+  value={entry.alamat_penerima}
+  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
+  required
+  className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-h-[80px]"
+/>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Coli</label>
@@ -786,7 +788,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   type="number"
                   name="coli"
                   value={entry.coli}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   min={1}
                   required
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
@@ -797,7 +799,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                 <textarea
                   name="isi_barang"
                   value={entry.isi_barang}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 min-h-[80px]"
                   placeholder="Contoh: Pakaian, Elektronik, Makanan"
                 />
@@ -808,7 +810,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   type="number"
                   name="berat_kg"
                   value={entry.berat_kg}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   min={1}
                   step={0.1}
                   required
@@ -821,7 +823,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   type="number"
                   name="harga_per_kg"
                   value={entry.harga_per_kg}
-                  onChange={(e) => handleAwbEntryChange(entry.id, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
                   className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
                 />
               </div>

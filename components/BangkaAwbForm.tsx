@@ -7,10 +7,34 @@ import PrintLayout from "./PrintLayout"
 interface BangkaAwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
-  initialData: any | null;
+  initialData: Record<string, unknown> | null;
   isEditing: boolean;
   userRole: string | null;
   branchOrigin: string | null;
+}
+
+interface FormData {
+  awb_no: string;
+  awb_date: string;
+  kirim_via: string;
+  kota_tujuan: string;
+  kecamatan: string;
+  metode_pembayaran: string;
+  agent_customer: string;
+  nama_pengirim: string;
+  nomor_pengirim: string;
+  nama_penerima: string;
+  nomor_penerima: string;
+  alamat_penerima: string;
+  coli: number;
+  berat_kg: number;
+  harga_per_kg: number;
+  sub_total: number;
+  biaya_admin: number;
+  biaya_packaging: number;
+  biaya_transit: number;
+  total: number;
+  isi_barang: string;
 }
 
 // Data untuk wilayah Jabodetabek
@@ -309,7 +333,7 @@ function getTransitFee(wilayah: string): number {
 }
 
 export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: BangkaAwbFormProps) {
-  const defaultFormData = {
+  const defaultFormData: FormData = {
     awb_no: "",
     awb_date: new Date().toISOString().slice(0, 10),
     kirim_via: "",
@@ -333,15 +357,15 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     isi_barang: "",
   };
 
-  const [form, setForm] = useState(
+  const [form, setForm] = useState<FormData>(
     initialData ? {
       ...defaultFormData,
       ...initialData,
-      kirim_via: initialData.kirim_via || "",
-      kota_tujuan: initialData.kota_tujuan || "",
-      kecamatan: initialData.kecamatan || "",
-      metode_pembayaran: initialData.metode_pembayaran || "",
-      agent_customer: initialData.agent_customer || "",
+      kirim_via: (initialData.kirim_via as string) || "",
+      kota_tujuan: (initialData.kota_tujuan as string) || "",
+      kecamatan: (initialData.kecamatan as string) || "",
+      metode_pembayaran: (initialData.metode_pembayaran as string) || "",
+      agent_customer: (initialData.agent_customer as string) || "",
     } : defaultFormData
   );
   const [error, setError] = useState("")
@@ -356,12 +380,12 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
         ...kecamatanJakutKhusus.filter(k => !kotaWilayahJabodetabek['JAKARTA UTARA'].kecamatan.includes(k))
       ];
     }
-    return form.kota_tujuan ? kotaWilayahJabodetabek[form.kota_tujuan]?.kecamatan || [] : [];
+    return form.kota_tujuan ? kotaWilayahJabodetabek[form.kota_tujuan as keyof typeof kotaWilayahJabodetabek]?.kecamatan || [] : [];
   }, [form.kota_tujuan]);
 
   React.useEffect(() => {
-    if (form.kota_tujuan && kotaWilayahJabodetabek[form.kota_tujuan]) {
-      setForm((f) => ({ ...f, harga_per_kg: kotaWilayahJabodetabek[form.kota_tujuan].harga }))
+    if (form.kota_tujuan && kotaWilayahJabodetabek[form.kota_tujuan as keyof typeof kotaWilayahJabodetabek]) {
+      setForm((f) => ({ ...f, harga_per_kg: kotaWilayahJabodetabek[form.kota_tujuan as keyof typeof kotaWilayahJabodetabek].harga }))
     }
   }, [form.kota_tujuan])
 
@@ -371,10 +395,10 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     setForm((f) => ({ ...f, sub_total, total }))
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    let kotaTujuan = name === 'kota_tujuan' ? value : form.kota_tujuan;
-    let kecamatan = name === 'kecamatan' ? value : form.kecamatan;
+    let kotaTujuan: string = name === 'kota_tujuan' ? value : (form.kota_tujuan as string);
+    let kecamatan: string = name === 'kecamatan' ? value : (form.kecamatan as string);
 
     // Jika field yang diubah adalah kota_tujuan atau kecamatan
     if (name === 'kota_tujuan' || name === 'kecamatan') {
@@ -442,18 +466,18 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     setSuccess("");
   }
 
-  const handleSelectChange = (name, value) => {
+  const handleSelectChange = (name: string, value: string) => {
     setForm((f) => ({ ...f, [name]: value }))
     setError("")
     setSuccess("")
   }
 
-  const handleGenerateAwb = (e) => {
+  const handleGenerateAwb = (e: React.FormEvent) => {
     e.preventDefault()
     setForm((f) => ({ ...f, awb_no: generateAwbNo() }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
@@ -542,12 +566,15 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
         }
       }
     } catch (err) {
-      setError("Terjadi kesalahan: " + err.message)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError("Terjadi kesalahan: " + errorMessage)
     }
   }
 
-  const handleDownloadPDF = async (e) => {
-    e.preventDefault && e.preventDefault();
+  const handleDownloadPDF = async (e?: React.FormEvent) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
     setError("");
     setSuccess("");
     if (!form.awb_no || !form.kota_tujuan || !form.kecamatan || !form.nama_pengirim || !form.nama_penerima) {
@@ -615,7 +642,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
                 },
                 jsPDF: { 
                   unit: 'mm', 
-                  format: [100, 100], 
+                  format: 'a4', 
                   orientation: 'portrait',
                   compress: true
                 }
@@ -658,11 +685,11 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
         }, 600);
       }
     } catch (err) {
-      setError("Terjadi kesalahan: " + err.message);
+      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : String(err)));
     }
   }
 
-  const handlePrint = (onAfterPrint) => {
+  const handlePrint = (onAfterPrint?: () => void) => {
     const printLayoutCss = `
       .print-only {
         display: block;
@@ -1066,7 +1093,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           
           setTimeout(() => printWindow.print(), 750);
         } catch (error) {
-          alert('Terjadi kesalahan saat mencetak: ' + error.message + '. Silakan coba lagi atau periksa pengaturan browser.');
+          alert('Terjadi kesalahan saat mencetak: ' + (error instanceof Error ? error.message : String(error)) + '. Silakan coba lagi atau periksa pengaturan browser.');
         }
       }
     }, 100);

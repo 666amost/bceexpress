@@ -24,7 +24,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [isTorchAvailable, setIsTorchAvailable] = useState(false)
   const [isTorchOn, setIsTorchOn] = useState(false)
-  const torchFeatureRef = useRef<any | null>(null)
+  const torchFeatureRef = useRef<unknown | null>(null)
 
   useEffect(() => {
     // Get current user
@@ -206,7 +206,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       // Turn torch off before stopping scanner
       if (isTorchOn && torchFeatureRef.current) {
         try {
-          await torchFeatureRef.current.apply(false);
+          await (torchFeatureRef.current as { apply: (value: boolean) => Promise<void> }).apply(false);
           setIsTorchOn(false);
         } catch (err) {
           // Silently handle torch turn off errors
@@ -225,7 +225,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     return () => {
       stopScanning()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Card className="p-4">

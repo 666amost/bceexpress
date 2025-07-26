@@ -58,13 +58,13 @@ async function addSampleCouriers() {
         continue
       }
 
-      console.log(`Added courier: ${courier.name} (${courier.email})`)
+      console.warn(`Added courier: ${courier.name} (${courier.email})`)
     } else {
-      console.log(`Courier already exists: ${courier.email}`)
+      console.warn(`Courier already exists: ${courier.email}`)
     }
   }
 
-  console.log("Sample couriers added successfully")
+  console.warn("Sample couriers added successfully")
 }
 
 // Run the function
