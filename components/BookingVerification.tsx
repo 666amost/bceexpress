@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
+import { QRScanner } from "./qr-scanner"
 
 interface BookingVerificationProps {
   userRole: string | null
@@ -22,6 +23,8 @@ interface BookingData {
   status: string
   payment_status: string
   agent_id: string
+  agent_name?: string
+  agent_email?: string
   input_time: string
   isi_barang: string
   alamat_penerima: string
@@ -48,38 +51,68 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
   const [rejectionReason, setRejectionReason] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [editableData, setEditableData] = useState<Partial<BookingData>>({})
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [scannedAWB, setScannedAWB] = useState("")
 
-  const fetchPendingBookings = async () => {
-    setLoading(true)
+  // Function to get agent details from users table
+  const getAgentDetails = async (agentId: string) => {
     try {
-      let query = supabaseClient
-        .from('manifest_booking')
-        .select('*')
-        .eq('status', 'pending')
-        .order('input_time', { ascending: true })
-
-      // Filter by branch origin for cabang users
-      if (userRole === 'cabang' && branchOrigin) {
-        query = query.eq('origin_branch', branchOrigin)
+      const { data: userData, error } = await supabaseClient
+        .from('users')
+        .select('name, email')
+        .eq('id', agentId)
+        .single()
+      
+      if (error || !userData) {
+        return { name: 'Unknown Agent', email: 'unknown@email.com' }
       }
-
-      const { data, error: fetchError } = await query
-
-      if (fetchError) {
-        setError("Gagal mengambil data booking: " + fetchError.message)
-      } else {
-        setBookings(data || [])
-      }
+      
+      return userData
     } catch (err) {
-      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : 'Unknown error'))
-    } finally {
-      setLoading(false)
+      return { name: 'Unknown Agent', email: 'unknown@email.com' }
     }
   }
 
+  // Fungsi refresh sederhana
+  const refreshBookings = () => {
+    setIsProcessing(prev => !prev) // Trigger useEffect refresh
+  }
   useEffect(() => {
-    fetchPendingBookings()
-  }, [userRole, branchOrigin])
+    setLoading(true)
+    let query = supabaseClient
+      .from('manifest_booking')
+      .select('*')
+      .eq('status', 'pending')
+      .order('input_time', { ascending: true })
+
+    // Filter berdasarkan role dan branch seperti di HistoryManifest
+    if (userRole === 'cabang' && branchOrigin) {
+      query = query.eq('origin_branch', branchOrigin)
+    } else if (userRole === 'admin' && branchOrigin) {
+      query = query.eq('origin_branch', branchOrigin)
+    }
+
+    query.then(async ({ data, error: fetchError }) => {
+      if (fetchError) {
+        setError("Gagal mengambil data booking: " + fetchError.message)
+        setLoading(false)
+        return
+      }
+
+      // Transform data untuk include agent info
+      const transformedData = await Promise.all((data || []).map(async (booking: Record<string, unknown>) => {
+        const agentDetails = booking.agent_id ? await getAgentDetails(booking.agent_id as string) : { name: 'Unknown', email: 'Unknown' }
+        return {
+          ...booking,
+          agent_name: agentDetails.name,
+          agent_email: agentDetails.email
+        } as BookingData
+      }))
+      
+      setBookings(transformedData)
+      setLoading(false)
+    })
+  }, [userRole, branchOrigin, isProcessing]) // Refresh saat ada perubahan processing
 
   const handleOpenVerifyModal = (booking: BookingData, action: 'verify' | 'reject') => {
     setSelectedBooking(booking)
@@ -102,6 +135,68 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
     setVerifyAction("")
     setRejectionReason("")
     setEditableData({})
+  }
+
+  // QR Scanner Functions
+  const handleQRScan = (scannedText: string) => {
+    setScannedAWB(scannedText)
+    searchBookingByAWB(scannedText)
+  }
+
+  const closeQRScanner = () => {
+    setShowQRScanner(false)
+  }
+
+  const searchBookingByAWB = async (awbNo: string) => {
+    if (!awbNo.trim()) return
+
+    try {
+      setLoading(true)
+      let query = supabaseClient
+        .from('manifest_booking')
+        .select('*')
+        .eq('awb_no', awbNo.trim())
+        .eq('status', 'pending')
+
+      // Filter berdasarkan role dan branch seperti main query
+      if (userRole === 'cabang' && branchOrigin) {
+        query = query.eq('origin_branch', branchOrigin)
+      } else if (userRole === 'admin' && branchOrigin) {
+        query = query.eq('origin_branch', branchOrigin)
+      }
+
+      const { data, error: fetchError } = await query
+
+      if (fetchError) {
+        setError("Gagal mencari booking: " + fetchError.message)
+        return
+      }
+
+      if (data && data.length > 0) {
+        const agentDetails = data[0].agent_id ? await getAgentDetails(data[0].agent_id) : { name: 'Unknown', email: 'Unknown' }
+        const booking = {
+          ...data[0],
+          agent_name: agentDetails.name,
+          agent_email: agentDetails.email
+        }
+        // Langsung buka modal verifikasi
+        handleOpenVerifyModal(booking, 'verify')
+        setScannedAWB("")
+        closeQRScanner()
+      } else {
+        setError(`Booking dengan AWB ${awbNo} tidak ditemukan atau sudah diverifikasi`)
+      }
+    } catch (err) {
+      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleManualAWBSearch = () => {
+    if (scannedAWB.trim()) {
+      searchBookingByAWB(scannedAWB)
+    }
   }
 
   const calculateTotal = () => {
@@ -207,7 +302,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
       }
 
       handleCloseModal()
-      fetchPendingBookings() // Refresh data
+      refreshBookings() // Refresh data
 
     } catch (err) {
       setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : 'Unknown error'))
@@ -246,9 +341,52 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
 
   return (
     <div className="max-w-7xl mx-auto p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
-      <h2 className="text-2xl font-bold mb-6 text-blue-600 dark:text-blue-400">
-        Verifikasi Booking Agent
-      </h2>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+        <h2 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          Verifikasi Booking Agent
+        </h2>
+        
+        {/* QR Scanner and Search Controls */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Masukkan AWB No..."
+              value={scannedAWB}
+              onChange={(e) => setScannedAWB(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleManualAWBSearch()}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+            <button
+              onClick={handleManualAWBSearch}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              🔍 Cari
+            </button>
+          </div>
+          <button
+            onClick={showQRScanner ? closeQRScanner : () => setShowQRScanner(true)}
+            className={`px-4 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              showQRScanner 
+                ? "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" 
+                : "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500"
+            }`}
+          >
+            {showQRScanner ? "🛑 Stop Scanner" : "📷 QR Scanner"}
+          </button>
+        </div>
+      </div>
+
+      {/* QR Scanner */}
+      {showQRScanner && (
+        <div className="mb-6">
+          <QRScanner 
+            onScan={handleQRScan}
+            onClose={closeQRScanner}
+            disableAutoUpdate={true}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -261,7 +399,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
           Menampilkan {bookings.length} booking pending verifikasi
         </p>
         <button
-          onClick={fetchPendingBookings}
+          onClick={refreshBookings}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
         >
           Refresh
@@ -285,6 +423,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
               <tr>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">AWB Booking</th>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Waktu Input</th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Agent</th>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Pengirim</th>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Penerima</th>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Tujuan</th>
@@ -301,6 +440,10 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
                   </td>
                   <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm">
                     {formatDate(booking.input_time)}
+                  </td>
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm">
+                    <div className="font-medium text-blue-600 dark:text-blue-400">{booking.agent_name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{booking.agent_email}</div>
                   </td>
                   <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm">
                     {booking.nama_pengirim}
@@ -348,6 +491,29 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
             <h3 className="text-lg font-semibold mb-4">
               {verifyAction === 'verify' ? 'Verifikasi' : 'Tolak'} Booking: {selectedBooking.awb_no}
             </h3>
+
+            {/* Agent Information */}
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Informasi Agent</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="font-medium">Nama Agent:</span>
+                  <span className="ml-2 text-blue-600 dark:text-blue-400">{selectedBooking.agent_name}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Email Agent:</span>
+                  <span className="ml-2 text-blue-600 dark:text-blue-400">{selectedBooking.agent_email}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Waktu Input:</span>
+                  <span className="ml-2">{formatDate(selectedBooking.input_time)}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Origin Branch:</span>
+                  <span className="ml-2">{selectedBooking.origin_branch}</span>
+                </div>
+              </div>
+            </div>
 
             {verifyAction === 'verify' ? (
               <div className="space-y-4">

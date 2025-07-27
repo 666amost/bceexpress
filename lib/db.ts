@@ -284,3 +284,49 @@ export async function getPhotoUrlFromHistory(awb_number: string): Promise<string
     return null;
   }
 }
+
+// Interface for booking data
+export interface BookingData {
+  awb_no: string;
+  awb_date: string;
+  kirim_via: string;
+  kota_tujuan: string;
+  wilayah: string;
+  metode_pembayaran: string;
+  agent_customer: string;
+  nama_pengirim: string;
+  nomor_pengirim: string;
+  nama_penerima: string;
+  nomor_penerima: string;
+  alamat_penerima: string;
+  coli: number;
+  berat_kg: number;
+  harga_per_kg: number;
+  sub_total: number;
+  biaya_admin: number;
+  biaya_packaging: number;
+  biaya_transit: number;
+  total: number;
+  isi_barang: string;
+  catatan: string;
+  agent_id: string;
+  origin_branch: string;
+}
+
+// Create a new booking entry
+export async function createBooking(bookingData: BookingData): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("manifest_booking")
+      .insert([{
+        ...bookingData,
+        status: 'pending',
+        payment_status: 'outstanding'
+      }]);
+    
+    return !error;
+  } catch (error: unknown) {
+    console.error('Error creating booking:', error);
+    return false;
+  }
+}

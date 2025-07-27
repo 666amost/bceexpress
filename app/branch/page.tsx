@@ -9,6 +9,7 @@ import BangkaAwbForm from "@/components/BangkaAwbForm"
 import BangkaBulkAwbForm from "@/components/BangkaBulkAwbForm"
 import HistoryManifest from "@/components/HistoryManifest"
 import PelunasanResi from "@/components/PelunasanResi"
+import BookingVerification from "@/components/BookingVerification"
 import { FaPlus, FaTruck, FaUser, FaMapMarkerAlt, FaCalendarDay, FaCalendarWeek, FaHistory } from "react-icons/fa"
 import DailyReport from "@/components/DailyReport"
 import RecapManifest from "@/components/RecapManifest"
@@ -159,6 +160,28 @@ export default function BranchPage() {
                 />
               ) : (
                 <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">Anda tidak memiliki akses ke bagian ini. Hanya untuk admin, branch, atau cabang.</div>
+              )
+            )}
+            {selectedSubMenu === "booking_verification" && userRole && (
+              userRole === 'admin' || userRole === 'cabang' ? (
+                <div className="py-6">
+                  <div className="mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                      Verifikasi Booking Agent
+                    </h1>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Verifikasi dan kelola booking yang dibuat oleh agent. Periksa data pengiriman dan lakukan perubahan jika diperlukan.
+                    </p>
+                  </div>
+                  <BookingVerification 
+                    userRole={userRole}
+                    branchOrigin={branchOrigin || ''}
+                  />
+                </div>
+              ) : (
+                <div className="p-4 text-center text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  Anda tidak memiliki akses ke bagian ini. Hanya untuk admin atau cabang.
+                </div>
               )
             )}
           </>

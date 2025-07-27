@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bce-express-v5.3.1';
+const CACHE_NAME = 'bce-express-v5.4.1';
 const CRITICAL_CACHE = 'bce-critical-v5.3.1';
 const API_CACHE = 'bce-api-v5.3.1';
 const IMAGE_CACHE = 'bce-images-v5.3.1';
