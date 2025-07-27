@@ -593,9 +593,11 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       } else {
         setSuccess("Data berhasil disimpan!");
         
+        // Tunggu sebentar untuk memastikan PrintLayout ter-render
         setTimeout(async () => {
           if (printFrameRef.current) {
             try {
+              // Tambahkan CSS khusus untuk PDF yang menaikkan posisi payment method code
               const pdfSpecificStyle = document.createElement('style');
               pdfSpecificStyle.innerHTML = `
                 .payment-method-code {
@@ -611,18 +613,22 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
                 .logo-qr {
                   padding-top: 0mm !important;
                 }
+                /* CSS untuk menaikkan detail pengiriman */
                 .shipping-details {
                   margin-top: -2mm !important;
                 }
+                /* CSS untuk menaikkan teks agent di dalam kotaknya */
                 .agent-code-box .agent-abbr-left {
                   position: relative !important;
-                  top: -3mm !important;
+                  top: -3mm !important; /* Sesuaikan nilai ini jika perlu */
                 }
               `;
               printFrameRef.current.appendChild(pdfSpecificStyle);
 
+              // Import html2pdf
               const html2pdf = await import('html2pdf.js');
               
+              // Konfigurasi untuk PDF yang lebih baik
               const options = {
                 filename: form.awb_no + '.pdf',
                 margin: 0,
@@ -635,26 +641,29 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
                   useCORS: true,
                   allowTaint: true,
                   backgroundColor: '#ffffff',
-                  width: 378,
+                  width: 378, // 100mm * 3.78 (96 DPI to mm conversion * scale)
                   height: 378,
                   scrollX: 0,
                   scrollY: 0
                 },
                 jsPDF: { 
                   unit: 'mm', 
-                  format: 'a4', 
+                  format: [100, 100] as [number, number], 
                   orientation: 'portrait',
                   compress: true
                 }
               };
               
+              // Generate PDF langsung dari element yang sudah ter-render
               await html2pdf.default()
                 .set(options)
                 .from(printFrameRef.current)
                 .save();
 
+              // Hapus style khusus PDF setelah selesai
               printFrameRef.current.removeChild(pdfSpecificStyle);
                 
+              // Reset form setelah PDF selesai didownload
               setForm({
                 awb_no: "",
                 awb_date: new Date().toISOString().slice(0, 10),
@@ -682,15 +691,18 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               alert('Gagal membuat PDF. Silakan coba lagi.');
             }
           }
-        }, 600);
+        }, 600); // Tunggu lebih lama untuk memastikan rendering selesai
       }
     } catch (err) {
-      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : String(err)));
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError("Terjadi kesalahan: " + errorMessage);
     }
   }
 
   const handlePrint = (onAfterPrint?: () => void) => {
+    // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
     const printLayoutCss = `
+      /* === START: CSS disinkronkan dari PrintLayout.jsx === */
       .print-only {
         display: block;
         width: 100mm;
@@ -1068,6 +1080,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           font-weight: bold;
         }
       }
+      /* === END: CSS disinkronkan dari PrintLayout.jsx === */
     `;
 
     setTimeout(() => {
@@ -1093,7 +1106,8 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           
           setTimeout(() => printWindow.print(), 750);
         } catch (error) {
-          alert('Terjadi kesalahan saat mencetak: ' + (error instanceof Error ? error.message : String(error)) + '. Silakan coba lagi atau periksa pengaturan browser.');
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+          alert('Terjadi kesalahan saat mencetak: ' + errorMessage + '. Silakan coba lagi atau periksa pengaturan browser.');
         }
       }
     }, 100);

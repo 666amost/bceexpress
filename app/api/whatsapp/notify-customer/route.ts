@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Check WAHA connection first
     try {
-      const healthCheck = await fetch(`${process.env.WAHA_API_URL}/api/status`, {
+      const healthCheck = await fetch(`${process.env.WAHA_API_URL}/api/sessions`, {
         headers: process.env.WAHA_API_KEY ? { 'X-Api-Key': process.env.WAHA_API_KEY } : {}
       });
       

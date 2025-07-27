@@ -943,7 +943,6 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             
           setPrintData(null);
         } catch (error) {
-          // console.error('Error generating PDF:', error);
           alert('Gagal membuat PDF. Silakan coba lagi.');
           setPrintData(null);
         }
