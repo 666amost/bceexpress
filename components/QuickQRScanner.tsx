@@ -431,8 +431,10 @@ export default function QuickQRScanner({ userRole, branchOrigin, onClose }: Quic
                     {/* Scanning indicator */}
                     {isScanning && (
                       <div className="absolute bottom-2 left-2 right-2">
-                        <div className="bg-black/50 text-white text-sm px-3 py-2 rounded-lg text-center">
-                          🔍 Scanning... Arahkan ke QR Code atau Barcode
+                        <div className="bg-black/50 text-white text-sm px-3 py-2 rounded-lg text-center flex items-center justify-center gap-2">
+                          {/* Minimalist search icon */}
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2"/><path d="M15 15L19 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                          Scanning... Arahkan ke QR Code atau Barcode
                         </div>
                       </div>
                     )}

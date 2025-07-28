@@ -96,7 +96,7 @@ export default function BranchBookingScanner({
     <Card className="mb-6">
       <CardHeader>
         <CardTitle className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-          🔍 Scan & Verifikasi Booking Agent
+           Scan & Verifikasi Booking Agent
         </CardTitle>
       </CardHeader>
       <CardContent>

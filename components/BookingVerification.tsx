@@ -345,7 +345,6 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
         <h2 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
           Verifikasi Booking Agent
         </h2>
-        
         {/* QR Scanner and Search Controls */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex gap-2">
@@ -353,26 +352,34 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
               type="text"
               placeholder="Masukkan AWB No..."
               value={scannedAWB}
-              onChange={(e) => setScannedAWB(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleManualAWBSearch()}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setScannedAWB(e.target.value)}
+              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleManualAWBSearch()}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
             <button
+              type="button"
               onClick={handleManualAWBSearch}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
             >
-              🔍 Cari
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2"/><path d="M15 15L19 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Cari
             </button>
           </div>
           <button
+            type="button"
             onClick={showQRScanner ? closeQRScanner : () => setShowQRScanner(true)}
-            className={`px-4 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+            className={`px-4 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center gap-2 ${
               showQRScanner 
                 ? "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" 
                 : "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500"
             }`}
           >
-            {showQRScanner ? "🛑 Stop Scanner" : "📷 QR Scanner"}
+            {showQRScanner ? (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6L14 14M14 6L6 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><rect x="7" y="7" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/></svg>
+            )}
+            {showQRScanner ? "Tutup QR Scanner" : "QR Scanner"}
           </button>
         </div>
       </div>
@@ -388,27 +395,22 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
       <div className="mb-4 flex justify-between items-center">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Menampilkan {bookings.length} booking pending verifikasi
         </p>
         <button
+          type="button"
           onClick={refreshBookings}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm flex items-center gap-2"
         >
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 4v4h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 11a7 7 0 1 0 2-5.29" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Refresh
         </button>
       </div>
-
       {bookings.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">✅</div>
+          {/* Remove emoji, keep minimal */}
           <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Tidak ada booking pending
           </h3>

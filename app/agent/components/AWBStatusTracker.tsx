@@ -607,10 +607,11 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                     <Badge className={getStatusColor(selectedAWB.status)}>
                       {selectedAWB.status}
                     </Badge>
-                    {(selectedAWB as AWBData).shipment_status && (
-                      <Badge className={getStatusColor((selectedAWB as AWBData).shipment_status!)}>
-                        📦 {(selectedAWB as AWBData).shipment_status}
-                      </Badge>
+                    {(selectedAWB as AWBData).shipment_status &&
+                      (selectedAWB.status !== (selectedAWB as AWBData).shipment_status) && (
+                        <Badge className={getStatusColor((selectedAWB as AWBData).shipment_status!)}>
+                          📦 {(selectedAWB as AWBData).shipment_status}
+                        </Badge>
                     )}
                     {(selectedAWB as AWBData & { payment_status?: string }).payment_status && (
                       <Badge className={getPaymentStatusColor((selectedAWB as AWBData & { payment_status?: string }).payment_status!)}>

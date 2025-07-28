@@ -91,12 +91,14 @@ export const AWBCreationForm: React.FC = () => {
   // Generate AWB number function
   const generateNewAWBNumber = useCallback((): void => {
     if (currentAgent?.email) {
-      const timestamp = Date.now().toString().slice(-6); // 6 digits for XXXXXX
-      const awbNumber = `BCE${timestamp}AGT`;
-      setFormData(prev => ({ 
-        ...prev, 
-        awb_no: awbNumber, 
-        agent_customer: currentAgent.email 
+      const randomPart: string = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      // Ambil 3 huruf pertama dari id login/email sebelum '@', jika ada
+      const loginId: string = currentAgent.email.split('@')[0].slice(0, 3).toUpperCase();
+      const awbNumber: string = `BCE${randomPart}${loginId}`;
+      setFormData((prev: FormDataType): FormDataType => ({
+        ...prev,
+        awb_no: awbNumber,
+        agent_customer: currentAgent.email
       }));
     }
   }, [currentAgent?.email]); // Only depend on email, not the entire currentAgent object
