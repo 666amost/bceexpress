@@ -28,19 +28,6 @@ export interface AWBHistory {
   created_at: string;
 }
 
-interface CustomerHistory {
-  nama_pengirim: string;
-  nomor_pengirim: string;
-  nama_penerima: string;
-  nomor_penerima: string;
-  alamat_penerima: string;
-  kota_tujuan: string;
-  kecamatan: string;
-  isi_barang: string;
-  lastUsed: string;
-  frequency: number;
-}
-
 interface UserData {
   email: string;
   name?: string;
@@ -107,6 +94,7 @@ const AgentContext = createContext<AgentContextType | undefined>(undefined);
 export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentAgent, setCurrentAgent] = useState<AgentData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const loadCustomerHistory = React.useCallback(async (agentId: string): Promise<CustomerHistory[]> => {
     const { data } = await supabaseClient
@@ -211,12 +199,17 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       setCurrentAgent(agentData);
+      setIsInitialized(true);
     } catch (error) {
       console.error('Error processing agent data:', error);
+      setIsInitialized(true);
     }
   }, [loadCustomerHistory, calculateStats]);
 
   const loadAgentData = React.useCallback(async () => {
+    // Prevent multiple simultaneous loads
+    if (isInitialized) return;
+    
     try {
       setIsLoading(true);
       
@@ -242,11 +235,6 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const user = sessionData.session.user;
-      
-      // Only log if we don't already have this agent loaded
-      if (!currentAgent || currentAgent.email !== user.email) {
-        // Found user session for agent
-      }
 
       // Get current user info from users table
       const { data: userData, error: userError } = await supabaseClient
@@ -281,21 +269,73 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
     } catch (error) {
-              console.warn('Error loading agent data:', error);
+      console.warn('Error loading agent data:', error);
       // Redirect to login on error
       if (typeof window !== 'undefined') {
         window.location.href = '/agent/login';
       }
+      setIsInitialized(true);
     } finally {
       setIsLoading(false);
     }
-  }, [currentAgent, processAgentData]);
+  }, [isInitialized, processAgentData]);
 
   useEffect(() => {
-    loadAgentData();
-  }, [loadAgentData]); // Include loadAgentData dependency
+    if (!isInitialized) {
+      loadAgentData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally empty to run only once on mount
 
-  const addAWB = async (awbData: ManifestBookingData): Promise<ManifestBookingData> => {
+  const updateCustomerHistory = React.useCallback((customerData: Partial<CustomerHistory>): void => {
+    if (!currentAgent) return;
+    
+    // Find existing customer or create new one
+    const existingCustomerIndex = currentAgent.customerHistory.findIndex(
+      customer => customer.nama_pengirim === customerData.nama_pengirim && 
+                  customer.nomor_pengirim === customerData.nomor_pengirim
+    );
+
+    const updatedHistory = [...currentAgent.customerHistory];
+    
+    if (existingCustomerIndex !== -1) {
+      // Update existing customer with latest info and increment frequency
+      const existingCustomer = updatedHistory[existingCustomerIndex];
+      updatedHistory[existingCustomerIndex] = {
+        ...existingCustomer,
+        ...customerData,
+        lastUsed: new Date().toISOString(),
+        frequency: existingCustomer.frequency + 1
+      };
+    } else if (customerData.nama_pengirim && customerData.nomor_pengirim) {
+      // Add new customer
+      const newCustomer: CustomerHistory = {
+        nama_pengirim: customerData.nama_pengirim,
+        nomor_pengirim: customerData.nomor_pengirim,
+        nama_penerima: customerData.nama_penerima || '',
+        nomor_penerima: customerData.nomor_penerima || '',
+        alamat_penerima: customerData.alamat_penerima || '',
+        kota_tujuan: customerData.kota_tujuan || '',
+        kecamatan: customerData.kecamatan || '',
+        isi_barang: customerData.isi_barang || '',
+        lastUsed: new Date().toISOString(),
+        frequency: 1
+      };
+      updatedHistory.unshift(newCustomer);
+    }
+
+    // Sort by last used and limit to 50 entries
+    const sortedHistory = updatedHistory
+      .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
+      .slice(0, 50);
+
+    setCurrentAgent(prev => prev ? {
+      ...prev,
+      customerHistory: sortedHistory
+    } : null);
+  }, [currentAgent]);
+
+  const addAWB = React.useCallback(async (awbData: ManifestBookingData): Promise<ManifestBookingData> => {
     try {
       // Enhanced session checking with refresh attempt
       let { data: sessionData } = await supabaseClient.auth.getSession();
@@ -319,37 +359,39 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Agent branch information missing. Please contact support.');
       }
 
+      const insertData = {
+        awb_no: awbData.awb_no,
+        awb_date: awbData.awb_date,
+        kirim_via: awbData.kirim_via,
+        kota_tujuan: awbData.kota_tujuan,
+        kecamatan: awbData.kecamatan,
+        metode_pembayaran: awbData.metode_pembayaran,
+        agent_customer: currentAgent.email,
+        nama_pengirim: awbData.nama_pengirim,
+        nomor_pengirim: awbData.nomor_pengirim,
+        nama_penerima: awbData.nama_penerima,
+        nomor_penerima: awbData.nomor_penerima,
+        alamat_penerima: awbData.alamat_penerima,
+        coli: awbData.coli,
+        berat_kg: awbData.berat_kg,
+        harga_per_kg: awbData.harga_per_kg,
+        sub_total: awbData.sub_total,
+        biaya_admin: awbData.biaya_admin,
+        biaya_packaging: awbData.biaya_packaging,
+        biaya_transit: awbData.biaya_transit,
+        total: awbData.total,
+        isi_barang: awbData.isi_barang,
+        catatan: awbData.catatan || '',
+        agent_id: sessionData.session.user.id,
+        origin_branch: currentAgent.branchOrigin,
+        status: 'pending',
+        payment_status: 'outstanding',
+        input_time: new Date().toISOString()
+      };
+
       const { data, error } = await supabaseClient
         .from('manifest_booking')
-        .insert({
-          awb_no: awbData.awb_no,
-          awb_date: awbData.awb_date,
-          kirim_via: awbData.kirim_via,
-          kota_tujuan: awbData.kota_tujuan,
-          kecamatan: awbData.kecamatan,
-          metode_pembayaran: awbData.metode_pembayaran,
-          agent_customer: currentAgent.email,
-          nama_pengirim: awbData.nama_pengirim,
-          nomor_pengirim: awbData.nomor_pengirim,
-          nama_penerima: awbData.nama_penerima,
-          nomor_penerima: awbData.nomor_penerima,
-          alamat_penerima: awbData.alamat_penerima,
-          coli: awbData.coli,
-          berat_kg: awbData.berat_kg,
-          harga_per_kg: awbData.harga_per_kg,
-          sub_total: awbData.sub_total,
-          biaya_admin: awbData.biaya_admin,
-          biaya_packaging: awbData.biaya_packaging,
-          biaya_transit: awbData.biaya_transit,
-          total: awbData.total,
-          isi_barang: awbData.isi_barang,
-          catatan: awbData.catatan || '',
-          agent_id: sessionData.session.user.id,
-          origin_branch: currentAgent.branchOrigin,
-          status: 'pending',
-          payment_status: 'outstanding',
-          input_time: new Date().toISOString()
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -358,43 +400,45 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error(`Failed to create AWB: ${error.message}`);
       }
 
-      // Update local state after successful creation
-      if (currentAgent && data) {
-        const newAWBHistory: AWBHistory = {
-          id: data.id,
-          awb_no: data.awb_no,
-          awb_date: data.awb_date,
-          nama_pengirim: data.nama_pengirim,
-          nama_penerima: data.nama_penerima,
-          kota_tujuan: data.kota_tujuan,
-          status: data.status || 'pending',
-          total: data.total,
-          created_at: data.created_at
-        };
-
-        setCurrentAgent(prev => prev ? {
-          ...prev,
-          awbHistory: [newAWBHistory, ...prev.awbHistory],
-          stats: {
-            ...prev.stats,
-            totalAWBs: prev.stats.totalAWBs + 1,
-            todayAWBs: prev.stats.todayAWBs + 1,
-            pendingAWBs: prev.stats.pendingAWBs + 1
-          }
-        } : null);
-
-        // Update customer history
-        updateCustomerHistory({
-          nama_pengirim: data.nama_pengirim,
-          nomor_pengirim: data.nomor_pengirim,
-          nama_penerima: data.nama_penerima,
-          nomor_penerima: data.nomor_penerima,
-          alamat_penerima: data.alamat_penerima,
-          kota_tujuan: data.kota_tujuan,
-          kecamatan: data.kecamatan,
-          isi_barang: data.isi_barang
-        });
+      if (!data) {
+        throw new Error('No data returned from database after AWB creation');
       }
+
+      // Update local state after successful creation
+      const newAWBHistory: AWBHistory = {
+        id: data.id,
+        awb_no: data.awb_no,
+        awb_date: data.awb_date,
+        nama_pengirim: data.nama_pengirim,
+        nama_penerima: data.nama_penerima,
+        kota_tujuan: data.kota_tujuan,
+        status: data.status || 'pending',
+        total: data.total,
+        created_at: data.created_at
+      };
+
+      setCurrentAgent(prev => prev ? {
+        ...prev,
+        awbHistory: [newAWBHistory, ...prev.awbHistory],
+        stats: {
+          ...prev.stats,
+          totalAWBs: prev.stats.totalAWBs + 1,
+          todayAWBs: prev.stats.todayAWBs + 1,
+          pendingAWBs: prev.stats.pendingAWBs + 1
+        }
+      } : null);
+
+      // Update customer history
+      updateCustomerHistory({
+        nama_pengirim: data.nama_pengirim,
+        nomor_pengirim: data.nomor_pengirim,
+        nama_penerima: data.nama_penerima,
+        nomor_penerima: data.nomor_penerima,
+        alamat_penerima: data.alamat_penerima,
+        kota_tujuan: data.kota_tujuan,
+        kecamatan: data.kecamatan,
+        isi_barang: data.isi_barang
+      });
 
       return data;
     } catch (error) {
@@ -406,9 +450,9 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('AWB Creation Failed: Unknown error occurred');
       }
     }
-  };
+  }, [currentAgent, updateCustomerHistory]);
 
-  const getCustomerSuggestions = (searchTerm: string): CustomerHistory[] => {
+  const getCustomerSuggestions = React.useCallback((searchTerm: string): CustomerHistory[] => {
     if (!currentAgent || !searchTerm.trim()) return [];
     
     const term = searchTerm.toLowerCase();
@@ -418,14 +462,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       customer.nama_penerima.toLowerCase().includes(term) ||
       customer.alamat_penerima.toLowerCase().includes(term)
     ).slice(0, 5);
-  };
-
-  const updateCustomerHistory = (customerData: Partial<CustomerHistory>) => {
-    if (!currentAgent) return;
-    
-    // Implementation for updating customer history
-    // This would typically involve updating the local state and possibly the database
-  };
+  }, [currentAgent]);
 
   return (
     <AgentContext.Provider value={{

@@ -50,9 +50,9 @@ interface FormDataType {
 
 export const AWBCreationForm: React.FC = () => {
   const { toast } = useToast();
-  const { currentAgent, isLoading, addAWB } = useAgent(); // Add addAWB here
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const { currentAgent, isLoading, addAWB } = useAgent();
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [submittedAWB, setSubmittedAWB] = useState<string>('');
 
   const [formData, setFormData] = useState<FormDataType>({
@@ -89,16 +89,20 @@ export const AWBCreationForm: React.FC = () => {
   }, [formData.kota_tujuan]);
 
   // Generate AWB number function
-  const generateNewAWBNumber = useCallback(() => {
-    if (currentAgent) {
+  const generateNewAWBNumber = useCallback((): void => {
+    if (currentAgent?.email) {
       const timestamp = Date.now().toString().slice(-6); // 6 digits for XXXXXX
       const awbNumber = `BCE${timestamp}AGT`;
-      setFormData(prev => ({ ...prev, awb_no: awbNumber, agent_customer: currentAgent.email }));
+      setFormData(prev => ({ 
+        ...prev, 
+        awb_no: awbNumber, 
+        agent_customer: currentAgent.email 
+      }));
     }
-  }, [currentAgent]);
+  }, [currentAgent?.email]); // Only depend on email, not the entire currentAgent object
 
   // Auto calculate pricing
-  useEffect(() => {
+  const updatePricing = useCallback((): void => {
     if (formData.kota_tujuan && formData.berat_kg > 0) {
       const cityData = kotaWilayahJabodetabek[formData.kota_tujuan as keyof typeof kotaWilayahJabodetabek];
       if (cityData) {
@@ -116,52 +120,15 @@ export const AWBCreationForm: React.FC = () => {
     }
   }, [formData.kota_tujuan, formData.berat_kg, formData.biaya_admin, formData.biaya_packaging, formData.biaya_transit]);
 
-  // Auto generate AWB on component mount
-  useEffect(() => {
-    generateNewAWBNumber();
-  }, [generateNewAWBNumber]);
-
-  // Show loading while agent data loads
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-gray-600">Loading agent data...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Show error if no agent
-  if (!currentAgent) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <div className="text-red-600">
-            <FaExclamationTriangle className="h-8 w-8 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Agent Data Not Available</h3>
-            <p className="text-sm mb-4">Please refresh the page or contact support if the issue persists.</p>
-            <div className="text-xs bg-gray-100 p-2 rounded">
-              Debug: currentAgent = {JSON.stringify(currentAgent)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: type === 'number' ? parseFloat(value) || 0 : value
     }));
-  };
+  }, []);
 
-  const handleSelectChange = (name: string, value: string) => {
+  const handleSelectChange = useCallback((name: string, value: string): void => {
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       
@@ -172,9 +139,9 @@ export const AWBCreationForm: React.FC = () => {
       
       return newData;
     });
-  };
+  }, []);
 
-  const validateForm = (): boolean => {
+  const validateForm = useCallback((): boolean => {
     const requiredFields = [
       { field: 'kota_tujuan', label: 'Kota Tujuan' },
       { field: 'kecamatan', label: 'Kecamatan' },
@@ -216,9 +183,9 @@ export const AWBCreationForm: React.FC = () => {
     }
 
     return true;
-  };
+  }, [formData, toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
     if (!currentAgent?.email) {
@@ -234,6 +201,10 @@ export const AWBCreationForm: React.FC = () => {
     // Validate form before submission
     if (!validateForm()) {
       return;
+    }
+
+    if (isSubmitting) {
+      return; // Prevent double submission
     }
 
     setIsSubmitting(true);
@@ -265,43 +236,45 @@ export const AWBCreationForm: React.FC = () => {
         catatan: formData.catatan
       });
 
-      setSubmittedAWB(formData.awb_no);
-      setShowSuccess(true);
-      
-      toast({
-        title: "Booking Created Successfully",
-        description: `Resi ${formData.awb_no} has been created`,
-      });
-
-      // Reset form untuk booking baru
-      setTimeout(() => {
-        setShowSuccess(false);
-        setFormData({
-          awb_no: '',
-          awb_date: new Date().toISOString().split('T')[0],
-          kirim_via: 'UDARA', // Default to UDARA
-          kota_tujuan: '',
-          kecamatan: '',
-          metode_pembayaran: 'CASH',
-          agent_customer: currentAgent.email,
-          nama_pengirim: '',
-          nomor_pengirim: '',
-          nama_penerima: '',
-          nomor_penerima: '',
-          alamat_penerima: '',
-          coli: 1,
-          berat_kg: 1,
-          harga_per_kg: 0,
-          sub_total: 0,
-          biaya_admin: 2000,
-          biaya_packaging: 0,
-          biaya_transit: 0,
-          total: 0,
-          isi_barang: '',
-          catatan: ''
+      if (result) {
+        setSubmittedAWB(formData.awb_no);
+        setShowSuccess(true);
+        
+        toast({
+          title: "Booking Created Successfully",
+          description: `Resi ${formData.awb_no} has been created`,
         });
-        generateNewAWBNumber();
-      }, 3000);
+
+        // Reset form untuk booking baru
+        setTimeout(() => {
+          setShowSuccess(false);
+          setFormData({
+            awb_no: '',
+            awb_date: new Date().toISOString().split('T')[0],
+            kirim_via: 'UDARA', // Default to UDARA
+            kota_tujuan: '',
+            kecamatan: '',
+            metode_pembayaran: 'CASH',
+            agent_customer: currentAgent.email,
+            nama_pengirim: '',
+            nomor_pengirim: '',
+            nama_penerima: '',
+            nomor_penerima: '',
+            alamat_penerima: '',
+            coli: 1,
+            berat_kg: 1,
+            harga_per_kg: 0,
+            sub_total: 0,
+            biaya_admin: 2000,
+            biaya_packaging: 0,
+            biaya_transit: 0,
+            total: 0,
+            isi_barang: '',
+            catatan: ''
+          });
+          generateNewAWBNumber();
+        }, 3000);
+      }
 
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -321,13 +294,56 @@ export const AWBCreationForm: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [currentAgent, formData, addAWB, isSubmitting, validateForm, toast, generateNewAWBNumber]);
 
-  const handlePrintAWB = () => {
+  const handlePrintAWB = useCallback((): void => {
     if (submittedAWB) {
       window.open(`/agent/print-label/${submittedAWB}`, '_blank');
     }
-  };
+  }, [submittedAWB]);
+
+  useEffect(() => {
+    updatePricing();
+  }, [updatePricing]);
+
+  // Auto generate AWB on component mount
+  useEffect(() => {
+    if (currentAgent?.email && !formData.awb_no) {
+      generateNewAWBNumber();
+    }
+  }, [currentAgent?.email, formData.awb_no, generateNewAWBNumber]);
+
+  // Show loading while agent data loads
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="flex items-center justify-center space-x-2">
+            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-gray-600">Loading agent data...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error if no agent
+  if (!currentAgent) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="text-red-600">
+            <FaExclamationTriangle className="h-8 w-8 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Agent Data Not Available</h3>
+            <p className="text-sm mb-4">Please refresh the page or contact support if the issue persists.</p>
+            <div className="text-xs bg-gray-100 p-2 rounded">
+              Debug: currentAgent = {JSON.stringify(currentAgent)}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (showSuccess) {
     return (
