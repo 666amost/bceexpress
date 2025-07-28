@@ -139,7 +139,9 @@ export function CourierDashboard() {
   const [hasCompletedFirstDelivery, setHasCompletedFirstDelivery] = useState(false)
   const [expandAssignments, setExpandAssignments] = useState(false);
   const [expandPending, setExpandPending] = useState(false);
+  const [expandCompleted, setExpandCompleted] = useState(false);
   const [showAllAssignments, setShowAllAssignments] = useState(false);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
@@ -187,15 +189,14 @@ export function CourierDashboard() {
         .order("created_at", { ascending: false })
         .limit(15);  // Kurangi dari 20 ke 15
 
-      // Get completed today (OPTIMASI: Kurangi field dan limit)
+      // Get completed today (OPTIMASI: Kurangi field yang diambil)
       const completedTodayPromise = supabaseClient
         .from("shipment_history")
         .select("awb_number, status, created_at, location")  // Hanya field yang perlu
         .eq("status", "delivered")
         .ilike("notes", `%${courierName}%`)
         .gte("created_at", todayISOString)
-        .order("created_at", { ascending: false })
-        .limit(10);  // Kurangi dari 15 ke 10
+        .order("created_at", { ascending: false });
 
       // Execute all queries in parallel with timeout
       const [bulkShipmentsResult, pendingResult, completedTodayResult] = await Promise.allSettled([
@@ -722,7 +723,7 @@ export function CourierDashboard() {
         {/* Completed Card */}
         <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-green-200 px-4 py-3">
           <div className="absolute left-0 top-0 w-16 h-16 bg-green-100 rounded-full opacity-30 blur-2xl z-0" />
-          <div className="flex items-center w-full justify-between z-10 relative">
+          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandCompleted(v => !v)}>
             <div className="flex items-center gap-3">
               <div className="bg-green-50 rounded-full p-2">
                 <FontAwesomeIcon icon={faCheckCircle} className="h-7 w-7 text-green-600" />
@@ -730,7 +731,52 @@ export function CourierDashboard() {
               <div className="text-xs text-gray-500 font-semibold">Completed</div>
             </div>
             <div className="text-3xl font-black text-green-600">{completedCount}</div>
-          </div>
+            {expandCompleted ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+          </button>
+          {expandCompleted && (
+            <div className="mt-3 flex flex-col gap-2 z-10 relative">
+              {completedTodayShipments.length === 0 ? (
+                <div className="text-gray-400 text-sm">No completed deliveries today.</div>
+              ) : (
+                <>
+                  {/* OPTIMASI: Tampilkan maksimal 5 items untuk low-end devices, sisanya dengan "Show More" */}
+                  {completedTodayShipments.slice(0, 5).map((shipment) => (
+                    <div key={shipment.awb_number} className="flex items-center justify-between bg-green-50 dark:bg-green-900 rounded-lg border border-green-100 dark:border-green-700 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono font-bold text-green-700 dark:text-green-300 text-sm">{shipment.awb_number}</div>
+                        <div className="text-xs text-green-600 dark:text-green-400">{shipment.status}</div>
+                        {shipment.location && (
+                          <div className="text-xs text-gray-500 truncate mt-1">{shipment.location}</div>
+                        )}
+                        <div className="text-xs text-gray-400 mt-1">
+                          {new Date(shipment.created_at).toLocaleString('id-ID', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </div>
+                      </div>
+                      <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2">
+                        <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
+                      </div>
+                    </div>
+                  ))}
+                  {/* Show More/Less button jika ada lebih dari 5 items */}
+                  {completedTodayShipments.length > 5 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowAllCompleted(true)}
+                      className="mt-2 text-xs"
+                    >
+                      Show All {completedTodayShipments.length} Completed
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
         {/* Pending Card */}
         <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-yellow-200 px-4 py-3">
@@ -851,6 +897,44 @@ export function CourierDashboard() {
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg" onClick={() => { setShowAllAssignments(false); router.push(`/courier/update?awb=${shipment.awb_number}`); }}>
                   Update
                 </Button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal All Completed */}
+      <Dialog open={showAllCompleted} onOpenChange={setShowAllCompleted}>
+        <DialogContent className="max-w-2xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>All Today's Completed Deliveries</DialogTitle>
+            <DialogDescription>Complete list of today's completed deliveries ({completedCount} total).</DialogDescription>
+          </DialogHeader>
+          <DialogClose className="absolute right-4 top-4 rounded-full w-8 h-8 bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-900 border border-gray-200 transition-all">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+          <div className="max-h-[60vh] overflow-y-auto mt-4 flex flex-col gap-2">
+            {completedTodayShipments.map((shipment) => (
+              <div key={shipment.awb_number} className="flex items-center justify-between bg-green-50 dark:bg-green-900 rounded-lg border border-green-100 dark:border-green-700 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono font-bold text-green-700 dark:text-green-300 text-base">{shipment.awb_number}</div>
+                  <div className="text-xs text-green-600 dark:text-green-400">{shipment.status}</div>
+                  {shipment.location && (
+                    <div className="text-xs text-gray-500 truncate mt-1">{shipment.location}</div>
+                  )}
+                  <div className="text-xs text-gray-400 mt-1">
+                    {new Date(shipment.created_at).toLocaleString('id-ID', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
+                </div>
+                <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2">
+                  <FontAwesomeIcon icon={faCheckCircle} className="h-5 w-5" />
+                </div>
               </div>
             ))}
           </div>
