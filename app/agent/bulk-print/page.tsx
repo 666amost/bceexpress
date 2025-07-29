@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabaseClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -37,7 +37,7 @@ interface AWBDetails {
   wilayah?: string
 }
 
-export default function BulkPrintPage(): JSX.Element {
+function BulkPrintContent(): JSX.Element {
   const searchParams = useSearchParams()
   const [awbs, setAwbs] = useState<AWBDetails[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -55,32 +55,32 @@ export default function BulkPrintPage(): JSX.Element {
 
       if (error) throw error
 
-      const formattedData = data?.map((booking: any) => ({
-        awb_no: booking.awb_no,
-        awb_date: booking.awb_date,
-        kirim_via: booking.kirim_via,
-        kota_tujuan: booking.kota_tujuan,
-        kecamatan: booking.kecamatan,
-        metode_pembayaran: booking.metode_pembayaran,
-        agent_customer: booking.agent_customer,
-        nama_pengirim: booking.nama_pengirim,
-        nomor_pengirim: booking.nomor_pengirim,
-        nama_penerima: booking.nama_penerima,
-        nomor_penerima: booking.nomor_penerima,
-        alamat_penerima: booking.alamat_penerima,
-        coli: booking.coli,
-        berat_kg: booking.berat_kg,
-        harga_per_kg: booking.harga_per_kg,
-        sub_total: booking.sub_total,
-        biaya_admin: booking.biaya_admin,
-        biaya_packaging: booking.biaya_packaging,
-        biaya_transit: booking.biaya_transit,
-        total: booking.total,
-        isi_barang: booking.isi_barang,
-        catatan: booking.catatan,
-        status: booking.status,
-        created_at: booking.created_at,
-        wilayah: booking.kota_tujuan
+      const formattedData = data?.map((booking: Record<string, unknown>) => ({
+        awb_no: booking.awb_no as string,
+        awb_date: booking.awb_date as string,
+        kirim_via: booking.kirim_via as string,
+        kota_tujuan: booking.kota_tujuan as string,
+        kecamatan: booking.kecamatan as string,
+        metode_pembayaran: booking.metode_pembayaran as string,
+        agent_customer: booking.agent_customer as string,
+        nama_pengirim: booking.nama_pengirim as string,
+        nomor_pengirim: booking.nomor_pengirim as string,
+        nama_penerima: booking.nama_penerima as string,
+        nomor_penerima: booking.nomor_penerima as string,
+        alamat_penerima: booking.alamat_penerima as string,
+        coli: booking.coli as number,
+        berat_kg: booking.berat_kg as number,
+        harga_per_kg: booking.harga_per_kg as number,
+        sub_total: booking.sub_total as number,
+        biaya_admin: booking.biaya_admin as number,
+        biaya_packaging: booking.biaya_packaging as number,
+        biaya_transit: booking.biaya_transit as number,
+        total: booking.total as number,
+        isi_barang: booking.isi_barang as string,
+        catatan: booking.catatan as string | undefined,
+        status: booking.status as string,
+        created_at: booking.created_at as string,
+        wilayah: booking.kota_tujuan as string | undefined
       })) || []
 
       setAwbs(formattedData)
@@ -250,5 +250,24 @@ export default function BulkPrintPage(): JSX.Element {
         }
       `}</style>
     </div>
+  )
+}
+
+function LoadingFallback(): JSX.Element {
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+export default function BulkPrintPage(): JSX.Element {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <BulkPrintContent />
+    </Suspense>
   )
 }
