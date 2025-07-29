@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { FaSearch, FaFilter, FaClock, FaCheckCircle, FaTimesCircle, FaDollarSign, FaCalendarAlt, FaUser, FaEye, FaPrint, FaDownload } from 'react-icons/fa';
+import { FaSearch, FaEye, FaPrint, FaDownload, FaFilter, FaUser, FaCalendarAlt, FaDollarSign, FaClock, FaCheckCircle, FaLayerGroup } from 'react-icons/fa';
 import { useAgent } from '../context/AgentContext';
-import PrintLayout from '../../../components/PrintLayout';
 import { supabaseClient } from '../../../lib/auth';
 import { type ShipmentHistory } from '@/lib/db';
 
@@ -39,7 +38,6 @@ export interface AWBData {
   catatan?: string;
   agent_customer?: string;
   status: string;
-  payment_status?: string;
   created_at: string;
   verified_time?: string;
   input_time?: string;
@@ -66,12 +64,9 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
   const { currentAgent } = useAgent();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [filteredAWBs, setFilteredAWBs] = useState<AWBData[]>([]);
   const [selectedAWB, setSelectedAWB] = useState<AWBData | null>(null);
-  const [printData, setPrintData] = useState<AWBData | null>(null);
-  const printFrameRef = useRef<HTMLDivElement>(null);
 
   // Set selected AWB when prop changes
   useEffect(() => {
@@ -194,11 +189,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
       });
     }
 
-    // Payment filter
-    if (paymentFilter) {
-      filtered = filtered.filter(awb => (awb as AWBData & { payment_status?: string }).payment_status === paymentFilter);
-    }
-
     // Date filter
     if (dateFilter) {
       const today = new Date();
@@ -227,91 +217,24 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
     }
 
     setFilteredAWBs(filtered as AWBData[]);
-  }, [currentAgent, searchTerm, statusFilter, paymentFilter, dateFilter]);
+  }, [currentAgent, searchTerm, statusFilter, dateFilter]);
 
   useEffect(() => {
     filterAWBs();
   }, [filterAWBs]);
 
-  const handleDownloadPDF = async (awb: AWBData) => {
-    setPrintData(awb);
+  const handleBulkPrintAWB = () => {
+    if (filteredAWBs.length === 0) {
+      alert('Tidak ada AWB untuk di-print');
+      return;
+    }
+
+    // Create query string with AWB numbers
+    const awbNumbers = filteredAWBs.map(awb => awb.awb_no).join(',');
+    const bulkPrintUrl = `/agent/bulk-print?awbs=${encodeURIComponent(awbNumbers)}`;
     
-    setTimeout(async () => {
-      const element = printFrameRef.current;
-      if (element) {
-        try {
-          // Add PDF-specific styling like in HistoryManifest.tsx
-          const pdfSpecificStyle = document.createElement('style');
-          pdfSpecificStyle.innerHTML = `
-            .payment-method-code {
-              font-size: 20px !important;
-              font-weight: bold !important;
-              width: 100% !important;
-              text-align: center !important;
-              margin-top: -1mm !important;
-              display: block !important;
-              position: relative !important;
-              top: -1mm !important;
-            }
-            .logo-qr {
-              padding-top: 0mm !important;
-            }
-            .shipping-details {
-              margin-top: -2mm !important;
-            }
-            .agent-code-box .agent-abbr-left {
-              position: relative !important;
-              top: -3mm !important;
-            }
-          `;
-          element.appendChild(pdfSpecificStyle);
-
-          // Import html2pdf
-          const html2pdf = await import('html2pdf.js');
-          
-          // Configuration for PDF
-          const options = {
-            filename: `${awb.awb_no}.pdf`,
-            margin: 0,
-            image: { 
-              type: 'jpeg', 
-              quality: 1.0 
-            },
-            html2canvas: { 
-              scale: 4,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: '#ffffff',
-              width: 378,
-              height: 378,
-              scrollX: 0,
-              scrollY: 0
-            },
-            jsPDF: { 
-              unit: 'mm', 
-              format: [100, 100] as [number, number], 
-              orientation: 'portrait',
-              compress: true
-            }
-          };
-          
-          // Generate PDF
-          await html2pdf.default()
-            .set(options)
-            .from(element)
-            .save();
-
-          // Remove style after PDF generation
-          element.removeChild(pdfSpecificStyle);
-            
-          setPrintData(null);
-        } catch (error) {
-          console.error('Error generating PDF:', error);
-          alert('Gagal membuat PDF. Silakan coba lagi.');
-          setPrintData(null);
-        }
-      }
-    }, 600);
+    // Open in new window
+    window.open(bulkPrintUrl, '_blank');
   };
 
   const getStatusColor = (status: string) => {
@@ -341,19 +264,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'unpaid':
-        return 'bg-red-100 text-red-800';
-      case 'partial':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
@@ -367,7 +277,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('');
-    setPaymentFilter('');
     setDateFilter('');
   };
 
@@ -385,7 +294,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Search AWB</Label>
               <div className="relative">
@@ -411,21 +320,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                   <SelectItem value="In Transit">In Transit</SelectItem>
                   <SelectItem value="Delivered">Delivered</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="payment-filter">Payment</Label>
-              <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Payment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Payment</SelectItem>
-                  <SelectItem value="Paid">Paid</SelectItem>
-                  <SelectItem value="Unpaid">Unpaid</SelectItem>
-                  <SelectItem value="Partial">Partial</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -462,16 +356,32 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
             <div className="text-sm text-gray-600">
               Found {filteredAWBs.length} AWB{filteredAWBs.length !== 1 ? 's' : ''}
             </div>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="bg-yellow-50">
-                Pending: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'pending').length}
-              </Badge>
-              <Badge variant="outline" className="bg-blue-50">
-                In Transit: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'in transit').length}
-              </Badge>
-              <Badge variant="outline" className="bg-green-50">
-                Delivered: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'delivered').length}
-              </Badge>
+            <div className="flex items-center gap-4">
+              <div className="flex gap-2">
+                <Badge variant="outline" className="bg-yellow-50">
+                  Pending: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'pending').length}
+                </Badge>
+                <Badge variant="outline" className="bg-blue-50">
+                  In Transit: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'in transit').length}
+                </Badge>
+                <Badge variant="outline" className="bg-green-50">
+                  Delivered: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'delivered').length}
+                </Badge>
+              </div>
+              
+              {filteredAWBs.length > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleBulkPrintAWB}
+                    variant="outline"
+                    size="sm"
+                    className="text-green-600 border-green-300 hover:bg-green-50"
+                  >
+                    <FaLayerGroup className="h-4 w-4 mr-2" />
+                    Bulk Print AWB
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -531,18 +441,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                         >
                           <FaPrint className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadPDF(awb);
-                          }}
-                          title="Download PDF Resi"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <FaDownload className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
                     
@@ -574,11 +472,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                         <Badge className={getStatusColor(awb.status)}>
                           {awb.status}
                         </Badge>
-                        {(awb as AWBData & { payment_status?: string }).payment_status && (
-                          <Badge className={getPaymentStatusColor((awb as AWBData & { payment_status?: string }).payment_status!)}>
-                            {(awb as AWBData & { payment_status?: string }).payment_status}
-                          </Badge>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -613,11 +506,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                           📦 {(selectedAWB as AWBData).shipment_status}
                         </Badge>
                     )}
-                    {(selectedAWB as AWBData & { payment_status?: string }).payment_status && (
-                      <Badge className={getPaymentStatusColor((selectedAWB as AWBData & { payment_status?: string }).payment_status!)}>
-                        {(selectedAWB as AWBData & { payment_status?: string }).payment_status}
-                      </Badge>
-                    )}
+
                   </div>
                 </div>
 
@@ -745,7 +634,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                 
                 <Separator />
                 
-                {/* Print and Download Buttons */}
+                {/* Print Button */}
                 <div className="flex justify-center gap-3 pt-4">
                   <Button
                     onClick={() => window.open(`/agent/print-label/${selectedAWB.awb_no}`, '_blank')}
@@ -753,13 +642,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                   >
                     <FaPrint className="h-4 w-4" />
                     Cetak Label
-                  </Button>
-                  <Button
-                    onClick={() => handleDownloadPDF(selectedAWB)}
-                    className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
-                  >
-                    <FaDownload className="h-4 w-4" />
-                    Download PDF
                   </Button>
                 </div>
               </div>
@@ -773,21 +655,6 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
           </CardContent>
         </Card>
       </div>
-
-      {/* Hidden print frame for PDF generation */}
-      {printData && (
-        <div 
-          ref={printFrameRef} 
-          style={{ 
-            position: 'absolute', 
-            left: '-9999px', 
-            width: '100mm', 
-            height: '100mm' 
-          }}
-        >
-          <PrintLayout data={printData} />
-        </div>
-      )}
     </div>
   );
 };

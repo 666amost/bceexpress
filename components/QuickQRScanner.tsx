@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FaCheckCircle, FaTimes, FaSpinner, FaQrcode } from "react-icons/fa"
 import { useToast } from "@/components/ui/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 
 interface QuickQRScannerProps {
@@ -51,118 +51,312 @@ interface BookingData {
 }
 
 export default function QuickQRScanner({ userRole, branchOrigin, onClose }: QuickQRScannerProps) {
-  const [scannedBooking, setScannedBooking] = useState<BookingData | null>(null)
-  const [isVerifying, setIsVerifying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const lastScannedRef = useRef<string>("")
+  const lastScanTimeRef = useRef<number>(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const isStoppingRef = useRef<boolean>(false)
   const { toast } = useToast()
 
   const validateAwb = useCallback((awb: string): boolean => {
     const cleanAwb = awb.trim().toUpperCase()
-    return cleanAwb.startsWith('BCE') && cleanAwb.endsWith('AGT')
+    // AWB harus dimulai dengan BCE dan minimal 6 karakter (BCE + kode agent)
+    return cleanAwb.startsWith('BCE') && cleanAwb.length >= 6
   }, [])
 
   const playScanSound = useCallback((status: 'success' | 'error') => {
-    const soundFile = status === 'success' ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3';
-    const audio = new Audio(soundFile);
-    audio.volume = 0.7; // Slightly higher volume for better feedback
-    audio.play().catch(() => {
+    // Stop any currently playing audio first
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+
+    const soundFile = status === 'success' ? '/sounds/scan_success.mp3' : '/sounds/scan_error.mp3'
+    audioRef.current = new Audio(soundFile)
+    audioRef.current.volume = 0.7
+    audioRef.current.play().catch(() => {
       // Silently handle audio play errors
-    });
+    })
   }, [])
 
-  const handleQRScan = useCallback((result: string) => {
-    if (result && !isLoading) {
-      const cleanAwb = result.trim().toUpperCase();
+  // Direct verification function - no intermediate booking view
+  const verifyBookingDirectly = useCallback(async (awbNo: string): Promise<void> => {
+    try {
+      setIsLoading(true)
       
-      if (!validateAwb(cleanAwb)) {
-        toast({
-          title: "Format AWB Tidak Valid",
-          description: "QR Code harus berformat AWB booking (BCE...AGT)",
-          variant: "destructive"
-        });
-        playScanSound('error');
-        return;
+      // First get booking data
+      let query = supabaseClient
+        .from('manifest_booking')
+        .select('*')
+        .eq('awb_no', awbNo)
+        .eq('status', 'pending')
+
+      // Filter by branch origin for cabang users
+      if (userRole === 'cabang' && branchOrigin) {
+        query = query.eq('origin_branch', branchOrigin)
       }
 
-      // Immediate processing without delay for faster response - inline to avoid circular dependency
-      setIsLoading(true)
-      setShowScanner(false)
-      
-      ;(async () => {
-        try {
-          let query = supabaseClient
-            .from('manifest_booking')
-            .select('*')
-            .eq('awb_no', cleanAwb)
-            .eq('status', 'pending')
+      const { data, error } = await query
 
-          // Filter by branch origin for cabang users
-          if (userRole === 'cabang' && branchOrigin) {
-            query = query.eq('origin_branch', branchOrigin)
-          }
+      if (error) {
+        playScanSound('error')
+        toast({
+          title: "Database Error",
+          description: "Gagal mengakses database: " + error.message,
+          variant: "destructive"
+        })
+        return
+      }
 
-          const { data, error } = await query
+      if (!data || data.length === 0) {
+        playScanSound('error')
+        toast({
+          title: "Booking Tidak Ditemukan",
+          description: `AWB ${awbNo} tidak ditemukan atau sudah diverifikasi`,
+          variant: "destructive"
+        })
+        return
+      }
 
-          if (error) {
-            toast({
-              title: "Error",
-              description: "Gagal mencari booking: " + error.message,
-              variant: "destructive"
-            })
-            setShowScanner(true)
-            return
-          }
+      const booking = data[0] as BookingData
 
-          if (data && data.length > 0) {
-            // Get agent details
-            const agentDetails = data[0].agent_id ? await getAgentDetails(data[0].agent_id) : { name: 'Unknown', email: 'Unknown' }
-            
-            const booking = {
-              ...data[0],
-              agent_name: agentDetails.name,
-              agent_email: agentDetails.email
-            }
-            
-            setScannedBooking(booking)
-            playScanSound('success')
-            setShowScanner(false)
-          } else {
-            toast({
-              title: "Booking Tidak Ditemukan",
-              description: `AWB ${cleanAwb} tidak ditemukan atau sudah diverifikasi`,
-              variant: "destructive"
-            })
-            playScanSound('error')
-            setShowScanner(true)
-          }
-        } catch (err) {
-          toast({
-            title: "Error",
-            description: "Terjadi kesalahan saat mencari booking",
-            variant: "destructive"
-          })
-          playScanSound('error')
-          setShowScanner(true)
-        } finally {
-          setIsLoading(false)
+      // Validate required fields before proceeding
+      if (!booking.awb_no || !booking.awb_date || !booking.kota_tujuan || !booking.nama_pengirim || !booking.nama_penerima) {
+        playScanSound('error')
+        toast({
+          title: "Data Tidak Lengkap",
+          description: "Booking ditemukan tetapi data tidak lengkap. Harap lengkapi data melalui verifikasi manual.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Get agent details separately if agent_id exists
+      let agentDetails: { name: string; email: string } = { name: 'Unknown Agent', email: 'unknown@email.com' }
+      if (booking.agent_id) {
+        const { data: userData, error: userError } = await supabaseClient
+          .from('users')
+          .select('name, email')
+          .eq('id', booking.agent_id)
+          .single()
+        
+        if (userData && !userError) {
+          agentDetails = userData
         }
-      })()
-    }
-  }, [isLoading, toast, validateAwb, playScanSound, userRole, branchOrigin]);
+      }
 
-  const startScanning = useCallback(async () => {
+      // Calculate totals
+      const subTotal: number = booking.sub_total || booking.total || 0
+      const total: number = booking.total || 0
+
+      // Update booking status to verified
+      const { error: updateError } = await supabaseClient
+        .from('manifest_booking')
+        .update({ 
+          status: 'verified',
+          verified_time: new Date().toISOString()
+        })
+        .eq('id', booking.id)
+
+      if (updateError) {
+        playScanSound('error')
+        toast({
+          title: "Error",
+          description: "Gagal mengupdate status booking: " + updateError.message,
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Get current user's origin_branch to ensure RLS compliance
+      const { data: currentUser, error: currentUserError } = await supabaseClient
+        .from('users')
+        .select('origin_branch, role')
+        .eq('id', (await supabaseClient.auth.getUser()).data.user?.id)
+        .single()
+
+      if (currentUserError) {
+        console.error('Error getting current user:', currentUserError)
+      }
+
+      // Use current user's origin_branch if available, otherwise use branchOrigin prop
+      const finalOriginBranch: string = currentUser?.origin_branch || branchOrigin || booking.origin_branch || 'unknown'
+
+      // Check if AWB already exists in manifest_cabang to prevent duplicates
+      const { data: existingManifest, error: checkError } = await supabaseClient
+        .from('manifest_cabang')
+        .select('awb_no')
+        .eq('awb_no', booking.awb_no)
+        .limit(1)
+
+      if (checkError) {
+        playScanSound('error')
+        toast({
+          title: "Error",
+          description: "Gagal memeriksa data existing: " + checkError.message,
+          variant: "destructive"
+        })
+        
+        // Rollback booking status
+        await supabaseClient
+          .from('manifest_booking')
+          .update({ status: 'pending' })
+          .eq('id', booking.id)
+        
+        return
+      }
+
+      if (existingManifest && existingManifest.length > 0) {
+        playScanSound('error')
+        toast({
+          title: "AWB Sudah Ada",
+          description: `AWB ${booking.awb_no} sudah ada di manifest cabang`,
+          variant: "destructive"
+        })
+        
+        // Rollback booking status
+        await supabaseClient
+          .from('manifest_booking')
+          .update({ status: 'pending' })
+          .eq('id', booking.id)
+        
+        return
+      }
+
+      // Insert into manifest_cabang with all required fields
+      const manifestData = {
+        awb_no: booking.awb_no,
+        awb_date: booking.awb_date,
+        kirim_via: booking.kirim_via || 'darat',
+        kota_tujuan: booking.kota_tujuan,
+        wilayah: booking.wilayah || booking.kecamatan || '',
+        metode_pembayaran: booking.metode_pembayaran || 'COD',
+        agent_customer: agentDetails.email || agentDetails.name || 'Unknown',
+        nama_pengirim: booking.nama_pengirim,
+        nomor_pengirim: booking.nomor_pengirim || '',
+        nama_penerima: booking.nama_penerima,
+        nomor_penerima: booking.nomor_penerima || '',
+        alamat_penerima: booking.alamat_penerima || '',
+        coli: booking.coli || 1,
+        berat_kg: booking.berat_kg || 1,
+        harga_per_kg: booking.harga_per_kg || 0,
+        sub_total: subTotal,
+        biaya_admin: booking.biaya_admin || 0,
+        biaya_packaging: booking.biaya_packaging || 0,
+        biaya_transit: booking.biaya_transit || 0,
+        total: total,
+        isi_barang: booking.isi_barang || '',
+        catatan: booking.catatan || `Auto-verified from QR scan on ${new Date().toISOString()}`,
+        buktimembayar: booking.buktimembayar || false,
+        potongan: booking.potongan || 0,
+        status_pelunasan: booking.status_pelunasan || 'outstanding',
+        origin_branch: finalOriginBranch
+      }
+
+      const { data: insertResult, error: insertError } = await supabaseClient
+        .from('manifest_cabang')
+        .insert([manifestData])
+        .select()
+
+      if (insertError) {
+        playScanSound('error')
+        toast({
+          title: "Error",
+          description: "Gagal memasukkan ke manifest: " + insertError.message,
+          variant: "destructive"
+        })
+        
+        // Rollback booking status update
+        const { error: rollbackError } = await supabaseClient
+          .from('manifest_booking')
+          .update({ status: 'pending' })
+          .eq('id', booking.id)
+        
+        if (rollbackError) {
+          console.error('Rollback error:', rollbackError)
+        }
+        
+        return
+      }
+
+      playScanSound('success')
+      toast({
+        title: "✅ Verifikasi Berhasil",
+        description: `AWB ${awbNo} telah diverifikasi dan ditransfer ke manifest`,
+        variant: "default"
+      })
+
+      // Reset scanner to continue scanning instead of closing
+      setTimeout(() => {
+        lastScannedRef.current = ""
+        lastScanTimeRef.current = 0
+        isStoppingRef.current = false
+        setShowScanner(true)
+      }, 2000)
+
+    } catch (error) {
+      playScanSound('error')
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan: " + (error instanceof Error ? error.message : 'Unknown error'),
+        variant: "destructive"
+      })
+    } finally {
+      isStoppingRef.current = false
+      setIsLoading(false)
+    }
+  }, [userRole, branchOrigin, playScanSound, toast])
+
+  const handleQRScan = useCallback((result: string): void => {
+    const now = Date.now()
+    const timeSinceLastScan = now - lastScanTimeRef.current
+    
+    if (result && !isLoading && !isStoppingRef.current) {
+      const cleanAwb = result.trim().toUpperCase()
+      
+      // Prevent duplicate scans within 5 seconds AND same AWB
+      if (cleanAwb === lastScannedRef.current && timeSinceLastScan < 5000) {
+        return
+      }
+      
+      lastScannedRef.current = cleanAwb
+      lastScanTimeRef.current = now
+      
+      if (!validateAwb(cleanAwb)) {
+        playScanSound('error')
+        toast({
+          title: "Format AWB Tidak Valid",
+          description: "QR Code harus berformat AWB booking (BCE + kode agent)",
+          variant: "destructive"
+        })
+        
+        // Reset after validation failure
+        setTimeout(() => {
+          lastScannedRef.current = ""
+        }, 3000)
+        return
+      }
+
+      // Call verification function immediately
+      verifyBookingDirectly(cleanAwb)
+    }
+  }, [isLoading, validateAwb, playScanSound, toast, verifyBookingDirectly])
+
+  const startScanning = useCallback(async (): Promise<void> => {
+    // Reset stopping flag at start
+    isStoppingRef.current = false
+    
     try {
       const devices = await Html5Qrcode.getCameras()
       if (devices.length === 0) {
-        throw new Error("No cameras found")
+        throw new Error("Tidak ada kamera yang tersedia")
       }
 
-      // Try to find back camera first, then fallback to any available camera
-      let deviceId = devices[0].id // Default to first camera
+      // Try to find back camera first
+      let deviceId: string = devices[0].id
       const backCamera = devices.find(device => 
         device.label.toLowerCase().includes('back') || 
         device.label.toLowerCase().includes('rear') ||
@@ -174,77 +368,26 @@ export default function QuickQRScanner({ userRole, branchOrigin, onClose }: Quic
 
       scannerRef.current = new Html5Qrcode("qr-reader")
       
-      // Try with optimized settings first
-      try {
-        await scannerRef.current.start(
-          deviceId,
-          {
-            fps: 30,
-            qrbox: { width: 320, height: 250 },
-            aspectRatio: 1.28,
-            videoConstraints: {
-              facingMode: "environment"
-            }
-          },
-          async (decodedText: string, result: Html5QrcodeResult) => {
-            if (decodedText === lastScannedRef.current) {
-              return
-            }
-            
-            lastScannedRef.current = decodedText
-            handleQRScan(decodedText)
-            
-            setTimeout(() => {
-              lastScannedRef.current = ""
-            }, 500)
-          },
-          (errorMessage: string) => {
-            // Silently ignore scan errors
-          }
-        )
-      } catch (firstAttemptError) {
-        console.warn("First attempt failed, trying with basic settings:", firstAttemptError)
-        
-        // Fallback to basic settings if advanced settings fail
-        await scannerRef.current.start(
-          deviceId,
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }
-          },
-          async (decodedText: string, result: Html5QrcodeResult) => {
-            if (decodedText === lastScannedRef.current) {
-              return
-            }
-            
-            lastScannedRef.current = decodedText
-            handleQRScan(decodedText)
-            
-            setTimeout(() => {
-              lastScannedRef.current = ""
-            }, 500)
-          },
-          (errorMessage: string) => {
-            // Silently ignore scan errors
-          }
-        )
-      }
+      await scannerRef.current.start(
+        deviceId,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+        },
+        (decodedText: string, result: Html5QrcodeResult) => {
+          handleQRScan(decodedText)
+        },
+        (errorMessage: string) => {
+          // Silently ignore scan errors
+        }
+      )
       
       setIsScanning(true)
+      isStoppingRef.current = false
 
-      // Try to enable torch (optional)
-      try {
-        const capabilities = scannerRef.current.getRunningTrackCameraCapabilities();
-        const torchFeature = capabilities?.torchFeature?.();
-        if (torchFeature) {
-          await torchFeature.apply(true);
-        }
-      } catch (err) {
-        // Torch not available, ignore
-      }
-
-    } catch (err) {
-      console.error("Failed to start camera:", err)
+    } catch (err: unknown) {
+      isStoppingRef.current = false
       toast({
         title: "Camera Error",
         description: "Gagal memulai kamera. Pastikan tidak ada aplikasi lain yang menggunakan kamera dan izin kamera sudah diberikan.",
@@ -253,36 +396,62 @@ export default function QuickQRScanner({ userRole, branchOrigin, onClose }: Quic
     }
   }, [handleQRScan, toast])
 
-  const stopScanning = useCallback(async () => {
-    if (scannerRef.current && isScanning) {
-      try {
-        await scannerRef.current.stop()
-        scannerRef.current.clear()
-        scannerRef.current = null
-        setIsScanning(false)
-      } catch (err) {
-        // Silently handle stop errors
+  const stopScanning = useCallback(async (): Promise<void> => {
+    // Prevent multiple stop attempts
+    if (isStoppingRef.current || !scannerRef.current || !isScanning) {
+      return
+    }
+
+    try {
+      isStoppingRef.current = true
+      
+      await scannerRef.current.stop()
+      scannerRef.current.clear()
+      scannerRef.current = null
+      setIsScanning(false)
+      
+    } catch (err: unknown) {
+      // Only log significant errors, ignore transition errors
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      if (!errorMessage.includes('transition') && !errorMessage.includes('already')) {
+        console.error("Error stopping scanner:", err)
       }
+    } finally {
+      // Always reset the stopping flag
+      setTimeout(() => {
+        isStoppingRef.current = false
+      }, 100)
     }
   }, [isScanning])
 
-  const handleQRScannerError = (error: string) => {
-    console.warn("QR Scanner Error:", error);
-  };
+  // Proper cleanup with camera stop
+  const handleClose = useCallback((): void => {
+    // Stop any playing audio
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    
+    // Stop scanner first, then close
+    stopScanning().finally(() => {
+      onClose()
+    })
+  }, [stopScanning, onClose])
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleEscape = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        onClose()
+        handleClose()
       }
     }
 
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+  }, [handleClose])
 
   useEffect(() => {
-    if (showScanner && !scannedBooking) {
+    if (showScanner && !isLoading) {
       // Start scanning when scanner should be shown
       const timer = setTimeout(() => {
         startScanning()
@@ -290,296 +459,130 @@ export default function QuickQRScanner({ userRole, branchOrigin, onClose }: Quic
 
       return () => {
         clearTimeout(timer)
-        stopScanning()
       }
     } else {
-      // Stop scanning when hiding scanner or when booking found
-      stopScanning()
+      // Stop scanning when hiding scanner or when loading
+      if (isScanning) {
+        stopScanning()
+      }
     }
-  }, [showScanner, scannedBooking, startScanning, stopScanning])
+  }, [showScanner, isLoading, startScanning, stopScanning, isScanning])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopScanning()
-    }
-  }, [stopScanning])
-
-  const getAgentDetails = async (agentId: string) => {
-    try {
-      const { data: userData, error } = await supabaseClient
-        .from('users')
-        .select('name, email')
-        .eq('id', agentId)
-        .single()
-      
-      if (error || !userData) {
-        return { name: 'Unknown Agent', email: 'unknown@email.com' }
-      }
-      
-      return userData
-    } catch (err) {
-      return { name: 'Unknown Agent', email: 'unknown@email.com' }
-    }
-  }
-
-  const handleVerify = async () => {
-    if (!scannedBooking) return
-
-    setIsVerifying(true)
-    try {
-      // Update status to verified
-      const { error: updateError } = await supabaseClient
-        .from('manifest_booking')
-        .update({ 
-          status: 'verified',
-          verified_time: new Date().toISOString()
+      // Clean up scanner
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {
+          // Silently handle any stop errors during cleanup
+        }).finally(() => {
+          if (scannerRef.current) {
+            try {
+              scannerRef.current.clear()
+            } catch {
+              // Silently handle clear errors
+            }
+            scannerRef.current = null
+          }
+          isStoppingRef.current = false
         })
-        .eq('id', scannedBooking.id)
-
-      if (updateError) throw updateError
-
-      // Insert into manifest_cabang with all required fields
-      const manifestData = {
-        awb_no: scannedBooking.awb_no,
-        awb_date: scannedBooking.awb_date,
-        kirim_via: scannedBooking.kirim_via || 'darat', // Default to 'darat' if not specified
-        kota_tujuan: scannedBooking.kota_tujuan,
-        wilayah: scannedBooking.wilayah || scannedBooking.kecamatan || '', // Use kecamatan as wilayah fallback
-        metode_pembayaran: scannedBooking.metode_pembayaran || 'COD', // Default to COD
-        agent_customer: scannedBooking.agent_email || scannedBooking.agent_name || 'Unknown',
-        nama_pengirim: scannedBooking.nama_pengirim,
-        nomor_pengirim: scannedBooking.nomor_pengirim,
-        nama_penerima: scannedBooking.nama_penerima,
-        nomor_penerima: scannedBooking.nomor_penerima,
-        alamat_penerima: scannedBooking.alamat_penerima,
-        coli: scannedBooking.coli,
-        berat_kg: scannedBooking.berat_kg,
-        harga_per_kg: scannedBooking.harga_per_kg || 0,
-        sub_total: scannedBooking.sub_total || scannedBooking.total || 0,
-        biaya_admin: scannedBooking.biaya_admin || 0,
-        biaya_packaging: scannedBooking.biaya_packaging || 0,
-        biaya_transit: scannedBooking.biaya_transit || 0,
-        total: scannedBooking.total,
-        isi_barang: scannedBooking.isi_barang,
-        catatan: scannedBooking.catatan || '',
-        buktimembayar: scannedBooking.buktimembayar || false,
-        potongan: scannedBooking.potongan || 0,
-        status_pelunasan: scannedBooking.status_pelunasan || 'belum_lunas',
-        origin_branch: scannedBooking.origin_branch || branchOrigin || 'unknown'
+      } else {
+        isStoppingRef.current = false
       }
-
-      const { error: insertError } = await supabaseClient
-        .from('manifest_cabang')
-        .insert([manifestData])
-
-      if (insertError) {
-        console.error('Insert error details:', insertError)
-        throw insertError
+      
+      // Clean up audio
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
       }
-
-      toast({
-        title: "Booking Berhasil Diverifikasi",
-        description: `AWB ${scannedBooking.awb_no} telah diverifikasi dan ditransfer ke manifest`,
-        variant: "default"
-      })
-
-      playScanSound('success') // Add success sound for verification
-      onClose()
-    } catch (error) {
-      console.error('Error verifying booking:', error)
-      toast({
-        title: "Error",
-        description: "Gagal memverifikasi booking: " + (error instanceof Error ? error.message : 'Unknown error'),
-        variant: "destructive"
-      })
-      playScanSound('error') // Add error sound for verification failure
-    } finally {
-      setIsVerifying(false)
     }
-  }
-
-  const handleCancel = () => {
-    setScannedBooking(null)
-    setShowScanner(true) // This will trigger useEffect to restart scanning
-  }
+  }, [])
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
+    <Dialog open={true} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg p-0">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="flex items-center gap-2">
             <FaQrcode className="h-5 w-5 text-blue-600" />
-            Scan QR AWB Booking
+            Quick AWB Verification
           </DialogTitle>
+          <DialogDescription>
+            Arahkan kamera ke QR Code AWB booking untuk verifikasi otomatis
+          </DialogDescription>
         </DialogHeader>
 
         <div className="p-6 pt-4">
-          {!scannedBooking ? (
-            // Scanner View
-            <div className="space-y-4">
-              {showScanner ? (
-                <>
-                  <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Arahkan kamera ke QR Code AWB booking
-                  </div>
-                  
-                  {/* QR Scanner Container */}
-                  <div className="relative border rounded-lg overflow-hidden">
-                    <div id="qr-reader" className="w-full min-h-[320px] rounded-lg overflow-hidden"></div>
-                    
-                    {/* Scanning indicator */}
-                    {isScanning && (
-                      <div className="absolute bottom-2 left-2 right-2">
-                        <div className="bg-black/50 text-white text-sm px-3 py-2 rounded-lg text-center flex items-center justify-center gap-2">
-                          {/* Minimalist search icon */}
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2"/><path d="M15 15L19 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-                          Scanning... Arahkan ke QR Code atau Barcode
-                        </div>
-                      </div>
-                    )}
-                    
-                    {isLoading && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
-                        <div className="text-white text-center">
-                          <FaSpinner className="h-8 w-8 animate-spin mx-auto mb-2" />
-                          <div className="text-sm">Mencari booking...</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="border rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-                  <FaQrcode className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-500 mb-4">Scanner dijeda</p>
-                  <Button onClick={() => setShowScanner(true)} variant="outline">
-                    Lanjutkan Scan
-                  </Button>
+          <div className="space-y-4">
+            {showScanner ? (
+              <>
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Arahkan kamera ke QR Code AWB booking untuk verifikasi langsung
                 </div>
-              )}
-            </div>
-          ) : (
-            // Booking Detail View
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  {/* AWB Info */}
-                  <div className="text-center pb-3 border-b">
-                    <h3 className="text-lg font-bold text-blue-600">
-                      {scannedBooking.awb_no}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {new Date(scannedBooking.awb_date).toLocaleDateString('id-ID')}
-                    </p>
-                  </div>
-
-                  {/* Agent Info */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase font-medium">Agent</div>
-                    <div className="text-sm font-medium">
-                      {scannedBooking.agent_name}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {scannedBooking.agent_email}
-                    </div>
-                  </div>
-
-                  {/* Sender & Receiver */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500 uppercase font-medium">Pengirim</div>
-                      <div className="text-sm font-medium">
-                        {scannedBooking.nama_pengirim}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {scannedBooking.nomor_pengirim}
+                
+                {/* QR Scanner Container */}
+                <div className="relative border rounded-lg overflow-hidden">
+                  <div id="qr-reader" className="w-full min-h-[320px] rounded-lg overflow-hidden"></div>
+                  
+                  {/* Scanning indicator */}
+                  {isScanning && !isLoading && (
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <div className="bg-black/50 text-white text-sm px-3 py-2 rounded-lg text-center flex items-center justify-center gap-2">
+                        {/* Minimalist search icon */}
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2"/>
+                          <path d="M15 15L19 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
+                        Scanning... Arahkan ke QR Code AWB
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-500 uppercase font-medium">Penerima</div>
-                      <div className="text-sm font-medium">
-                        {scannedBooking.nama_penerima}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {scannedBooking.nomor_penerima}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Destination */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase font-medium">Tujuan</div>
-                    <div className="text-sm font-medium">
-                      {scannedBooking.kota_tujuan}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {scannedBooking.kecamatan}
-                    </div>
-                  </div>
-
-                  {/* Package Details */}
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500 uppercase font-medium">Coli</div>
-                      <div className="text-sm font-bold">
-                        {scannedBooking.coli}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500 uppercase font-medium">Berat</div>
-                      <div className="text-sm font-bold">
-                        {scannedBooking.berat_kg} kg
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500 uppercase font-medium">Total</div>
-                      <div className="text-sm font-bold text-blue-600">
-                        Rp {scannedBooking.total.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Package Content */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase font-medium">Isi Barang</div>
-                    <div className="text-sm">
-                      {scannedBooking.isi_barang}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  onClick={handleCancel}
-                  variant="outline"
-                  className="flex-1 h-11"
-                  disabled={isVerifying}
-                >
-                  Scan Lagi
-                </Button>
-                <Button
-                  onClick={handleVerify}
-                  className="flex-1 h-11 bg-green-600 hover:bg-green-700 text-white"
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? (
-                    <>
-                      <FaSpinner className="h-4 w-4 animate-spin mr-2" />
-                      Verifikasi...
-                    </>
-                  ) : (
-                    <>
-                      <FaCheckCircle className="h-4 w-4 mr-2" />
-                      Verifikasi
-                    </>
                   )}
+                  
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
+                      <div className="text-white text-center">
+                        <FaSpinner className="h-8 w-8 animate-spin mx-auto mb-2" />
+                        <div className="text-sm">Memverifikasi booking...</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="border rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+                <FaQrcode className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500 mb-4">Scanner dijeda</p>
+                <Button 
+                  onClick={() => setShowScanner(true)} 
+                  variant="outline"
+                  disabled={isLoading}
+                >
+                  Lanjutkan Scan
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Action Button */}
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={handleClose}
+              variant="outline"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <FaSpinner className="h-4 w-4 animate-spin mr-2" />
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <FaTimes className="h-4 w-4 mr-2" />
+                  Tutup
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

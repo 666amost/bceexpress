@@ -400,7 +400,7 @@ export const AWBCreationForm: React.FC = () => {
                 name="awb_no"
                 value={formData.awb_no}
                 onChange={handleInputChange}
-                placeholder="BCE123456AGT"
+                placeholder="BCE123456XYZ"
                 required
                 readOnly
                 className="bg-gray-50"

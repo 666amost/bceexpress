@@ -33,7 +33,6 @@ export const AgentDashboard: React.FC = () => {
         status: awbData.status,
         total: awbData.total,
         created_at: awbData.created_at,
-        payment_status: undefined,
         verified_time: undefined
       };
       setSelectedAWB(convertedAWB);
@@ -213,7 +212,7 @@ export const AgentDashboard: React.FC = () => {
 
         {/* Main Content */}
         <div className="flex-1">
-          <div className="p-4 lg:p-8">
+          <div className="p-4 lg:p-8 pb-20 lg:pb-8">
             {/* Header */}
             <div className="mb-6">
               <div className="flex justify-between items-start">
