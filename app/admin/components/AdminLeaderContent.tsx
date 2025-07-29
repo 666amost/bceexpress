@@ -1,0 +1,1079 @@
+"use client"
+
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  UserMultiple as UserMultipleIcon,
+  Package as PackageIcon,
+  WarningFilled as WarningIcon,
+  CheckmarkFilled as CheckmarkIcon,
+  Search as SearchIcon,
+  Box as BoxIcon,
+  DeliveryParcel as DeliveryParcelIcon,
+  Renew as RefreshIcon,
+  ChartArea as ChartIcon,
+  LocationFilled as LocationPointIcon,
+} from '@carbon/icons-react';
+import { supabaseClient } from "@/lib/auth";
+import { Input } from "@/components/ui/input";
+import dynamic from 'next/dynamic';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Oval as LoadingIcon } from 'react-loading-icons';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+const CourierShipmentList = dynamic(() => import('@/components/courier-shipment-list').then(mod => mod.CourierShipmentList), { 
+  ssr: false, 
+  loading: () => (
+    <div className="flex justify-center items-center py-12">
+      <div className="text-center">
+        <LoadingIcon className="h-12 w-12 animate-spin mx-auto mb-4" style={{ color: '#4a5568', fontWeight: 'bold' }} />
+        <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">Loading shipments...</p>
+      </div>
+    </div>
+  )
+});
+
+const LeafletMap = dynamic(() => import('@/components/leaflet-map').then(mod => mod.LeafletMap), {
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center py-12">
+      <div className="text-center">
+        <LoadingIcon className="h-12 w-12 animate-spin mx-auto mb-4" style={{ color: '#4a5568', fontWeight: 'bold' }} />
+        <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">Loading map...</p>
+      </div>
+    </div>
+  )
+});
+
+// Interfaces
+interface Shipment {
+  awb_number: string;
+  current_status: string;
+  courier_id: string;
+  created_at: string;
+  updated_at: string;
+  city?: string;
+}
+
+interface Courier {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  latestLatitude?: number | null;
+  latestLongitude?: number | null;
+  latestLocationTime?: string | null;
+  latestAwb?: string | null;
+}
+
+interface SearchResult extends Shipment {
+  courier: string;
+}
+
+// Tambahkan tipe untuk live shipment activity
+interface LiveShipmentActivityItem {
+  awb_number: string;
+  current_status: string;
+  updated_at: string;
+  courier_name: string;
+  city?: string | null;
+}
+
+interface AdminLeaderContentProps {
+  activeView: 'overview' | 'couriers' | 'shipments' | 'search';
+  onTabChange: (tab: 'overview' | 'couriers' | 'shipments' | 'search') => void;
+}
+
+export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderContentProps) {
+  const router = useRouter();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [courierStats, setCourierStats] = useState<Record<string, { total: number; completed: number; pending: number }>>({});
+  const [totalShipments, setTotalShipments] = useState(0);
+  const [totalCompleted, setTotalCompleted] = useState(0);
+  const [totalPending, setTotalPending] = useState(0);
+  const [dailyTarget, setDailyTarget] = useState(0);
+  const [todayCompleted, setTodayCompleted] = useState(0);
+  const [manifestTotal, setManifestTotal] = useState(0); // Total resi dari manifest_cabang hari ini
+  const [pendingShipments, setPendingShipments] = useState<Shipment[]>([]);
+  const [dataRange, setDataRange] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | { error: string } | null>(null);
+  const [selectedCourier, setSelectedCourier] = useState<string | null>(null);
+  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
+  const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
+  const [isManifestModalOpen, setIsManifestModalOpen] = useState(false);
+  const [sortOption, setSortOption] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">('asc');
+  const [highPriorityThreshold, setHighPriorityThreshold] = useState(5);
+  const [prioritySort, setPrioritySort] = useState<boolean>(false);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
+  const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null);
+  const [hasActiveCouriers, setHasActiveCouriers] = useState<boolean>(false);
+  
+  // State untuk live shipment activity
+  const [liveShipments, setLiveShipments] = useState<LiveShipmentActivityItem[]>([]);
+  const [displayedShipments, setDisplayedShipments] = useState<LiveShipmentActivityItem[]>([]);
+  const liveListRef = useRef<HTMLDivElement>(null);
+
+  const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
+    setLastMapUpdateTime(lastUpdate);
+    setHasActiveCouriers(hasCouriers);
+  }, []);
+
+  const fetchLiveShipments = useCallback(async () => {
+    try {
+      // Ambil 3 shipment terakhir yang statusnya diupdate
+      const { data: shipments, error } = await supabaseClient
+        .from("shipments")
+        .select("*")
+        .order("updated_at", { ascending: false })
+        .limit(3);
+
+      if (error) {
+        setLiveShipments([]);
+        return;
+      }
+      
+      if (!shipments || shipments.length === 0) {
+        setLiveShipments([]);
+        return;
+      }
+
+      // Ambil nama kurir
+      const courierIds = shipments.map(s => s.courier_id).filter(Boolean);
+      let courierNames: Record<string, string> = {};
+      
+      if (courierIds.length > 0) {
+        const { data: courierData } = await supabaseClient
+          .from("users")
+          .select("id, name")
+          .in("id", courierIds);
+        
+        if (courierData) {
+          courierNames = courierData.reduce((acc, courier) => {
+            acc[courier.id] = courier.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+
+      const liveData = shipments.map(s => ({
+        awb_number: s.awb_number || "UNKNOWN",
+        current_status: s.current_status || "unknown",
+        updated_at: s.updated_at || new Date().toISOString(),
+        courier_name: courierNames[s.courier_id] || "Unknown",
+        city: s.city || null,
+      })).filter(item => item.awb_number !== "UNKNOWN");
+
+      setLiveShipments(liveData);
+    } catch {
+      setLiveShipments([]);
+    }
+  }, []);
+
+  const getDateRange = useCallback((days: number) => {
+    const now = new Date();
+    const endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+    const startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1), 0, 0, 0, 0));
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    };
+  }, []);
+
+  const loadDashboardData = useCallback(async (daysToLoad?: number) => {
+    setIsLoading(true);
+    const currentRange = daysToLoad !== undefined ? daysToLoad : dataRange;
+    
+    try {
+      const { startDate, endDate } = getDateRange(currentRange);
+
+      const { data: courierData, error: courierError } = await supabaseClient
+        .from("users")
+        .select("id, name, email, role")
+        .or("role.eq.courier,role.eq.couriers")
+        .order("name", { ascending: true });
+
+      if (courierError || !courierData) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: recentShipments, error: shipmentsError } = await supabaseClient
+        .from("shipments")
+        .select("awb_number, current_status, courier_id, created_at, updated_at")
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .order("created_at", { ascending: false });
+
+      if (shipmentsError) {
+        setIsLoading(false);
+        return;
+      }
+
+      const shipmentsData = recentShipments || [];
+
+      const [totalCountResult, completedCountResult] = await Promise.all([
+        supabaseClient
+          .from("shipments")
+          .select("*", { count: 'exact', head: true })
+          .gte("created_at", startDate)
+          .lte("created_at", endDate),
+        supabaseClient
+          .from("shipments")
+          .select("*", { count: 'exact', head: true })
+          .eq("current_status", "delivered")
+          .gte("created_at", startDate)
+          .lte("created_at", endDate)
+      ]);
+
+      const stats: Record<string, { total: number; completed: number; pending: number }> = {};
+      const allPendingShipments: Shipment[] = [];
+      let totalShipmentCount = totalCountResult.count || 0;
+      let totalCompletedCount = completedCountResult.count || 0;
+      let totalPendingCount = 0;
+
+      const shipmentsByCourier = shipmentsData.reduce((acc, shipment) => {
+        if (!acc[shipment.courier_id]) {
+          acc[shipment.courier_id] = [];
+        }
+        acc[shipment.courier_id].push(shipment);
+        return acc;
+      }, {} as Record<string, Shipment[]>);
+
+      courierData.forEach((courier) => {
+        const courierShipments = shipmentsByCourier[courier.id] || [];
+        const total = courierShipments.length;
+        const completed = courierShipments.filter((s) => s.current_status === "delivered").length;
+        const pendingShipmentsList = courierShipments.filter((s) => s.current_status !== "delivered");
+        const pending = pendingShipmentsList.length;
+
+        stats[courier.id] = { total, completed, pending };
+        totalPendingCount += pending;
+
+        allPendingShipments.push(...pendingShipmentsList.slice(0, 50).map(shipment => ({ 
+          ...shipment, 
+          courier_id: courier.id 
+        })));
+      });
+
+      setCouriers(courierData);
+      setCourierStats(stats);
+      setTotalShipments(totalShipmentCount);
+      setTotalCompleted(totalCompletedCount);
+      setTotalPending(totalPendingCount);
+      setPendingShipments(allPendingShipments.slice(0, 100));
+
+      // Fetch daily target (total shipments for today)
+      const { startDate: todayStart, endDate: todayEnd } = getDateRange(1);
+      const { count: dailyTargetCount } = await supabaseClient
+        .from("shipments")
+        .select("*", { count: 'exact', head: true })
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      
+      // Fetch today completed
+      const { count: todayCompletedCount } = await supabaseClient
+        .from("shipments")
+        .select("*", { count: 'exact', head: true })
+        .eq("current_status", "delivered")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+
+      setDailyTarget(dailyTargetCount || 0);
+      setTodayCompleted(todayCompletedCount || 0);
+
+      // Fetch manifest total (total resi dari manifest_cabang hari ini)
+      const { count: manifestTotalCount } = await supabaseClient
+        .from("manifest_cabang")
+        .select("*", { count: 'exact', head: true })
+        .gte("awb_date", todayStart.split('T')[0]) // awb_date adalah date, jadi ambil bagian tanggal saja
+        .lte("awb_date", todayEnd.split('T')[0]);
+
+      setManifestTotal(manifestTotalCount || 0);
+
+    } catch (err) {
+      // Handle error silently
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataRange, getDateRange]);
+
+  const sortedCouriers = useMemo(() => {
+    const sortableCouriers = [...couriers];
+    
+    if (prioritySort) {
+      sortableCouriers.sort((a, b) => {
+        const pendingA = courierStats[a.id]?.pending || 0;
+        const pendingB = courierStats[b.id]?.pending || 0;
+        
+        if (pendingA > highPriorityThreshold && pendingB <= highPriorityThreshold) return -1;
+        if (pendingA <= highPriorityThreshold && pendingB > highPriorityThreshold) return 1;
+        
+        return pendingB - pendingA;
+      });
+      return sortableCouriers;
+    }
+    
+    sortableCouriers.sort((a, b) => {
+      let valA: string | number;
+      let valB: string | number;
+
+      if (sortOption === 'name') {
+        valA = a.name.toLowerCase();
+        valB = b.name.toLowerCase();
+      } else if (sortOption === 'total') {
+        valA = courierStats[a.id]?.total || 0;
+        valB = courierStats[b.id]?.total || 0;
+      } else if (sortOption === 'pending') {
+        valA = courierStats[a.id]?.pending || 0;
+        valB = courierStats[b.id]?.pending || 0;
+      } else if (sortOption === 'completed') {
+        valA = courierStats[a.id]?.completed || 0;
+        valB = courierStats[b.id]?.completed || 0;
+      } else {
+        valA = a.name.toLowerCase();
+        valB = b.name.toLowerCase();
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sortableCouriers;
+  }, [couriers, courierStats, sortOption, sortOrder, prioritySort, highPriorityThreshold]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Saat data baru masuk, update displayedShipments dengan animasi scroll
+  useEffect(() => {
+    if (liveShipments.length === 0) return;
+    
+    // Jika data berubah (ada data baru di liveShipments[0]), animasi scroll
+    if (
+      displayedShipments.length > 0 &&
+      liveShipments[0]?.awb_number !== displayedShipments[0]?.awb_number
+    ) {
+      // Animasi scroll ke bawah
+      if (liveListRef.current) {
+        liveListRef.current.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+          setDisplayedShipments(liveShipments.slice(0, 3));
+          if (liveListRef.current) {
+            liveListRef.current.style.transform = 'translateY(0)';
+          }
+        }, 250);
+      } else {
+        setDisplayedShipments(liveShipments.slice(0, 3));
+      }
+    } else if (displayedShipments.length === 0) {
+      setDisplayedShipments(liveShipments.slice(0, 3));
+    }
+  }, [displayedShipments, liveShipments]);
+
+  // Auto-refresh live shipment activity setiap 10 detik
+  useEffect(() => {
+    fetchLiveShipments();
+    const interval = setInterval(fetchLiveShipments, 10000);
+    return () => clearInterval(interval);
+  }, [fetchLiveShipments]);
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    loadDashboardData();
+  };
+
+  const handleRangeChange = (days: number) => {
+    setDataRange(days);
+    setIsLoading(true);
+    loadDashboardData(days);
+  };
+
+  const handleSearch = async () => {
+    setSearchResults(null);
+    if (!searchQuery.trim()) return;
+
+    const { data: awbShipment, error: awbError } = await supabaseClient
+      .from('shipments')
+      .select('*, updated_at')
+      .eq('awb_number', searchQuery.trim())
+      .single();
+
+    if (awbShipment) {
+      const { data: courierData } = await supabaseClient
+        .from('users')
+        .select('name')
+        .eq('id', awbShipment.courier_id)
+        .single();
+      setSearchResults([{
+        ...awbShipment,
+        courier: courierData?.name || 'Unknown',
+      }]);
+      return;
+    }
+
+    const { data: couriersFound, error: courierSearchError } = await supabaseClient
+      .from('users')
+      .select('id, name')
+      .ilike('name', `%${searchQuery.trim()}%`);
+
+    if (couriersFound && couriersFound.length > 0) {
+      const courierIds = couriersFound.map(c => c.id);
+      const { startDate, endDate } = getDateRange(dataRange);
+      const { data: courierShipments, error: shipmentsByCourierError } = await supabaseClient
+        .from('shipments')
+        .select('*, updated_at')
+        .in('courier_id', courierIds)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .order('updated_at', { ascending: false });
+
+      if (courierShipments && courierShipments.length > 0) {
+        const resultsWithCourierNames = courierShipments.map(shipment => {
+          const matchedCourier = couriersFound.find(c => c.id === shipment.courier_id);
+          return {
+            ...shipment,
+            courier: matchedCourier?.name || 'Unknown',
+          };
+        });
+        setSearchResults(resultsWithCourierNames);
+        return;
+      }
+    }
+
+    setSearchResults({ error: 'No shipments or couriers found in filter ini' });
+  };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex justify-center items-center">
+          <div className="text-center">
+            <LoadingIcon className="h-16 w-16 animate-spin mx-auto mb-4" style={{ color: '#1e40af', fontWeight: 'bold' }} />
+            <p className="text-blue-900 font-semibold animate-pulse">Loading Dashboard...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Overview view (main dashboard)
+    if (activeView === 'overview') {
+      return (
+        <div className="space-y-6">
+          {/* Header with filters */}
+          <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+            <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-blue-900">BCE Express Dashboard</h2>
+                <p className="text-sm text-gray-600 mt-1">Monitoring For Couriers BCE Express</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 7, 14, 30].map((days) => (
+                  <Button 
+                    key={days}
+                  variant={dataRange === days ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleRangeChange(days)}
+                  className={`${dataRange === days 
+                    ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                    : "border-blue-200 text-blue-700 hover:bg-blue-50"}`}
+                >
+                  {days}d
+                </Button>
+              ))}
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              >
+                <RefreshIcon className="h-4 w-4 mr-1" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards Grid - 2x2 on mobile, 4 columns on desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-6 mb-4 sm:mb-6">
+          {/* Live Shipment Activity Card - hanya tampil di desktop */}
+          <div className="hidden lg:flex relative col-span-1 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg border border-blue-500 p-3 text-center flex-col aspect-square overflow-hidden">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white text-blue-600 shadow-md">
+                Live Activity ({liveShipments.length})
+              </span>
+            </div>
+            <div className="flex-1 flex flex-col justify-center overflow-hidden">
+              <div
+                ref={liveListRef}
+                className="w-full flex flex-col gap-1 transition-transform duration-500 overflow-hidden"
+              >
+                {displayedShipments.slice(0, 2).map((item, idx) => (
+                  <div
+                    key={item.awb_number}
+                    className={`rounded-lg px-2 py-1.5 flex flex-col text-left border border-blue-300 bg-white/90 shadow-sm ${idx === 0 ? "font-bold" : "opacity-80"}`}
+                  >
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="font-mono font-bold text-blue-700 text-xs truncate">{item.awb_number}</span>
+                      {item.current_status === 'delivered' ? (
+                        <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-1 py-0.5 flex-shrink-0">✓</span>
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded px-1 py-0.5 flex-shrink-0">●</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      <span className="font-semibold text-gray-700">{item.courier_name}</span>
+                      <span className="mx-1">•</span>
+                      <span>{new Date(item.updated_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                ))}
+                {displayedShipments.length === 0 && (
+                  <div className="flex flex-col items-center justify-center text-center py-4">
+                    <svg className="h-6 w-6 text-white mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+                    </svg>
+                    <span className="text-white text-xs">No recent activity</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {displayedShipments.length > 2 && (
+              <div className="mt-1 text-xs text-blue-100 font-medium">
+                +{displayedShipments.length - 2} more
+              </div>
+            )}
+          </div>
+          
+          {/* Card statistik - grid 2x2 di mobile, 4 kolom di desktop */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl sm:rounded-2xl shadow-lg border border-blue-400 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 aspect-square flex flex-col justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-white/20 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <DeliveryParcelIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-white" />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-white block mb-1">
+              {dataRange === 1 ? "Today's" : "Recent"}
+            </span>
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-white">{totalShipments}</span>
+            <span className="text-xs text-blue-100 block">shipments</span>
+          </div>
+          
+          <div className="bg-gradient-to-br from-red-500 to-red-700 rounded-xl sm:rounded-2xl shadow-lg border border-red-400 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 aspect-square flex flex-col justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-white/20 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 relative">
+              <WarningIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-white" />
+              {totalPending > 0 && (
+                <span className="absolute w-2 h-2 bg-yellow-400 rounded-full animate-ping top-0 right-0" />
+              )}
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-white block mb-1">Pending</span>
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-white block">
+              {totalPending}
+            </span>
+            <Button onClick={() => setIsPendingModalOpen(true)} variant="link" size="sm" className="text-xs p-0 h-auto text-red-100 hover:text-white mt-1">
+              (view details)
+            </Button>
+          </div>
+          
+          <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-xl sm:rounded-2xl shadow-lg border border-green-400 p-3 sm:p-4 lg:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 aspect-square flex flex-col justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-white/20 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <CheckmarkIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-white" />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-white block mb-1">Completed</span>
+            <span className="text-xl sm:text-2xl lg:text-4xl font-black text-white">{totalCompleted}</span>
+            <span className="text-xs text-green-100 block">deliveries</span>
+          </div>
+          
+          {/* Progress Pengiriman Hari Ini - Card ke-4 di mobile, sejajar dalam grid 2x2 */}
+          <div className="lg:hidden bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg border border-blue-400 p-3 text-center flex flex-col justify-center items-center aspect-square">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2">
+              <ChartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+            </div>
+            <span className="text-xs font-bold text-white block mb-1">Progress</span>
+            <div className="flex items-center justify-center text-xs mb-2">
+              <span className="font-bold text-white">{todayCompleted}</span>
+              <span className="text-blue-100 mx-1">/</span>
+              <span className="font-bold text-white">{dailyTarget}</span>
+            </div>
+            <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-white h-2 rounded-full transition-all duration-500"
+                style={{ width: `${dailyTarget > 0 ? Math.min(100, Math.round((todayCompleted/dailyTarget)*100)) : 0}%` }}
+              ></div>
+            </div>
+            <span className="text-xs text-blue-100 mt-1">today</span>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
+          <h3 className="text-lg font-bold text-blue-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white h-12 w-full text-sm sm:text-base"
+              onClick={() => setIsLocationMapOpen(true)}
+            >
+              <LocationPointIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              View Courier Locations
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-red-200 text-red-700 hover:bg-red-50 h-12 w-full text-sm sm:text-base"
+              onClick={() => setIsPendingModalOpen(true)}
+            >
+              <WarningIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              View Pending Shipments
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-green-200 text-green-700 hover:bg-green-50 h-12 w-full text-sm sm:text-base sm:col-span-2 lg:col-span-1"
+              onClick={() => setIsManifestModalOpen(true)}
+            >
+              <ChartIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              View Manifest ({manifestTotal})
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Live Activity Section - only visible on mobile */}
+        <div className="lg:hidden bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg border border-blue-500 p-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-lg font-bold px-3 py-1 rounded-full bg-white text-blue-600 shadow-md">
+              Live Activity ({liveShipments.length})
+            </span>
+          </div>
+          <div className="space-y-3">
+            {displayedShipments.slice(0, 3).map((item, idx) => (
+              <div
+                key={item.awb_number}
+                className={`rounded-lg px-3 py-3 border border-blue-300 bg-white/90 ${idx === 0 ? "font-bold" : "opacity-80"}`}
+              >
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="font-mono font-bold text-blue-700 text-sm">{item.awb_number}</span>
+                  {item.current_status === 'delivered' ? (
+                    <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-2 py-0.5">Delivered</span>
+                  ) : (
+                    <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5 capitalize">{item.current_status.replace(/_/g, " ")}</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
+                  <span>by <span className="font-semibold text-gray-800">{item.courier_name}</span></span>
+                  <span>•</span>
+                  <span>{new Date(item.updated_at).toLocaleTimeString()}</span>
+                  {item.city && (
+                    <>
+                      <span>•</span>
+                      <span>{item.city}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            {displayedShipments.length === 0 && (
+              <div className="py-6 flex flex-col items-center justify-center">
+                <svg className="h-6 w-6 text-white mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+                </svg>
+                <span className="text-white text-sm">No recent shipment activity</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Couriers view
+  if (activeView === 'couriers') {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-between mb-4">
+          <Button
+            variant={prioritySort ? "default" : "outline"}
+            onClick={() => setPrioritySort(!prioritySort)}
+            className={`${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-blue-200 text-blue-700 hover:bg-blue-50'}`}
+          >
+            {prioritySort ? "Priority: ON" : "Priority: OFF"}
+          </Button>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                  Sort By: {sortOption === 'name' ? 'Name' : sortOption === 'total' ? 'Total' : sortOption === 'pending' ? 'Pending' : 'Completed'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setSortOption('name')}>Name</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortOption('total')}>Total Shipments</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortOption('pending')}>Pending</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortOption('completed')}>Completed</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedCouriers.map((courier) => (
+            <div
+              key={courier.id}
+              className={`bg-white rounded-xl shadow-lg border p-4 transition-all duration-300 cursor-pointer hover:shadow-xl ${
+                selectedCourier === courier.id 
+                  ? "border-blue-500 bg-blue-50" 
+                  : courierStats[courier.id]?.pending > highPriorityThreshold
+                  ? "border-red-300"
+                  : "border-blue-100 hover:border-blue-300"
+              }`}
+              onClick={() => setSelectedCourier(courier.id)}
+              onDoubleClick={() => {
+                setSelectedCourier(courier.id);
+                onTabChange("shipments");
+              }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-full ${
+                  courierStats[courier.id]?.pending > highPriorityThreshold
+                  ? 'bg-red-100'
+                  : 'bg-blue-100'
+                } flex items-center justify-center`}>
+                  <UserMultipleIcon className={`h-6 w-6 ${
+                    courierStats[courier.id]?.pending > highPriorityThreshold
+                    ? 'text-red-600'
+                    : 'text-blue-600'
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-blue-900 truncate">
+                    {courier.name}
+                    {courierStats[courier.id]?.pending > highPriorityThreshold && (
+                      <span className="inline-flex items-center ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Priority
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-gray-500 truncate">{courier.email}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <BoxIcon className="h-4 w-4 text-blue-600 mx-auto mb-1" />
+                  <span className="text-base font-bold text-blue-900 block">{courierStats[courier.id]?.total || 0}</span>
+                  <span className="text-xs text-gray-500">Total</span>
+                </div>
+                <div className="bg-red-50 rounded-lg p-2">
+                  <WarningIcon className="h-4 w-4 text-red-600 mx-auto mb-1" />
+                  <span className="text-base font-bold text-red-600 block">{courierStats[courier.id]?.pending || 0}</span>
+                  <span className="text-xs text-gray-500">Pending</span>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2">
+                  <CheckmarkIcon className="h-4 w-4 text-green-600 mx-auto mb-1" />
+                  <span className="text-base font-bold text-green-600 block">{courierStats[courier.id]?.completed || 0}</span>
+                  <span className="text-xs text-gray-500">Done</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Shipments view
+  if (activeView === 'shipments') {
+    return (
+      <div className="space-y-6">
+        {selectedCourier ? (
+          <CourierShipmentList courierId={selectedCourier} dataRange={dataRange} />
+        ) : (
+          <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-blue-100">
+            <BoxIcon className="h-16 w-16 text-blue-400 mx-auto mb-4" />
+            <p className="text-blue-900 font-semibold">Select a courier from the Couriers tab to view their shipments</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Search view
+  if (activeView === 'search') {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+          <div className="max-w-md mx-auto">
+            <div className="mb-4 flex gap-2">
+              <Input 
+                placeholder="Enter AWB number or courier name..." 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch();
+                  }
+                }}
+                className="border-blue-200 focus:border-blue-500"
+              />
+              <Button 
+                onClick={handleSearch}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <SearchIcon className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            {searchResults ? (
+              Array.isArray(searchResults) ? (
+                searchResults.length > 0 ? (
+                  <div className="space-y-3">
+                    {searchResults.map((shipment) => (
+                      <Card key={shipment.awb_number} className="border-blue-200">
+                        <CardContent className="p-4">
+                          <p><strong>AWB Number:</strong> {shipment.awb_number}</p>
+                          <p><strong>Courier:</strong> {shipment.courier}</p>
+                          <p><strong>Status:</strong> {shipment.current_status?.replace(/_/g, " ") || "N/A"}</p>
+                          {shipment.updated_at && (
+                            <p><strong>Last Updated:</strong> {new Date(shipment.updated_at).toLocaleString()}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center">No shipments found.</p>
+                )
+              ) : (
+                <p className="text-red-600 text-center">{searchResults.error}</p>
+              )
+            ) : (
+              <div className="text-center py-8">
+                <SearchIcon className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+                <p className="text-blue-900 font-semibold">Enter AWB number or courier name to search</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+    // Search view
+    if (activeView === 'search') {
+      return (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+            <div className="max-w-md mx-auto">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Enter AWB number or courier name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 border-blue-200 focus:border-blue-500"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <SearchIcon className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+              </div>
+            </div>
+
+            {searchResults ? (
+              Array.isArray(searchResults) ? (
+                searchResults.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {searchResults.map((shipment) => (
+                      <Card key={shipment.awb_number} className="border-blue-100">
+                        <CardContent className="p-4">
+                          <h3 className="font-bold text-blue-900">AWB: {shipment.awb_number}</h3>
+                          <p><strong>Courier:</strong> {shipment.courier}</p>
+                          <p><strong>Status:</strong> {shipment.current_status?.replace(/_/g, " ") || "N/A"}</p>
+                          {shipment.updated_at && (
+                            <p><strong>Last Updated:</strong> {new Date(shipment.updated_at).toLocaleString()}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center">No shipments found.</p>
+                )
+              ) : (
+                <p className="text-red-600 text-center">{searchResults.error}</p>
+              )
+            ) : (
+              <div className="text-center py-8">
+                <SearchIcon className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+                <p className="text-blue-900 font-semibold">Enter AWB number or courier name to search</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div>
+      {renderContent()}
+      
+      {/* Pending Modal */}
+      <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
+        <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] rounded-lg shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 font-bold flex items-center gap-2">
+              <div className="relative">
+                <WarningIcon className="h-5 w-5" />
+                {pendingShipments.length > 0 && (
+                  <span className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping -top-1 -right-1" />
+                )}
+              </div>
+              Pending Deliveries (Top 100)
+              {pendingShipments.length > 0 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  {pendingShipments.length} Items
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[50vh]">
+            {pendingShipments.length > 0 ? (
+              <div className="space-y-2">
+                {pendingShipments.map((shipment) => (
+                  <div key={shipment.awb_number} className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-red-900">AWB: {shipment.awb_number}</p>
+                        <p className="text-sm text-red-700">Status: {shipment.current_status?.replace(/_/g, " ") || "N/A"}</p>
+                        {shipment.city && (
+                          <p className="text-sm text-red-600">City: {shipment.city}</p>
+                        )}
+                        <p className="text-xs text-red-500">
+                          Updated: {new Date(shipment.updated_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">No pending shipments found</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Location Map Modal */}
+      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] p-6 rounded-lg shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-blue-900 font-bold flex items-center gap-2 justify-between">
+              <div className="flex items-center gap-2">
+                <LocationPointIcon className="h-5 w-5" />
+                Live Courier Locations
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span className="w-2 h-2 mr-1 bg-green-500 rounded-full animate-pulse"></span>
+                  Auto-update
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMapRefreshKey(prev => prev + 1)}
+                  className="h-8 px-3 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <RefreshIcon className="h-3 w-3 mr-1" />
+                  Refresh Now
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="h-[60vh] w-full">
+            {isLocationMapOpen && <LeafletMap key={mapRefreshKey} onCouriersUpdated={handleCouriersUpdated} />}
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-gray-500">
+              {lastMapUpdateTime ? `Last Updated: ${new Date(lastMapUpdateTime).toLocaleTimeString()}` : 'Loading map data...'}
+            </p>
+            <p className="text-xs text-blue-600 flex items-center">
+              <span className="w-2 h-2 mr-1 bg-blue-500 rounded-full animate-pulse"></span>
+              {hasActiveCouriers ? `${couriers.filter(c => c.latestLatitude && c.latestLongitude).length} Active Couriers` : 'No Active Couriers'}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manifest Modal */}
+      <Dialog open={isManifestModalOpen} onOpenChange={setIsManifestModalOpen}>
+        <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] rounded-lg shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-green-600 font-bold flex items-center gap-2">
+              <ChartIcon className="h-5 w-5" />
+              Incoming Today
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                {manifestTotal} AWB
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-green-900">Total Resi Hari Ini</h3>
+                  <p className="text-sm text-green-700">
+                    {new Date().toLocaleDateString('id-ID', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-black text-green-600">{manifestTotal}</div>
+                  <div className="text-sm text-green-500">AWB Numbers</div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="bg-white rounded-lg p-3 border border-green-100">
+                  <div className="text-sm text-green-700">Progress vs Manifest</div>
+                  <div className="text-lg font-bold text-green-900">
+                    {manifestTotal > 0 ? Math.round((todayCompleted / manifestTotal) * 100) : 0}%
+                  </div>
+                  <div className="w-full bg-green-200 rounded-full h-2 mt-1">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${manifestTotal > 0 ? Math.min(100, Math.round((todayCompleted / manifestTotal) * 100)) : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-lg p-3 border border-green-100">
+                  <div className="text-sm text-green-700">Remaining</div>
+                  <div className="text-lg font-bold text-green-900">
+                    {Math.max(0, manifestTotal - todayCompleted)}
+                  </div>
+                  <div className="text-xs text-green-600">AWB to deliver</div>
+                </div>
+              </div>
+              
+              <div className="mt-4 text-xs text-green-600">
+                <p>• Total AWB in manifest: <strong>{manifestTotal}</strong></p>
+                <p>• Completed today: <strong>{todayCompleted}</strong></p>
+                <p>• From shipments table: <strong>{dailyTarget}</strong></p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
