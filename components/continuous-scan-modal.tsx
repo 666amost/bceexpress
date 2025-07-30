@@ -1,4 +1,16 @@
+
 "use client"
+// Type guard for BranchManifestData (Borneo manifest)
+function isBranchManifestData(data: unknown): data is import("@/types").BranchManifestData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'pengirim' in data &&
+    'penerima' in data &&
+    typeof (data as { pengirim?: unknown }).pengirim === 'object' &&
+    typeof (data as { penerima?: unknown }).penerima === 'object'
+  );
+}
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -136,6 +148,33 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         }
       }
 
+      // 3. Jika tidak ditemukan di manifest lokal, cek web cabang Borneo untuk BE resi
+      if (cleanAwb.startsWith('BE')) {
+        try {
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${cleanAwb}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const borneoBranchManifest = branchData.data;
+              
+              // Map Borneo data to same format as manifest_cabang
+              return {
+                nama_penerima: borneoBranchManifest.penerima?.nama_penerima || '',
+                alamat_penerima: borneoBranchManifest.penerima?.alamat_penerima || '',
+                nomor_penerima: borneoBranchManifest.penerima?.no_penerima || '',
+                pengirim: borneoBranchManifest.pengirim,
+                penerima: borneoBranchManifest.penerima,
+                manifest_source: "borneo_branch"
+              };
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from Borneo branch:', branchError);
+        }
+      }
+
       return null
     } catch (err) {
       return null
@@ -144,15 +183,37 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
 
   const createShipmentWithManifestData = async (awb: string, manifestData: Record<string, unknown>, courierId: string) => {
     try {
-      // Pastikan data lengkap dan valid
+      let senderName = "Auto Generated";
+      let senderAddress = "Auto Generated";
+      let senderPhone = "Auto Generated";
+      let receiverName = "Auto Generated";
+      let receiverAddress = "Auto Generated";
+      let receiverPhone = "Auto Generated";
+
+      if (manifestData.manifest_source === "borneo_branch" && isBranchManifestData(manifestData)) {
+        // Selalu gunakan data dari Borneo manifest jika ditemukan
+        const borneoData = manifestData;
+        senderName = borneoData.pengirim?.nama_pengirim || "";
+        senderAddress = borneoData.pengirim?.alamat_pengirim || "";
+        senderPhone = borneoData.pengirim?.no_pengirim || "";
+        receiverName = borneoData.penerima?.nama_penerima || "";
+        receiverAddress = borneoData.penerima?.alamat_penerima || "";
+        receiverPhone = borneoData.penerima?.no_penerima || "";
+      } else {
+        // Fallback ke manifest cabang/central
+        receiverName = (manifestData.nama_penerima as string) || "Auto Generated";
+        receiverAddress = (manifestData.alamat_penerima as string) || "Auto Generated";
+        receiverPhone = (manifestData.nomor_penerima as string) || "Auto Generated";
+      }
+
       const shipmentData = {
         awb_number: awb,
-        sender_name: "Auto Generated",
-        sender_address: "Auto Generated",
-        sender_phone: "Auto Generated",
-        receiver_name: manifestData.nama_penerima || "Auto Generated",
-        receiver_address: manifestData.alamat_penerima || "Auto Generated",
-        receiver_phone: manifestData.nomor_penerima || "Auto Generated",
+        sender_name: senderName,
+        sender_address: senderAddress,
+        sender_phone: senderPhone,
+        receiver_name: receiverName,
+        receiver_address: receiverAddress,
+        receiver_phone: receiverPhone,
         weight: 1, // Default weight
         dimensions: "10x10x10", // Default dimensions
         service_type: "Standard",
@@ -161,10 +222,16 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         updated_at: new Date().toISOString(),
         courier_id: courierId,
       };
-      
+
       await supabaseClient.from("shipments").insert([shipmentData])
-      
-      const source = manifestData.manifest_source === "central" ? "manifest pusat" : "manifest cabang"
+
+      let source = "manifest cabang";
+      if (manifestData.manifest_source === "central") {
+        source = "manifest pusat";
+      } else if (manifestData.manifest_source === "borneo_branch") {
+        source = "web cabang Borneo";
+      }
+
       return { success: true, message: `Created from ${source}` }
     } catch (err) {
       return { success: false, message: `Error: ${err}` }

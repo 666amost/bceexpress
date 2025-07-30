@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { addShipmentHistory } from "@/lib/db"
+import { sendScanKeluarToBranch, sendScanTTDToBranch, extractCourierName } from "@/lib/branch-sync"
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,41 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
+    }
+
+    // Branch sync - send status to branch system for BE resi only (async, don't block main operation)
+    if (awb_number.startsWith('BE')) {
+      Promise.resolve().then(async () => {
+        try {
+          const courierName = extractCourierName(notes, location);
+          
+          if (status === "out_for_delivery") {
+            // Send scan keluar to branch
+            await sendScanKeluarToBranch({
+              no_resi: awb_number,
+              nama_kurir: courierName,
+              armada: "motor", // Default vehicle type
+              plat_armada: "BCEJKT", // Default plate number
+              pemindai: location || "System"
+            });
+          } else if (status === "delivered" && photo_url) {
+            // Send scan TTD to branch
+            await sendScanTTDToBranch({
+              no_resi: awb_number,
+              nama_kurir: courierName,
+              armada: "motor", // Default vehicle type
+              plat_armada: "BCEJKT", // Default plate number
+              gambar: photo_url,
+              pemindai: location || "System"
+            });
+          }
+        } catch (branchSyncError) {
+          // Log but don't fail the main operation
+          console.error('Branch sync error:', branchSyncError);
+        }
+      }).catch(() => {
+        // Ignore async errors
+      });
     }
 
     // WhatsApp notify jika delivered - handle secara terpisah agar tidak mempengaruhi response utama

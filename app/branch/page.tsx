@@ -46,34 +46,40 @@ export default function BranchPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const checkAuth = async () => {
+    setIsClient(true);
+    // Check auth immediately on mount
+    (async () => {
       try {
-        const { data } = await supabaseClient.auth.getSession()
+        const { data } = await supabaseClient.auth.getSession();
         if (!data.session) {
-          router.push("/branch/login")
+          router.push("/branch/login");
         }
       } catch (error) {
-        router.push("/branch/login")
+        router.push("/branch/login");
       }
-    }
-    setIsClient(true)
-    checkAuth()
-    const fetchUserRole = async () => {
-      try {
-        const { data: { user } } = await supabaseClient.auth.getUser()
-        if (user) {
-          const { data: userData } = await supabaseClient.from('users').select('role, origin_branch').eq('id', user.id).single()
-          if (userData) {
-            setUserRole(userData.role)
-            setBranchOrigin(userData.origin_branch)
+    })();
+    // Defer user role fetch to next tick to avoid blocking initial paint
+    setTimeout(() => {
+      (async () => {
+        try {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          if (user) {
+            const { data: userData } = await supabaseClient
+              .from("users")
+              .select("role, origin_branch")
+              .eq("id", user.id)
+              .single();
+            if (userData) {
+              setUserRole(userData.role as string);
+              setBranchOrigin(userData.origin_branch as string);
+            }
           }
+        } catch {
+          // Silent error - will fallback to default behavior
         }
-      } catch (error) {
-        // Silent error - will fallback to default behavior
-      }
-    }
-    fetchUserRole()
-  }, [router])
+      })();
+    }, 0);
+  }, [router]);
 
   const handleMenuChange = (menu: string, submenu?: string) => {
     setSelectedMenu(menu)

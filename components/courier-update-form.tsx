@@ -19,6 +19,7 @@ import {
 } from '@carbon/icons-react'
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
+import type { ManifestCabangData, ManifestData } from "@/types"
 import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
@@ -30,20 +31,12 @@ interface ShipmentDetails {
   receiver_name: string;
   receiver_address: string;
   receiver_phone: string;
+  sender_name?: string;
+  sender_phone?: string;
+  weight?: number;
   current_status: string;
   from_manifest?: boolean;
-}
-
-interface ManifestData {
-  awb_no: string;
-  nama_pengirim: string;
-  alamat_pengirim: string;
-  nomor_pengirim: string;
-  nama_penerima: string;
-  alamat_penerima: string;
-  nomor_penerima: string;
-  berat_kg: number;
-  dimensi: string;
+  manifest_source?: "central" | "cabang" | "borneo_branch";
 }
 
 interface ShipmentCheckResult {
@@ -53,13 +46,9 @@ interface ShipmentCheckResult {
 
 // Extended shipment details with manifest data
 interface ExtendedShipmentDetails extends ShipmentDetails {
-  sender_name?: string;
   sender_address?: string;
-  sender_phone?: string;
-  weight?: number;
   dimensions?: string;
   service_type?: string;
-  manifest_source?: string;
 }
 
 interface DatabaseResponse<T> {
@@ -184,11 +173,11 @@ function CourierUpdateFormComponent() {
         setShipmentDetails({
           awb_number: manifestData.awb_no,
           receiver_name: manifestData.nama_penerima,
-          receiver_address: manifestData.alamat_penerima,
-          receiver_phone: manifestData.nomor_penerima,
+          receiver_address: manifestData.alamat_penerima || '',
+          receiver_phone: manifestData.nomor_penerima || '',
           sender_name: manifestData.nama_pengirim,
-          sender_phone: manifestData.nomor_pengirim,
-          weight: manifestData.berat_kg,
+          sender_phone: manifestData.nomor_pengirim || '',
+          weight: manifestData.berat_kg || 0,
           current_status: "in_transit",
           from_manifest: true,
           manifest_source: "central"
@@ -211,18 +200,18 @@ function CourierUpdateFormComponent() {
       const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
         manifestCabangPromise,
         timeoutPromise
-      ]) as DatabaseResponse<ManifestData>;
+      ]) as DatabaseResponse<ManifestCabangData>;
 
       if (!manifestCabangError && manifestCabangData) {
         // If found in branch manifest, show the data
         setShipmentDetails({
           awb_number: manifestCabangData.awb_no,
           receiver_name: manifestCabangData.nama_penerima,
-          receiver_address: manifestCabangData.alamat_penerima,
-          receiver_phone: manifestCabangData.nomor_penerima,
+          receiver_address: manifestCabangData.alamat_penerima || '',
+          receiver_phone: manifestCabangData.nomor_penerima || '',
           sender_name: manifestCabangData.nama_pengirim,
-          sender_phone: manifestCabangData.nomor_pengirim,
-          weight: manifestCabangData.berat_kg,
+          sender_phone: manifestCabangData.nomor_pengirim || '',
+          weight: manifestCabangData.berat_kg || 0,
           current_status: "in_transit",
           from_manifest: true,
           manifest_source: "cabang"
@@ -235,13 +224,47 @@ function CourierUpdateFormComponent() {
         return
       }
 
-      // If not found in either manifest, show message
-      if (manifestError && manifestCabangError) {
-        toast.warning("AWB tidak ditemukan di manifest", {
-          description: "Shipment akan dibuat dengan data auto-generated",
-          duration: 3000,
-        })
+      // If not found in either manifest, check web cabang borneo for BE resi
+      if (manifestError && manifestCabangError && awb.startsWith('BE')) {
+        try {
+          // Call branch API to get manifest data for BE resi
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${awb}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const branchManifest = branchData.data;
+              
+              // SIMPLIFIED: Map Borneo web data to same fields as manifest_cabang  
+              setShipmentDetails({
+                awb_number: awb,
+                receiver_name: branchManifest.penerima || '',
+                receiver_address: branchManifest.alamat_penerima || '',
+                receiver_phone: branchManifest.telepon_penerima || '',
+                sender_name: branchManifest.pengirim || '',
+                sender_phone: '', // Web Borneo doesn't provide sender phone
+                weight: branchManifest.berat || 0,
+                current_status: "in_transit",
+                from_manifest: true,
+                manifest_source: "borneo_branch"
+              });
+
+              toast.success("Data ditemukan di web cabang Borneo", {
+                description: "Data penerima: " + (branchManifest.penerima || "N/A"),
+                duration: 3000,
+              });
+              return;
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from branch:', branchError);
+        }
+        // Jika BE resi tidak ditemukan di web cabang, biarkan auto-generate tanpa toast
       }
+
+      // If not found in any manifest (including branch), no toast - silent behavior
+      // Data akan auto-generated tanpa notifikasi yang mengganggu
     } catch (err) {
       if (err instanceof Error) {
         toast.error("Gagal mengambil detail shipment", {
@@ -557,13 +580,13 @@ function CourierUpdateFormComponent() {
           {
             awb_number: awbNumber,
             sender_name: manifestData.nama_pengirim || "Auto Generated",
-            sender_address: manifestData.alamat_pengirim || "Auto Generated", 
+            sender_address: manifestData.alamat_penerima || "Auto Generated", // Use alamat_penerima as sender address fallback
             sender_phone: manifestData.nomor_pengirim || "Auto Generated",
             receiver_name: manifestData.nama_penerima || "Auto Generated",
             receiver_address: manifestData.alamat_penerima || "Auto Generated",
             receiver_phone: manifestData.nomor_penerima || "Auto Generated",
             weight: manifestData.berat_kg || 1,
-            dimensions: manifestData.dimensi || "10x10x10",
+            dimensions: "10x10x10", // Default dimensions since not in manifest
             service_type: "Standard",
             current_status: status as string,
             created_at: new Date().toISOString(),
@@ -592,7 +615,7 @@ function CourierUpdateFormComponent() {
       const { data: manifestCabangData, error: manifestCabangError } = await Promise.race([
         branchManifestPromise,
         timeoutPromise
-      ]) as DatabaseResponse<ManifestData>;
+      ]) as DatabaseResponse<ManifestCabangData>;
 
       if (!manifestCabangError && manifestCabangData) {
         // Create shipment from branch manifest with upsert for safety
@@ -600,13 +623,13 @@ function CourierUpdateFormComponent() {
           {
             awb_number: awbNumber,
             sender_name: manifestCabangData.nama_pengirim || "Auto Generated",
-            sender_address: manifestCabangData.alamat_pengirim || "Auto Generated",
+            sender_address: manifestCabangData.alamat_penerima || "Auto Generated", // Use alamat_penerima as sender address fallback
             sender_phone: manifestCabangData.nomor_pengirim || "Auto Generated", 
             receiver_name: manifestCabangData.nama_penerima || "Auto Generated",
             receiver_address: manifestCabangData.alamat_penerima || "Auto Generated",
             receiver_phone: manifestCabangData.nomor_penerima || "Auto Generated",
             weight: manifestCabangData.berat_kg || 1,
-            dimensions: manifestCabangData.dimensi || "10x10x10",
+            dimensions: "10x10x10", // Default dimensions since not in manifest 
             service_type: "Standard",
             current_status: status as string,
             created_at: new Date().toISOString(),
@@ -625,7 +648,54 @@ function CourierUpdateFormComponent() {
         }
       }
 
-      // If not found in either manifest, fallback to basic shipment
+      // If not found in either local manifest, try web cabang Borneo for BE resi  
+      if (manifestError && manifestCabangError && awbNumber.startsWith('BE')) {
+        try {
+          // Call branch API to get manifest data for BE resi
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${awbNumber}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const branchManifest = branchData.data;
+              
+              // Create shipment from Borneo web cabang data - SIMPLIFIED like manifest_cabang
+              const insertPromise = supabaseClient.from("shipments").upsert([
+                {
+                  awb_number: awbNumber,
+                  sender_name: branchManifest.pengirim || "Auto Generated",
+                  sender_address: branchManifest.alamat_penerima || "Auto Generated", // Use alamat_penerima as fallback
+                  sender_phone: "Auto Generated", // Web Borneo doesn't have sender phone
+                  receiver_name: branchManifest.penerima || "Auto Generated",
+                  receiver_address: branchManifest.alamat_penerima || "Auto Generated", 
+                  receiver_phone: branchManifest.telepon_penerima || "Auto Generated",
+                  weight: branchManifest.berat || 1,
+                  dimensions: "10x10x10", // Default dimensions
+                  service_type: branchManifest.jenis_layanan || "Standard",
+                  current_status: status as string,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ], { 
+                onConflict: 'awb_number',
+                ignoreDuplicates: false 
+              });
+
+              const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as DatabaseResponse<unknown>;
+
+              if (!insertError) {
+                toast.success("Shipment dibuat dari web cabang Borneo")
+                return true
+              }
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from Borneo branch:', branchError);
+        }
+      }
+
+      // If not found in any manifest, fallback to basic shipment
       return await createBasicShipment(awbNumber)
     } catch (error) {
       return await createBasicShipment(awbNumber)

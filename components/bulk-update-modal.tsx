@@ -279,6 +279,29 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
         }
       }
 
+      // 3. Jika tidak ditemukan di manifest lokal, cek web cabang Borneo untuk BE resi
+      if (cleanAwb.startsWith('BE')) {
+        try {
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${cleanAwb}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const borneoBranchManifest = branchData.data;
+              
+              // Return raw Borneo data with manifest_source marker
+              return {
+                ...borneoBranchManifest,
+                manifest_source: "borneo_branch"
+              };
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from Borneo branch:', branchError);
+        }
+      }
+
       return null
     } catch (err) {
       return null
@@ -311,12 +334,17 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
           
           const client = await getPooledClient()
           
-          // Quick check existing shipment
-          const { data: existing } = await client
+          // Quick check existing shipment with explicit columns
+          const { data: existing, error: existingError } = await client
             .from("shipments")
-            .select("current_status")
+            .select("awb_number,current_status")
             .eq("awb_number", awb)
             .maybeSingle()
+          
+          if (existingError) {
+            console.error(`Error checking existing shipment for ${awb}:`, existingError);
+            return { awb, success: false, error: `Database error: ${existingError.message}` }
+          }
           
           // Skip jika sudah delivered
           if (existing?.current_status === 'delivered') {
@@ -326,12 +354,68 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
           let shipmentSuccess = false
           let historySuccess = false
           
-          // Create/update shipment dengan data minimal untuk speed
+          // Create/update shipment dengan data dari manifest jika tersedia
           if (!existing) {
-            // Create new shipment
-            const { error: shipmentError } = await client
-              .from("shipments")
-              .insert({
+            // Check manifest untuk data yang lebih lengkap
+            const manifestData = await checkManifestAwb(awb);
+            
+            let shipmentData;
+            let dataSource = "auto_generated";
+            
+            if (manifestData) {
+              // Always use manifest data if available, fallback to empty string if missing
+              dataSource = manifestData.manifest_source || "manifest";
+              let senderName = '';
+              let senderAddress = '';
+              let senderPhone = '';
+              let receiverName = '';
+              let receiverAddress = '';
+              let receiverPhone = '';
+              if (manifestData.manifest_source === 'borneo_branch') {
+                // Use correct structure from Borneo API response
+                const borneoData = manifestData as import("@/types").BranchManifestData;
+                senderName = borneoData.pengirim?.nama_pengirim || '';
+                senderAddress = borneoData.pengirim?.alamat_pengirim || '';
+                senderPhone = borneoData.pengirim?.no_pengirim || '';
+                receiverName = borneoData.penerima?.nama_penerima || '';
+                receiverAddress = borneoData.penerima?.alamat_penerima || '';
+                receiverPhone = borneoData.penerima?.no_penerima || '';
+              } else {
+                // Local manifest structure
+                const localData = manifestData as {
+                  nama_pengirim?: string;
+                  alamat_pengirim?: string;
+                  nomor_pengirim?: string;
+                  nama_penerima?: string;
+                  alamat_penerima?: string;
+                  nomor_penerima?: string;
+                };
+                senderName = localData.nama_pengirim || '';
+                senderAddress = localData.alamat_pengirim || '';
+                senderPhone = localData.nomor_pengirim || '';
+                receiverName = localData.nama_penerima || '';
+                receiverAddress = localData.alamat_penerima || '';
+                receiverPhone = localData.nomor_penerima || '';
+              }
+              shipmentData = {
+                awb_number: awb,
+                sender_name: senderName,
+                sender_address: senderAddress, 
+                sender_phone: senderPhone,
+                receiver_name: receiverName,
+                receiver_address: receiverAddress,
+                receiver_phone: receiverPhone,
+                weight: 1,
+                dimensions: "10x10x10",
+                service_type: "Standard",
+                current_status: status,
+                created_at: timestamp,
+                updated_at: timestamp,
+                courier_id: courierId,
+              };
+            } else {
+              // No manifest data found
+              shipmentData = {
                 awb_number: awb,
                 sender_name: "Auto Generated",
                 sender_address: "Auto Generated",
@@ -346,10 +430,21 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                 created_at: timestamp,
                 updated_at: timestamp,
                 courier_id: courierId,
-              })
-            shipmentSuccess = !shipmentError
+              };
+            }
+            
+            // Create new shipment with proper error handling
+            const { error: shipmentError } = await client
+              .from("shipments")
+              .insert([shipmentData]); // Wrap in array for better compatibility
+            
+            if (shipmentError) {
+              console.error(`Error creating shipment for ${awb}:`, shipmentError);
+              return { awb, success: false, error: `Insert error: ${shipmentError.message}` }
+            }
+            shipmentSuccess = true
           } else {
-            // Update existing shipment
+            // Update existing shipment with proper error handling
             const { error: updateError } = await client
               .from("shipments")
               .update({
@@ -358,21 +453,33 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                 courier_id: courierId,
               })
               .eq("awb_number", awb)
-            shipmentSuccess = !updateError
+            
+            if (updateError) {
+              console.error(`Error updating shipment for ${awb}:`, updateError);
+              return { awb, success: false, error: `Update error: ${updateError.message}` }
+            }
+            shipmentSuccess = true
           }
           
           // Add history record if shipment successful
           if (shipmentSuccess) {
             const { error: historyError } = await client
               .from("shipment_history")
-              .insert({
+              .insert([{
                 awb_number: awb,
                 status,
                 location,
                 notes: `Bulk update - Out for Delivery by ${courierName}`,
                 created_at: new Date(Date.now() + i + index).toISOString(), // Unique timestamp
-              })
-            historySuccess = !historyError
+              }])
+            
+            if (historyError) {
+              console.error(`Error creating history for ${awb}:`, historyError);
+              // Don't fail the whole operation for history errors
+              historySuccess = false
+            } else {
+              historySuccess = true
+            }
           }
           
           return {
