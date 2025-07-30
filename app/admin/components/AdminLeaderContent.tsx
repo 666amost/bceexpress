@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,10 +21,11 @@ import { supabaseClient } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Oval as LoadingIcon } from 'react-loading-icons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-
 import { TrackingResults } from "@/components/tracking-results";
 
 const CourierShipmentList = dynamic(() => import('@/components/courier-shipment-list').then(mod => mod.CourierShipmentList), { 
@@ -94,7 +95,14 @@ interface AdminLeaderContentProps {
 export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderContentProps) {
   const router = useRouter();
   
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // State for shipment status update modal
+  const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState<boolean>(false);
+  const [selectedShipmentForUpdate, setSelectedShipmentForUpdate] = useState<SearchResult | null>(null);
+  const [newStatus, setNewStatus] = useState<string>("");
+  const [updateNotes, setUpdateNotes] = useState<string>("");
+  const [statusUpdateError, setStatusUpdateError] = useState<string>("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [courierStats, setCourierStats] = useState<Record<string, { total: number; completed: number; pending: number }>>({});
   const [totalShipments, setTotalShipments] = useState(0);
@@ -806,9 +814,9 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   if (activeView === 'search') {
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
           <div className="max-w-md mx-auto">
-            <div className="mb-4 flex gap-2">
+            <div className="mb-4 flex flex-col sm:flex-row gap-2">
               <Input 
                 placeholder="Enter AWB number or courier name..." 
                 value={searchQuery} 
@@ -818,34 +826,64 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                     handleSearch();
                   }
                 }}
-                className="border-blue-200 focus:border-blue-500"
+                className="border-blue-200 focus:border-blue-500 w-full"
               />
               <Button 
                 onClick={handleSearch}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
               >
                 <SearchIcon className="h-4 w-4" />
               </Button>
             </div>
-            
             {searchResults ? (
               Array.isArray(searchResults) ? (
                 searchResults.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {searchResults.map((shipment) => (
-                          <Card key={shipment.awb_number} className="border-blue-100">
-                            <CardContent className="p-0">
-                              {/* Render TrackingResults untuk setiap hasil pencarian resi */}
+                      <div key={shipment.awb_number} className="overflow-x-auto w-full">
+                        <Card className="border-blue-100 shadow-md min-w-[320px] max-w-full">
+                          <CardContent className="p-0">
+                            {/* Render TrackingResults untuk setiap hasil pencarian resi */}
+                            <div className="w-full max-w-full overflow-x-auto">
                               <TrackingResults awbNumber={shipment.awb_number} />
-                            </CardContent>
-                          </Card>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2 justify-end p-4 border-t mt-2">
+                              <Button
+                                variant="outline"
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50 w-full sm:w-auto"
+                                onClick={() => {
+                                  setSelectedShipmentForUpdate(shipment);
+                                  setNewStatus(shipment.current_status);
+                                  setUpdateNotes("");
+                                  setStatusUpdateError("");
+                                  setIsStatusUpdateModalOpen(true);
+                                }}
+                              >
+                                Update Shipment
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                className="border-red-300 text-red-700 hover:bg-red-50 w-full sm:w-auto"
+                                onClick={async () => {
+                                  if (confirm(`Delete AWB ${shipment.awb_number}?`)) {
+                                    // TODO: Implement delete logic
+                                    alert(`Deleted: ${shipment.awb_number}`);
+                                  }
+                                }}
+                              >
+                                Delete AWB
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
                     ))}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center">No shipments found.</p>
                 )
               ) : (
-                <p className="text-red-600 text-center">{searchResults.error}</p>
+                <p className="text-red-600 text-center">{(searchResults as { error: string }).error}</p>
               )
             ) : (
               <div className="text-center py-8">
@@ -855,6 +893,102 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
             )}
           </div>
         </div>
+        {/* Modal Update Status Shipment - letakkan di luar map agar tidak menyebabkan error JSX */}
+        <Dialog open={isStatusUpdateModalOpen} onOpenChange={setIsStatusUpdateModalOpen}>
+          <DialogContent className="max-w-md rounded-lg">
+            <DialogHeader>
+              <DialogTitle>Update Shipment Status</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!selectedShipmentForUpdate || !newStatus) {
+                  setStatusUpdateError("Please select a status");
+                  return;
+                }
+                setIsUpdatingStatus(true);
+                setStatusUpdateError("");
+                try {
+                  const currentDate = new Date().toISOString();
+                  // Update shipment status
+                  const { error: updateError } = await supabaseClient
+                    .from("shipments")
+                    .update({ current_status: newStatus, updated_at: currentDate })
+                    .eq("awb_number", selectedShipmentForUpdate.awb_number);
+                  if (updateError) {
+                    setStatusUpdateError(updateError.message || "Failed to update status");
+                    setIsUpdatingStatus(false);
+                    return;
+                  }
+                  // Add shipment history entry
+                  const { error: historyError } = await supabaseClient
+                    .from("shipment_history")
+                    .insert({
+                      awb_number: selectedShipmentForUpdate.awb_number,
+                      status: newStatus,
+                      notes: updateNotes,
+                      created_at: currentDate,
+                    });
+                  if (historyError) {
+                    setStatusUpdateError(historyError.message || "Failed to add history");
+                    setIsUpdatingStatus(false);
+                    return;
+                  }
+                  setIsStatusUpdateModalOpen(false);
+                  setSelectedShipmentForUpdate(null);
+                  setNewStatus("");
+                  setUpdateNotes("");
+                  // Refresh search results
+                  handleSearch();
+                  alert("Status updated successfully");
+                } catch (err: unknown) {
+                  const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+                  setStatusUpdateError(`An unexpected error occurred: ${errorMessage}`);
+                } finally {
+                  setIsUpdatingStatus(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="processed">Processed</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="in_transit">In Transit</SelectItem>
+                    <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="exception">Exception</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes (optional)</label>
+                <Textarea
+                  value={updateNotes}
+                  onChange={e => setUpdateNotes(e.target.value)}
+                  placeholder="Add notes for this status update..."
+                  className="w-full min-h-[60px]"
+                />
+              </div>
+              {statusUpdateError && (
+                <div className="text-red-600 text-sm">{statusUpdateError}</div>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setIsStatusUpdateModalOpen(false)} disabled={isUpdatingStatus}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="default" disabled={isUpdatingStatus}>
+                  {isUpdatingStatus ? "Updating..." : "Update"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
