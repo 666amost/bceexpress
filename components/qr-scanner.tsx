@@ -48,71 +48,100 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   }, [])
 
   const updateShipmentStatus = async (awbNumber: string) => {
-    try {
-      const currentDate = new Date().toISOString()
-      const status = "out_for_delivery"
-      const location = "Sorting Center"
+    // Type-safe, robust update/insert logic for shipment and shipment_history
+    const currentDate: string = new Date().toISOString();
+    const status = "out_for_delivery";
+    const location = "Sorting Center";
+    // Get current user session
+    const { data: session } = await supabaseClient.auth.getSession();
+    const userId: string | undefined = session?.session?.user?.id;
+    const userName: string = currentUser || session?.session?.user?.email?.split("@") [0] || "courier";
+    if (!userId) return false;
 
-      // Get current user session
-      const { data: session } = await supabaseClient.auth.getSession()
-      const userName = currentUser || session?.session?.user?.email?.split("@")[0] || "courier"
+    // Check if shipment exists
+    const { data: existing, error: existingError } = await supabaseClient
+      .from("shipments")
+      .select("awb_number,current_status,courier_id")
+      .eq("awb_number", awbNumber)
+      .maybeSingle();
+    if (existingError) return false;
 
-      // Check if shipment exists
-      const { data: existingShipment } = await supabaseClient
-        .from("shipments")
-        .select("awb_number")
-        .eq("awb_number", awbNumber)
-        .single()
-
-      // If shipment doesn't exist, create it
-      if (!existingShipment) {
-        await supabaseClient.from("shipments").insert([
-          {
-            awb_number: awbNumber,
-            sender_name: "Auto Generated",
-            sender_address: "Auto Generated",
-            sender_phone: "Auto Generated",
-            receiver_name: "Auto Generated",
-            receiver_address: "Auto Generated",
-            receiver_phone: "Auto Generated",
-            weight: 1,
-            dimensions: "10x10x10",
-            service_type: "Standard",
-            current_status: status,
-            created_at: currentDate,
-            updated_at: currentDate,
-            updated_by: userName,
-          },
-        ])
-      } else {
-        // Update existing shipment
-        await supabaseClient
-          .from("shipments")
-          .update({
-            current_status: status,
-            updated_at: currentDate,
-            updated_by: userName,
-          })
-          .eq("awb_number", awbNumber)
-      }
-
-      // Add shipment history entry
-      await supabaseClient.from("shipment_history").insert([
+    let shipmentSuccess = false;
+    if (!existing) {
+      // Insert new shipment
+      const { error: insertError } = await supabaseClient.from("shipments").insert([
         {
           awb_number: awbNumber,
-          status,
-          location,
-          notes: `Bulk update - Out for Delivery by ${userName}`,
+          sender_name: "Auto Generated",
+          sender_address: "Auto Generated",
+          sender_phone: "Auto Generated",
+          receiver_name: "Auto Generated",
+          receiver_address: "Auto Generated",
+          receiver_phone: "Auto Generated",
+          weight: 1,
+          dimensions: "10x10x10",
+          service_type: "Standard",
+          current_status: status,
           created_at: currentDate,
-          updated_by: userName,
+          updated_at: currentDate,
+          courier_id: userId,
         },
-      ])
-
-      return true
-    } catch (error) {
-      // Silently handle update errors
-      return false
+      ]);
+      if (insertError) return false;
+      shipmentSuccess = true;
+    } else if (existing.current_status && existing.current_status.toLowerCase() === "out_for_delivery") {
+      // Transfer shipment to new courier
+      const { data: updateResult, error: updateError } = await supabaseClient
+        .from("shipments")
+        .update({
+          current_status: status,
+          updated_at: currentDate,
+          courier_id: userId,
+        })
+        .eq("awb_number", awbNumber)
+        .select("awb_number, courier_id");
+      if (updateError || !updateResult || updateResult.length === 0) return false;
+      if (updateResult[0].courier_id === userId) {
+        shipmentSuccess = true;
+      } else {
+        return false;
+      }
+    } else {
+      // Update shipment status only
+      const { error: updateError } = await supabaseClient
+        .from("shipments")
+        .update({
+          current_status: status,
+          updated_at: currentDate,
+        })
+        .eq("awb_number", awbNumber);
+      if (updateError) return false;
+      shipmentSuccess = true;
     }
+
+    // Add shipment_history if not exists
+    if (shipmentSuccess) {
+      const { data: existingHistory } = await supabaseClient
+        .from("shipment_history")
+        .select("id")
+        .eq("awb_number", awbNumber)
+        .eq("status", status)
+        .maybeSingle();
+      if (!existingHistory) {
+        const { error: historyError } = await supabaseClient.from("shipment_history").insert([
+          {
+            awb_number: awbNumber,
+            status,
+            location,
+            notes: `Bulk update - Out for Delivery by ${userName}`,
+            created_at: currentDate,
+          },
+        ]);
+        if (historyError) return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   const startScanning = async () => {
@@ -175,14 +204,20 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
 
       // Check for torch capability and turn on after scanner starts
       try {
-        const capabilities = scannerRef.current.getRunningTrackCameraCapabilities();
-        const torchFeature = capabilities?.torchFeature?.();
-        if (torchFeature) {
-          setIsTorchAvailable(true);
-          torchFeatureRef.current = torchFeature;
-          // Turn torch on automatically
-          await torchFeature.apply(true);
-          setIsTorchOn(true);
+        if (scannerRef.current) {
+          const capabilities = scannerRef.current.getRunningTrackCameraCapabilities();
+          const torchFeature = capabilities?.torchFeature?.();
+          if (torchFeature) {
+            setIsTorchAvailable(true);
+            torchFeatureRef.current = torchFeature;
+            // Turn torch on automatically
+            await torchFeature.apply(true);
+            setIsTorchOn(true);
+          } else {
+            setIsTorchAvailable(false);
+            setIsTorchOn(false);
+            torchFeatureRef.current = null;
+          }
         } else {
           setIsTorchAvailable(false);
           setIsTorchOn(false);
@@ -223,7 +258,25 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     startScanning()
 
     return () => {
-      stopScanning()
+      // Cleanup function to stop scanning when component unmounts
+      const cleanup = async () => {
+        try {
+          if (scannerRef.current?.isScanning) {
+            // Turn torch off before stopping scanner
+            if (isTorchOn && torchFeatureRef.current) {
+              try {
+                await (torchFeatureRef.current as { apply: (value: boolean) => Promise<void> }).apply(false);
+              } catch (err) {
+                // Silently handle torch turn off errors
+              }
+            }
+            await scannerRef.current.stop()
+          }
+        } catch (err) {
+          // Silently handle cleanup errors
+        }
+      }
+      cleanup()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

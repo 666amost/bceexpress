@@ -1,16 +1,5 @@
 
 "use client"
-// Type guard for BranchManifestData (Borneo manifest)
-function isBranchManifestData(data: unknown): data is import("@/types").BranchManifestData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'pengirim' in data &&
-    'penerima' in data &&
-    typeof (data as { pengirim?: unknown }).pengirim === 'object' &&
-    typeof (data as { penerima?: unknown }).penerima === 'object'
-  );
-}
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -30,6 +19,18 @@ import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+
+// Type guard for BranchManifestData (Borneo manifest)
+function isBranchManifestData(data: unknown): data is import("@/types").BranchManifestData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'pengirim' in data &&
+    'penerima' in data &&
+    typeof (data as { pengirim?: unknown }).pengirim === 'object' &&
+    typeof (data as { penerima?: unknown }).penerima === 'object'
+  );
+}
 
 interface ContinuousScanModalProps {
   isOpen: boolean
@@ -64,25 +65,29 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
 
   useEffect(() => {
     async function getCurrentUser() {
-      const { data } = await supabaseClient.auth.getSession()
-      if (data.session) {
-        const { data: userData } = await supabaseClient
-          .from("users")
-          .select("*")
-          .eq("id", data.session.user.id)
-          .single()
+      try {
+        const { data } = await supabaseClient.auth.getSession()
+        if (data.session?.user) {
+          const { data: userData } = await supabaseClient
+            .from("users")
+            .select("*")
+            .eq("id", data.session.user.id)
+            .single()
 
-        if (userData) {
-          setCurrentUser(userData)
-        } else {
-          const username = data.session.user.email?.split("@")[0] || "courier"
-          setCurrentUser({
-            id: data.session.user.id || "",
-            name: username,
-            email: data.session.user.email || "",
-            role: "courier",
-          })
+          if (userData) {
+            setCurrentUser(userData)
+          } else {
+            const username = data.session.user.email?.split("@")[0] || "courier"
+            setCurrentUser({
+              id: data.session.user.id || "",
+              name: username,
+              email: data.session.user.email || "",
+              role: "courier",
+            })
+          }
         }
+      } catch (error) {
+        console.error("Error getting current user:", error)
       }
     }
 
@@ -265,34 +270,79 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   }
 
   const updateExistingShipment = async (awb: string, courierId: string) => {
-    try {
-      await supabaseClient
+    // Type-safe, robust update/insert logic for shipment transfer
+    const timestamp: string = new Date().toISOString();
+    // Check if shipment exists
+    const { data: existing, error: existingError } = await supabaseClient
+      .from("shipments")
+      .select("current_status,courier_id")
+      .eq("awb_number", awb)
+      .maybeSingle();
+    if (existingError) return { success: false, message: `Database error: ${existingError.message}` };
+
+    if (existing && existing.current_status && existing.current_status.toLowerCase() === "out_for_delivery") {
+      // Transfer shipment to new courier
+      const { data: updateResult, error: updateError } = await supabaseClient
         .from("shipments")
         .update({
           current_status: "out_for_delivery",
-          updated_at: new Date().toISOString(),
+          updated_at: timestamp,
           courier_id: courierId,
         })
         .eq("awb_number", awb)
-      return { success: true, message: "Updated existing shipment" }
-    } catch (err) {
-      return { success: false, message: `Error: ${err}` }
+        .select("courier_id");
+      if (updateError || !updateResult || updateResult.length === 0) {
+        return { success: false, message: updateError ? `Update error: ${updateError.message}` : "Update returned empty data" };
+      }
+      if (updateResult[0].courier_id === courierId) {
+        return { success: true, message: "Updated existing shipment and moved assignment" };
+      } else {
+        return { success: false, message: "Update verification failed" };
+      }
+    } else {
+      // Update shipment status only
+      const { error: updateError } = await supabaseClient
+        .from("shipments")
+        .update({
+          current_status: "out_for_delivery",
+          updated_at: timestamp,
+        })
+        .eq("awb_number", awb);
+      if (updateError) return { success: false, message: `Update error: ${updateError.message}` };
+      return { success: true, message: "Updated existing shipment" };
     }
   }
 
   const addShipmentHistory = async (awb: string, courierName: string) => {
     try {
-      await supabaseClient.from("shipment_history").insert([
-        {
-          awb_number: awb,
-          status: "out_for_delivery",
-          location: "Sorting Center",
-          notes: `Continuous scan - Out for Delivery by ${courierName}`,
-          created_at: new Date().toISOString(),
-        },
-      ])
-      return { success: true }
+      // Check if history record already exists for this AWB and status
+      const { data: existingHistory } = await supabaseClient
+        .from("shipment_history")
+        .select("id")
+        .eq("awb_number", awb)
+        .eq("status", "out_for_delivery")
+        .maybeSingle();
+      
+      if (!existingHistory) {
+        // Only insert if no history record exists for this AWB and status
+        await supabaseClient.from("shipment_history").insert([
+          {
+            awb_number: awb,
+            status: "out_for_delivery",
+            location: "Sorting Center",
+            notes: `Continuous scan - Out for Delivery by ${courierName}`,
+            created_at: new Date().toISOString(),
+            updated_by: courierName,
+          },
+        ])
+        return { success: true }
+      } else {
+        // History record already exists, consider it successful
+        // History record already exists (log removed for ESLint compliance)
+        return { success: true }
+      }
     } catch (err) {
+      console.error(`Error creating history for ${awb}:`, err)
       return { success: false }
     }
   }

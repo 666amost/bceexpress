@@ -17,7 +17,6 @@ import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
 import { toast } from "sonner"
 import { QRScanner } from './qr-scanner'
-import { Dialog as UIDialog, DialogContent as UIDialogContent, DialogHeader as UIDialogHeader, DialogTitle as UIDialogTitle, DialogFooter as UIDialogFooter } from "@/components/ui/dialog"
 
 interface BulkUpdateModalProps {
   isOpen: boolean
@@ -163,15 +162,19 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
   useEffect(() => {
     // Get current user
     async function getCurrentUser() {
-      const { data } = await supabaseClient.auth.getSession()
-      if (data.session) {
-        const { data: userData } = await supabaseClient
-          .from("users")
-          .select("*")
-          .eq("id", data.session.user.id)
-          .single()
+      try {
+        const { data } = await supabaseClient.auth.getSession()
+        if (data.session?.user) {
+          const { data: userData } = await supabaseClient
+            .from("users")
+            .select("*")
+            .eq("id", data.session.user.id)
+            .single()
 
-        // Note: currentUser is now passed as a prop, no need to set local state
+          // Note: currentUser is now passed as a prop, no need to set local state
+        }
+      } catch (error) {
+        console.error("Error getting current user:", error)
       }
     }
 
@@ -335,35 +338,30 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
           const client = await getPooledClient()
           
           // Quick check existing shipment with explicit columns
+          // Checking shipment in database (log removed for ESLint compliance)
           const { data: existing, error: existingError } = await client
             .from("shipments")
-            .select("awb_number,current_status")
+            .select("awb_number,current_status,courier_id")
             .eq("awb_number", awb)
             .maybeSingle()
+          // Database check result (log removed for ESLint compliance)
           
           if (existingError) {
             console.error(`Error checking existing shipment for ${awb}:`, existingError);
             return { awb, success: false, error: `Database error: ${existingError.message}` }
           }
-          
           // Skip jika sudah delivered
-          if (existing?.current_status === 'delivered') {
+          if (existing?.current_status && existing.current_status.toLowerCase() === 'delivered') {
             return { awb, success: false, error: 'Already delivered' }
           }
-          
           let shipmentSuccess = false
           let historySuccess = false
-          
-          // Create/update shipment dengan data dari manifest jika tersedia
           if (!existing) {
-            // Check manifest untuk data yang lebih lengkap
-            const manifestData = await checkManifestAwb(awb);
-            
+            // ...existing code for insert shipment...
             let shipmentData;
             let dataSource = "auto_generated";
-            
+            const manifestData = await checkManifestAwb(awb);
             if (manifestData) {
-              // Always use manifest data if available, fallback to empty string if missing
               dataSource = manifestData.manifest_source || "manifest";
               let senderName = '';
               let senderAddress = '';
@@ -372,7 +370,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
               let receiverAddress = '';
               let receiverPhone = '';
               if (manifestData.manifest_source === 'borneo_branch') {
-                // Use correct structure from Borneo API response
                 const borneoData = manifestData as import("@/types").BranchManifestData;
                 senderName = borneoData.pengirim?.nama_pengirim || '';
                 senderAddress = borneoData.pengirim?.alamat_pengirim || '';
@@ -381,7 +378,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                 receiverAddress = borneoData.penerima?.alamat_penerima || '';
                 receiverPhone = borneoData.penerima?.no_penerima || '';
               } else {
-                // Local manifest structure
                 const localData = manifestData as {
                   nama_pengirim?: string;
                   alamat_pengirim?: string;
@@ -414,7 +410,6 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                 courier_id: courierId,
               };
             } else {
-              // No manifest data found
               shipmentData = {
                 awb_number: awb,
                 sender_name: "Auto Generated",
@@ -432,28 +427,60 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                 courier_id: courierId,
               };
             }
-            
-            // Create new shipment with proper error handling
             const { error: shipmentError } = await client
               .from("shipments")
-              .insert([shipmentData]); // Wrap in array for better compatibility
-            
+              .insert([shipmentData]);
             if (shipmentError) {
               console.error(`Error creating shipment for ${awb}:`, shipmentError);
               return { awb, success: false, error: `Insert error: ${shipmentError.message}` }
             }
             shipmentSuccess = true
+          } else if (existing.current_status && existing.current_status.toLowerCase() === 'out_for_delivery') {
+            // Update courier_id ke user baru jika status masih out_for_delivery
+            // Transferring shipment and current data (logs removed for ESLint compliance)
+            try {
+              // Directly update the shipment with new courier_id and status
+              const { data: updateResult, error: updateError } = await client
+                .from("shipments")
+                .update({
+                  current_status: status,
+                  updated_at: timestamp,
+                  courier_id: courierId,
+                })
+                .eq("awb_number", awb)
+                .select("awb_number, courier_id");
+
+              if (updateError) {
+                console.error(`Error updating shipment for ${awb}:`, updateError);
+                return { awb, success: false, error: `Update error: ${updateError.message}` };
+              }
+
+              if (!updateResult || updateResult.length === 0) {
+                console.error(`RLS Policy blocked the update - no rows were updated`);
+                return { awb, success: false, error: `RLS Policy blocked the update` };
+              }
+
+              // Verify the update actually happened
+              if (updateResult[0].courier_id === courierId) {
+                // Successfully transferred shipment (log removed for ESLint compliance)
+                shipmentSuccess = true;
+              } else {
+                console.error(`Update verification failed - courier_id is still ${updateResult[0].courier_id}`);
+                return { awb, success: false, error: `Update verification failed` };
+              }
+            } catch (error) {
+              console.error(`Exception updating shipment for ${awb}:`, error);
+              return { awb, success: false, error: `Exception: ${error instanceof Error ? error.message : 'Unknown error'}` };
+            }
           } else {
-            // Update existing shipment with proper error handling
+            // Update biasa tanpa pindah assignment
             const { error: updateError } = await client
               .from("shipments")
               .update({
                 current_status: status,
                 updated_at: timestamp,
-                courier_id: courierId,
               })
               .eq("awb_number", awb)
-            
             if (updateError) {
               console.error(`Error updating shipment for ${awb}:`, updateError);
               return { awb, success: false, error: `Update error: ${updateError.message}` }
@@ -463,22 +490,43 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
           
           // Add history record if shipment successful
           if (shipmentSuccess) {
-            const { error: historyError } = await client
-              .from("shipment_history")
-              .insert([{
-                awb_number: awb,
-                status,
-                location,
-                notes: `Bulk update - Out for Delivery by ${courierName}`,
-                created_at: new Date(Date.now() + i + index).toISOString(), // Unique timestamp
-              }])
-            
-            if (historyError) {
-              console.error(`Error creating history for ${awb}:`, historyError);
-              // Don't fail the whole operation for history errors
+            try {
+              // Check if history record already exists for this AWB and status
+              const { data: existingHistory } = await client
+                .from("shipment_history")
+                .select("id")
+                .eq("awb_number", awb)
+                .eq("status", status)
+                .maybeSingle();
+              
+              if (!existingHistory) {
+                // Only insert if no history record exists for this AWB and status
+                const { error: historyError } = await client
+                  .from("shipment_history")
+                  .insert([{
+                    awb_number: awb,
+                    status,
+                    location,
+                    notes: `Bulk update - Out for Delivery by ${courierName}`,
+                    created_at: new Date(Date.now() + i + index).toISOString(), // Unique timestamp,
+                  }])
+                
+                if (historyError) {
+                  console.error(`Error creating history for ${awb}:`, historyError);
+                  console.error('History error details:', JSON.stringify(historyError, null, 2));
+                  // Don't fail the whole operation for history errors
+                  historySuccess = false
+                } else {
+                  historySuccess = true
+                }
+              } else {
+                // History record already exists, consider it successful
+                // History record already exists (log removed for ESLint compliance)
+                historySuccess = true
+              }
+            } catch (error) {
+              console.error(`Exception creating history for ${awb}:`, error);
               historySuccess = false
-            } else {
-              historySuccess = true
             }
           }
           
@@ -678,11 +726,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
         <div className="bulk-update-modal">
         {/* Recap Modal Popup */}
         {recapModal && (
-          <UIDialog open={true}>
-            <UIDialogContent className="max-w-md">
-              <UIDialogHeader>
-                <UIDialogTitle>Rekap Bulk Update</UIDialogTitle>
-              </UIDialogHeader>
+          <Dialog open={true}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Rekap Bulk Update</DialogTitle>
+              </DialogHeader>
               <div className="py-4">
                 <p className="mb-2 text-base font-semibold text-gray-800 dark:text-gray-100">
                   {recapModal.successCount} resi berhasil diupdate.
@@ -696,11 +744,11 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                   ))}
                 </ul>
               </div>
-              <UIDialogFooter>
+              <DialogFooter>
                 <Button onClick={handleCloseRecapModal} className="w-full">OK</Button>
-              </UIDialogFooter>
-            </UIDialogContent>
-          </UIDialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
         <DialogContent 
           key={modalKey} 

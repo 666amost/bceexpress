@@ -43,6 +43,7 @@ export interface ShipmentHistory {
   created_at: string
   latitude?: number
   longitude?: number
+  updated_by?: string
 }
 
 export interface Shipment {

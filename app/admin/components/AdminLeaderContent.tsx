@@ -866,8 +866,40 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                                 className="border-red-300 text-red-700 hover:bg-red-50 w-full sm:w-auto"
                                 onClick={async () => {
                                   if (confirm(`Delete AWB ${shipment.awb_number}?`)) {
-                                    // TODO: Implement delete logic
-                                    alert(`Deleted: ${shipment.awb_number}`);
+                                    try {
+                                      // Hapus dari shipment_history
+                                      const { error: historyError } = await supabaseClient
+                                        .from('shipment_history')
+                                        .delete()
+                                        .eq('awb_number', shipment.awb_number);
+
+                                      if (historyError) {
+                                        alert('Gagal menghapus shipment_history: ' + historyError.message);
+                                        return;
+                                      }
+
+                                      // Hapus dari shipments
+                                      const { error: shipmentError } = await supabaseClient
+                                        .from('shipments')
+                                        .delete()
+                                        .eq('awb_number', shipment.awb_number);
+
+                                      if (shipmentError) {
+                                        alert('Gagal menghapus shipments: ' + shipmentError.message);
+                                        return;
+                                      }
+
+                                      // Update hasil pencarian
+                                      setSearchResults((prev) => {
+                                        if (Array.isArray(prev)) {
+                                          return prev.filter((s) => s.awb_number !== shipment.awb_number);
+                                        }
+                                        return prev;
+                                      });
+                                      alert(`AWB ${shipment.awb_number} berhasil dihapus.`);
+                                    } catch (err) {
+                                      alert('Terjadi error saat menghapus AWB.');
+                                    }
                                   }
                                 }}
                               >
@@ -1056,6 +1088,23 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     <>
       {renderContent()}
 
+      {/* Modal: View Courier Locations (LeafletMap) */}
+      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+        <DialogContent className="max-w-3xl w-full h-[70vh] p-0 overflow-hidden rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="text-blue-900 font-bold flex items-center gap-2">
+              <LocationPointIcon className="h-5 w-5" /> Courier Locations
+            </DialogTitle>
+          </DialogHeader>
+          <div className="w-full h-[55vh]">
+            <LeafletMap />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: View Manifest */}
+      <ManifestModal open={isManifestModalOpen} onOpenChange={setIsManifestModalOpen} />
+
       {/* Pending Modal */}
       <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
         <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] rounded-lg shadow-xl">
@@ -1113,3 +1162,86 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
       </>
     );
   }
+
+
+interface ManifestRow {
+  id: string;
+  awb_no: string;
+  awb_date: string;
+  origin_branch: string;
+  kota_tujuan: string;
+  status_pelunasan: string;
+}
+
+interface ManifestModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
+
+  const [data, setData] = React.useState<ManifestRow[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    setError(null);
+    // Fetch manifest_cabang data
+    supabaseClient
+      .from("manifest_cabang")
+      .select("id, awb_no, awb_date, origin_branch, kota_tujuan, status_pelunasan")
+      .order("awb_date", { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (error) setError(error.message);
+        else setData(data || []);
+        setLoading(false);
+      });
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-full rounded-lg">
+        <DialogHeader>
+          <DialogTitle className="text-green-700 font-bold flex items-center gap-2">
+            <ChartIcon className="h-5 w-5" /> Manifest Cabang
+          </DialogTitle>
+        </DialogHeader>
+        <div className="overflow-x-auto max-h-[60vh]">
+          {loading ? (
+            <div className="text-center py-8 text-green-700 font-semibold">Loading manifest...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-600 font-semibold">{error}</div>
+          ) : data.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No manifest data found.</div>
+          ) : (
+            <table className="min-w-full text-xs sm:text-sm">
+              <thead>
+                <tr className="bg-green-100 text-green-900">
+                  <th className="px-2 py-1">AWB</th>
+                  <th className="px-2 py-1">Tanggal</th>
+                  <th className="px-2 py-1">Origin</th>
+                  <th className="px-2 py-1">Tujuan</th>
+                  <th className="px-2 py-1">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row) => (
+                  <tr key={row.id} className="border-b hover:bg-green-50">
+                    <td className="px-2 py-1 font-mono">{row.awb_no}</td>
+                    <td className="px-2 py-1">{row.awb_date}</td>
+                    <td className="px-2 py-1">{row.origin_branch}</td>
+                    <td className="px-2 py-1">{row.kota_tujuan}</td>
+                    <td className="px-2 py-1">{row.status_pelunasan}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
