@@ -177,7 +177,7 @@ export function CourierDashboard() {
         .gte("created_at", todayISOString)
         .not("current_status", "in", '("delivered", "cancelled")')
         .order("updated_at", { ascending: false })
-        .limit(15);  // Kurangi lagi dari 20 ke 15 untuk low-end devices
+        .limit(30);  // Naikkan limit dari 15 ke 30 sesuai permintaan user
 
       // Get pending deliveries (OPTIMASI: Kurangi field yang diambil)
       const pendingPromise = supabaseClient
@@ -187,7 +187,7 @@ export function CourierDashboard() {
         .in("current_status", ["out_for_delivery", "shipped"])
         .lt("created_at", todayISOString)
         .order("created_at", { ascending: false })
-        .limit(15);  // Kurangi dari 20 ke 15
+        .limit(30);  // Naikkan limit dari 15 ke 30 sesuai permintaan user
 
       // Get completed today (OPTIMASI: Kurangi field yang diambil)
       const completedTodayPromise = supabaseClient
