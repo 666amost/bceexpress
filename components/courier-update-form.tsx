@@ -929,6 +929,16 @@ function CourierUpdateFormComponent() {
 
           setSuccess(true)
           playBeep()
+
+          // Trigger /api/sync jika resi BE dan status delivered
+          if (
+            awbNumber.startsWith('BE') &&
+            status === 'delivered'
+          ) {
+            // Fire and forget, tidak perlu tunggu response
+            fetch(`/api/sync?awb_number=${encodeURIComponent(awbNumber)}`)
+              .catch(() => {/* silent error */});
+          }
         })(),
         operationTimeout
       ]);
