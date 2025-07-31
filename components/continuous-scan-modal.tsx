@@ -228,7 +228,21 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         courier_id: courierId,
       };
 
+
+      // Insert to shipments
       await supabaseClient.from("shipments").insert([shipmentData])
+
+      // Also insert to shipment_history for sync
+      await supabaseClient.from("shipment_history").insert([
+        {
+          awb_number: awb,
+          status: "out_for_delivery",
+          location: "Sorting Center",
+          notes: `Continuous scan - Out for Delivery by ${courierId}`,
+          created_at: new Date().toISOString(),
+          updated_by: courierId,
+        },
+      ])
 
       let source = "manifest cabang";
       if (manifestData.manifest_source === "central") {
@@ -263,6 +277,17 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
           courier_id: courierId,
         },
       ])
+      // Also insert to shipment_history for sync
+      await supabaseClient.from("shipment_history").insert([
+        {
+          awb_number: awb,
+          status: "out_for_delivery",
+          location: "Sorting Center",
+          notes: `Continuous scan - Out for Delivery by ${courierId}`,
+          created_at: new Date().toISOString(),
+          updated_by: courierId,
+        },
+      ])
       return { success: true, message: "Created with auto-generated data" }
     } catch (err) {
       return { success: false, message: `Error: ${err}` }
@@ -280,9 +305,10 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
       .maybeSingle();
     if (existingError) return { success: false, message: `Database error: ${existingError.message}` };
 
+    let updateResult, updateError;
     if (existing && existing.current_status && existing.current_status.toLowerCase() === "out_for_delivery") {
       // Transfer shipment to new courier
-      const { data: updateResult, error: updateError } = await supabaseClient
+      ({ data: updateResult, error: updateError } = await supabaseClient
         .from("shipments")
         .update({
           current_status: "out_for_delivery",
@@ -290,27 +316,33 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
           courier_id: courierId,
         })
         .eq("awb_number", awb)
-        .select("courier_id");
-      if (updateError || !updateResult || updateResult.length === 0) {
-        return { success: false, message: updateError ? `Update error: ${updateError.message}` : "Update returned empty data" };
-      }
-      if (updateResult[0].courier_id === courierId) {
-        return { success: true, message: "Updated existing shipment and moved assignment" };
-      } else {
-        return { success: false, message: "Update verification failed" };
-      }
+        .select("courier_id"));
     } else {
       // Update shipment status only
-      const { error: updateError } = await supabaseClient
+      ({ error: updateError } = await supabaseClient
         .from("shipments")
         .update({
           current_status: "out_for_delivery",
           updated_at: timestamp,
         })
-        .eq("awb_number", awb);
-      if (updateError) return { success: false, message: `Update error: ${updateError.message}` };
-      return { success: true, message: "Updated existing shipment" };
+        .eq("awb_number", awb));
     }
+    // Always insert to shipment_history for sync
+    await supabaseClient.from("shipment_history").insert([
+      {
+        awb_number: awb,
+        status: "out_for_delivery",
+        location: "Sorting Center",
+        notes: `Continuous scan - Out for Delivery by ${courierId}`,
+        created_at: new Date().toISOString(),
+        updated_by: courierId,
+      },
+    ])
+    if (updateError) return { success: false, message: `Update error: ${updateError.message}` };
+    if (updateResult && updateResult[0]?.courier_id === courierId) {
+      return { success: true, message: "Updated existing shipment and moved assignment" };
+    }
+    return { success: true, message: "Updated existing shipment" };
   }
 
   const addShipmentHistory = async (awb: string, courierName: string) => {
