@@ -232,17 +232,28 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
       // Insert to shipments
       await supabaseClient.from("shipments").insert([shipmentData])
 
-      // Also insert to shipment_history for sync
-      await supabaseClient.from("shipment_history").insert([
-        {
-          awb_number: awb,
-          status: "out_for_delivery",
-          location: "Sorting Center",
-          notes: `Continuous scan - Out for Delivery by ${courierId}`,
-          created_at: new Date().toISOString(),
-          updated_by: courierId,
-        },
-      ])
+      // Insert to shipment_history only if not exists for this awb+status
+      const { data: existingHistory, error: historyError } = await supabaseClient
+        .from("shipment_history")
+        .select("id")
+        .eq("awb_number", awb)
+        .eq("status", "out_for_delivery")
+        .maybeSingle();
+      if (!historyError && !existingHistory) {
+        const { error: insertHistoryError } = await supabaseClient.from("shipment_history").insert([
+          {
+            awb_number: awb,
+            status: "out_for_delivery",
+            location: "Sorting Center",
+            notes: `Continuous scan - Out for Delivery by ${courierId}`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        if (insertHistoryError) {
+          // eslint-disable-next-line no-console
+          console.error(`Error inserting shipment_history for ${awb}:`, insertHistoryError.message);
+        }
+      }
 
       let source = "manifest cabang";
       if (manifestData.manifest_source === "central") {
@@ -277,17 +288,28 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
           courier_id: courierId,
         },
       ])
-      // Also insert to shipment_history for sync
-      await supabaseClient.from("shipment_history").insert([
-        {
-          awb_number: awb,
-          status: "out_for_delivery",
-          location: "Sorting Center",
-          notes: `Continuous scan - Out for Delivery by ${courierId}`,
-          created_at: new Date().toISOString(),
-          updated_by: courierId,
-        },
-      ])
+      // Insert to shipment_history only if not exists for this awb+status
+      const { data: existingHistory, error: historyError } = await supabaseClient
+        .from("shipment_history")
+        .select("id")
+        .eq("awb_number", awb)
+        .eq("status", "out_for_delivery")
+        .maybeSingle();
+      if (!historyError && !existingHistory) {
+        const { error: insertHistoryError } = await supabaseClient.from("shipment_history").insert([
+          {
+            awb_number: awb,
+            status: "out_for_delivery",
+            location: "Sorting Center",
+            notes: `Continuous scan - Out for Delivery by ${courierId}`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        if (insertHistoryError) {
+          // eslint-disable-next-line no-console
+          console.error(`Error inserting shipment_history for ${awb}:`, insertHistoryError.message);
+        }
+      }
       return { success: true, message: "Created with auto-generated data" }
     } catch (err) {
       return { success: false, message: `Error: ${err}` }
@@ -327,17 +349,28 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         })
         .eq("awb_number", awb));
     }
-    // Always insert to shipment_history for sync
-    await supabaseClient.from("shipment_history").insert([
-      {
-        awb_number: awb,
-        status: "out_for_delivery",
-        location: "Sorting Center",
-        notes: `Continuous scan - Out for Delivery by ${courierId}`,
-        created_at: new Date().toISOString(),
-        updated_by: courierId,
-      },
-    ])
+    // Insert to shipment_history only if not exists for this awb+status
+    const { data: existingHistory, error: historyError } = await supabaseClient
+      .from("shipment_history")
+      .select("id")
+      .eq("awb_number", awb)
+      .eq("status", "out_for_delivery")
+      .maybeSingle();
+    if (!historyError && !existingHistory) {
+      const { error: insertHistoryError } = await supabaseClient.from("shipment_history").insert([
+        {
+          awb_number: awb,
+          status: "out_for_delivery",
+          location: "Sorting Center",
+          notes: `Continuous scan - Out for Delivery by ${courierId}`,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      if (insertHistoryError) {
+        // eslint-disable-next-line no-console
+        console.error(`Error inserting shipment_history for ${awb}:`, insertHistoryError.message);
+      }
+    }
     if (updateError) return { success: false, message: `Update error: ${updateError.message}` };
     if (updateResult && updateResult[0]?.courier_id === courierId) {
       return { success: true, message: "Updated existing shipment and moved assignment" };
@@ -364,14 +397,8 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
             location: "Sorting Center",
             notes: `Continuous scan - Out for Delivery by ${courierName}`,
             created_at: new Date().toISOString(),
-            updated_by: courierName,
           },
-        ])
-        return { success: true }
-      } else {
-        // History record already exists, consider it successful
-        // History record already exists (log removed for ESLint compliance)
-        return { success: true }
+        ]);
       }
     } catch (err) {
       console.error(`Error creating history for ${awb}:`, err)
@@ -477,24 +504,12 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
       awb,
       status: status,
       message: message,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-
-    setScannedItems(prev => {
-      const existingItemIndex = prev.findIndex(item => item.awb === awb);
-      if (existingItemIndex > -1) {
-        const newState = [...prev];
-        newState[existingItemIndex] = updatedItem;
-        return newState;
-      } else {
-        return [updatedItem, ...prev];
-      }
-    });
-
+    setScannedItems((prev: ScannedItem[]) => [updatedItem, ...prev]);
     playScanSound(status);
-    
-    setIsProcessing(false)
-  }
+    setIsProcessing(false);
+  } // end processAwb
 
   const handleQRScan = (result: string) => {
     if (!isProcessing) {
@@ -543,32 +558,22 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                   hideCloseButton={true}
                   disableAutoUpdate={true}
                 />
-              </div>
-            )}
-            
-            {!showScanner && (
-              <div className="border rounded-lg p-8 text-center">
-                <FontAwesomeIcon icon={faCamera} className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-4">Scanner is paused</p>
                 <Button onClick={() => setShowScanner(true)}>
                   Resume Scanning
                 </Button>
               </div>
             )}
-
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-green-200 dark:bg-green-900 p-2 rounded">
-                <div className="text-lg font-bold text-green-800 dark:text-green-400">{successCount}</div>
-                <div className="text-xs text-green-800 dark:text-green-400">Success</div>
-              </div>
-              <div className="bg-red-200 dark:bg-red-900 p-2 rounded">
-                <div className="text-lg font-bold text-red-800 dark:text-red-400">{errorCount}</div>
-                <div className="text-xs text-red-800 dark:text-red-400">Error</div>
-              </div>
-              <div className="bg-yellow-200 dark:bg-yellow-900 p-2 rounded">
-                <div className="text-lg font-bold text-yellow-800 dark:text-yellow-400">{duplicateCount}</div>
-                <div className="text-xs text-yellow-800 dark:text-yellow-400">Duplicate</div>
-              </div>
+            <div className="bg-green-200 dark:bg-green-900 p-2 rounded">
+              <div className="text-lg font-bold text-green-800 dark:text-green-400">{successCount}</div>
+              <div className="text-xs text-green-800 dark:text-green-400">Success</div>
+            </div>
+            <div className="bg-red-200 dark:bg-red-900 p-2 rounded">
+              <div className="text-lg font-bold text-red-800 dark:text-red-400">{errorCount}</div>
+              <div className="text-xs text-red-800 dark:text-red-400">Error</div>
+            </div>
+            <div className="bg-yellow-200 dark:bg-yellow-900 p-2 rounded">
+              <div className="text-lg font-bold text-yellow-800 dark:text-yellow-400">{duplicateCount}</div>
+              <div className="text-xs text-yellow-800 dark:text-yellow-400">Duplicate</div>
             </div>
           </div>
 
