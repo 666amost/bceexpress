@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
-import { FaDownload, FaPrint } from 'react-icons/fa'
+import { FaDownload, FaPrint, FaCalendarAlt } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
+import { Calendar } from "./ui/calendar"
+import { format } from "date-fns"
 
 interface PaymentHistoryType {
   id?: string;
@@ -16,6 +18,7 @@ interface PaymentHistoryType {
   final_amount: number;
   agent_customer: string;
   payment_date: string;
+  payment_number?: string;
 }
 
 interface UnpaidType {
@@ -43,6 +46,9 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
   const [expandedGroups, setExpandedGroups] = useState<{ [date: string]: boolean }>({})
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
+  const [paymentNumber, setPaymentNumber] = useState<string>("")
+  const [showCalendar, setShowCalendar] = useState<boolean>(false)
 
   // Fetch payment history on component mount
   useEffect(() => {
@@ -195,6 +201,22 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       return
     }
 
+    // Only validate payment date for branch users
+    if ((branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan') && !selectedDate) {
+      setError("Tanggal pembayaran wajib diisi")
+      return
+    }
+
+    // Auto-generate payment number if empty
+    let currentPaymentNumber = paymentNumber
+    if (!currentPaymentNumber || currentPaymentNumber.trim() === "") {
+      // Generate payment number based on date and random number
+      const dateStr = format(selectedDate as Date, "yyyyMMdd")
+      const randomNum = Math.floor(10000 + Math.random() * 90000) // 5-digit random number
+      currentPaymentNumber = `${randomNum}` // Just the 5-digit number
+      setPaymentNumber(currentPaymentNumber)
+    }
+
     setLoading(true)
     setError("")
 
@@ -215,12 +237,18 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
           discount: row.potongan,
           final_amount: row.discountedTotal,
           agent_customer: row.agent_customer,
-          payment_date: new Date().toISOString().split("T")[0],
+          payment_number: currentPaymentNumber.trim(),
         }
         
-        // Add origin_branch for branch users
-        if (userRole === 'cabang' || userRole === 'couriers') {
-          pelunasanData.origin_branch = branchOrigin
+        // Set payment_date and handle origin_branch
+        const paymentDate = (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan')
+          ? selectedDate || new Date()
+          : new Date();
+        pelunasanData.payment_date = format(paymentDate, "yyyy-MM-dd");
+        
+        // Only set origin_branch for Bangka and Tanjung Pandan
+        if (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan') {
+          pelunasanData.origin_branch = branchOrigin;
         }
         
         const { error: insertError } = await supabaseClient.from(pelunasanTable).insert(pelunasanData)
@@ -248,6 +276,9 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       alert(`Successfully processed ${selectedRows.length} payments!`)
       fetchPaymentHistory()
       fetchUnpaidData()
+      
+      // Reset payment fields
+      setPaymentNumber("")
     } catch (err) {
       setError(`Error processing payments: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -308,20 +339,42 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   };
 
     // Add this new function to format the date
-  const formatDateToInvoice = (dateString: string) => {
-    const [year, month, day] = dateString.split('-');  // Assuming date is in YYYY-MM-DD format
-    return `INV/${year}/${month}/${day}`;
+  const formatDateToInvoice = (dateString: string | null | undefined, paymentNum?: string) => {
+    // dateString: 'yyyy-mm-dd', paymentNum: string | undefined
+    if (!dateString) {
+      // Jika payment_date null, tampilkan placeholder
+      if (paymentNum) {
+        const paddedPaymentNum = paymentNum.padStart(5, '0');
+        return `INV/00/00/00/${paddedPaymentNum}`;
+      }
+      return 'INV/00/00/00';
+    }
+    const [year, month, day] = dateString.split('-');
+    const safeYear = year || '00';
+    const safeMonth = month || '00';
+    const safeDay = day || '00';
+    if (paymentNum) {
+      const paddedPaymentNum = paymentNum.padStart(5, '0');
+      return `INV/${safeYear}/${safeMonth}/${safeDay}/${paddedPaymentNum}`;
+    }
+    return `INV/${safeYear}/${safeMonth}/${safeDay}`;
   };
 
-  // Add this new function to group payment history by payment_date
-  const groupPaymentHistoryByDate = (history: PaymentHistoryType[]): {date: string, items: PaymentHistoryType[]}[] => {
-    const grouped: { [date: string]: PaymentHistoryType[] } = {};
+  // Add this new function to group payment history by payment_date and payment_number
+  const groupPaymentHistoryByDate = (history: PaymentHistoryType[]): {date: string, paymentNumber: string, items: PaymentHistoryType[]}[] => {
+    // Group by payment_date + payment_number (not just by date)
+    const grouped: { [key: string]: PaymentHistoryType[] } = {};
     history.forEach((item) => {
-      const date = item.payment_date;
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(item);
+      const date = item.payment_date || '';
+      const paymentNumber = item.payment_number || '';
+      const key = `${date}__${paymentNumber}`; // Use double underscore to avoid split issues
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
     });
-    return Object.entries(grouped).map(([date, items]) => ({ date, items }));
+    return Object.entries(grouped).map(([key, items]) => {
+      const [date, paymentNumber] = key.split('__');
+      return { date: date || '', paymentNumber: paymentNumber || '', items };
+    });
   };
 
   // Filter unpaid data based on search and selected agent
@@ -346,13 +399,15 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   // Now compute groupedHistory after the function is defined
   const groupedHistory = groupPaymentHistoryByDate(filteredPaymentHistory);
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank')
+  const handlePrint = (group: { date: string, paymentNumber: string, items: PaymentHistoryType[] }) => {
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
-      return
+      alert('Popup diblokir. Mohon izinkan popup di browser Anda.');
+      return;
     }
-    
+    const formattedINV = formatDateToInvoice(group.date, group.paymentNumber);
+    const totalSTTB = group.items.length;
+    const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
     printWindow.document.write(`
       <html>
         <head>
@@ -370,48 +425,40 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         </head>
         <body>
           <h2>Payment History</h2>
-          ${groupedHistory.map((group) => {
-            const formattedDate = formatDateToInvoice(group.date);
-            const totalSTTB = group.items.length;
-            const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
-            
-            return `
-              <h3>${formattedDate} - Total STTB: ${totalSTTB} | Total Payment: Rp. ${totalPayment.toLocaleString('en-US')}</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>No Bukti</th>
-                    <th>Pengirim</th>
-                    <th>Penerima</th>
-                    <th>Agent/Customer</th>
-                    <th class="text-right">Original Amount</th>
-                    <th class="text-right">Discount</th>
-                    <th class="text-right">Final Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${group.items.map((row) => `
-                    <tr>
-                      <td>${row.awb_no}</td>
-                      <td>${row.nama_pengirim}</td>
-                      <td>${row.nama_penerima}</td>
-                      <td>${row.agent_customer}</td>
-                      <td class="text-right">Rp. ${row.original_amount}</td>
-                      <td class="text-right">Rp. ${row.discount}</td>
-                      <td class="text-right font-bold">Rp. ${row.final_amount}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              <br>
-            `;
-          }).join('')}
+          <h3>${formattedINV} - Total STTB: ${totalSTTB} | Total Payment: Rp. ${totalPayment.toLocaleString('en-US')}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>No Bukti</th>
+                <th>Pengirim</th>
+                <th>Penerima</th>
+                <th>Agent/Customer</th>
+                <th class="text-right">Original Amount</th>
+                <th class="text-right">Discount</th>
+                <th class="text-right">Final Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${group.items.map((row) => `
+                <tr>
+                  <td>${row.awb_no}</td>
+                  <td>${row.nama_pengirim}</td>
+                  <td>${row.nama_penerima}</td>
+                  <td>${row.agent_customer}</td>
+                  <td class="text-right">Rp. ${row.original_amount}</td>
+                  <td class="text-right">Rp. ${row.discount}</td>
+                  <td class="text-right font-bold">Rp. ${row.final_amount}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <br>
         </body>
       </html>
-    `)
-    printWindow.document.close()
-    printWindow.print()
-  }
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
 
   return (
     <div className="p-4">
@@ -458,16 +505,19 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       {activeTab === "history" && (
         <div>
           <div className="space-y-4">
-            {groupedHistory.map((group) => {
-              const formattedDate = formatDateToInvoice(group.date);
+            {groupedHistory.map((group, idx) => {
+              const formattedDate = formatDateToInvoice(group.date, group.paymentNumber);
               const totalSTTB = group.items.length;
               const totalPayment = group.items.reduce((sum, row) => sum + Number(row.final_amount || 0), 0);
-              const isExpanded = expandedGroups[group.date];
+              // Key harus selalu unik, tambahkan idx jika paymentNumber kosong/duplikat
+              const groupKey = `${group.date}-${group.paymentNumber || 'no-num'}-${idx}`;
+              const expandKey = `${group.date}-${group.paymentNumber || 'no-num'}-${idx}`;
+              const isExpanded = expandedGroups[expandKey];
 
               return (
-                <div key={group.date} className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div key={groupKey} className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <button
-                    onClick={() => toggleGroup(group.date)}
+                    onClick={() => toggleGroup(expandKey)}
                     className="w-full text-left text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex justify-between items-center"
                   >
                     <span>{formattedDate}</span>
@@ -486,7 +536,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
                           <FaDownload /> Download XLSX for {group.date}
                         </button>
                         <button
-                          onClick={handlePrint}
+                          onClick={() => handlePrint(group)}
                           className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800 flex items-center gap-2 transition-colors"
                         >
                           <FaPrint /> Print
@@ -532,6 +582,21 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       {/* Add Payment Tab */}
       {activeTab === "add" && (
         <div>
+          {/* Payment Information Section */}
+          <div className="mb-4">
+            {/* Payment Number - Read-only, will be auto-generated */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">Nomor Payment (Auto-generated):</label>
+              <input
+                type="text"
+                className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm w-full bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400"
+                value={paymentNumber}
+                readOnly
+                placeholder="Akan otomatis dibuat saat menyimpan"
+              />
+            </div>
+          </div>
+          
           {/* Agent Selection Section */}
           <div className="mb-4">
             <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">Pilih Agent/Customer:</label>
@@ -610,17 +675,51 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
           {/* Action Buttons */}
           {filteredUnpaidData.some((row) => row.selected) && (
             <div className="mt-4 bg-blue-50 dark:bg-blue-900/30 p-4 rounded-md border border-blue-200 dark:border-blue-800">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Total Selected: Rp. {calculateTotalSelected().toLocaleString()}
-                </span>
-                <button
-                  onClick={handleSaveChanges}
-                  className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
-                  disabled={loading}
-                >
-                  {loading ? "Saving..." : "Save Changes"}
-                </button>
+              <div className="flex flex-col space-y-4">
+                {/* Payment Date Selection - Only show for branch users */}
+                {(branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan') && (
+                  <div className="flex items-center">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 mr-4">
+                      Tanggal Payment:
+                    </span>
+                    <div className="relative flex-grow max-w-xs">
+                      <div 
+                        className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 flex justify-between items-center cursor-pointer"
+                        onClick={() => setShowCalendar(!showCalendar)}
+                      >
+                        <span>{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Pilih tanggal"}</span>
+                        <FaCalendarAlt className="text-gray-500 dark:text-gray-400" />
+                      </div>
+                      {showCalendar && (
+                        <div className="absolute z-10 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(date) => {
+                              setSelectedDate(date);
+                              setShowCalendar(false);
+                            }}
+                            initialFocus
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Total and Save Button */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Total Selected: Rp. {calculateTotalSelected().toLocaleString()}
+                  </span>
+                  <button
+                    onClick={handleSaveChanges}
+                    className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
+                    disabled={loading}
+                  >
+                    {loading ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
               </div>
             </div>
           )}

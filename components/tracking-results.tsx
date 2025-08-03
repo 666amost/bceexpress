@@ -233,31 +233,6 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                       <p className="text-xs text-muted-foreground">{shipment.receiver_phone}</p>
                     </div>
                   )}
-                  {(shipment.sender_name && shipment.sender_name !== 'Auto Generated') || (shipment.receiver_name && shipment.receiver_name !== 'Auto Generated') ? (
-                    <div className="text-center sm:text-left">
-                      <h3 className="text-base font-semibold mb-1 text-primary">Package Details</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {typeof shipment.weight === 'string' && shipment.weight !== 'Auto Generated' && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Weight</p>
-                            <p className="font-medium text-sm">{shipment.weight} kg</p>
-                          </div>
-                        )}
-                        {shipment.dimensions && shipment.dimensions !== 'Auto Generated' && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Dimensions</p>
-                            <p className="font-medium text-sm">{shipment.dimensions}</p>
-                          </div>
-                        )}
-                        {shipment.service_type && shipment.service_type !== 'Auto Generated' && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Service Type</p>
-                            <p className="font-medium text-sm">{shipment.service_type}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
               <div className="w-full bg-gray-200 rounded-full h-6 mt-6 relative shadow-sm">
