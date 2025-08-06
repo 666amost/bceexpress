@@ -61,15 +61,17 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     setLoading(true)
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
+
       let query;
-      if (userRole === 'cabang' || userRole === 'couriers') {
+      // If userRole cabang/couriers but branchOrigin is empty/null, fallback to central table
+      if ((userRole === 'cabang' || userRole === 'couriers') && branchOrigin && branchOrigin.trim() !== "") {
         query = supabaseClient
           .from("pelunasan_cabang")
           .select("*")
           .eq('origin_branch', branchOrigin)
           .order("payment_date", { ascending: false })
       } else {
-        // Central users query central table without any filtering
+        // Central users or branch with empty origin use central table
         query = supabaseClient
           .from("pelunasan")
           .select("*")
@@ -93,15 +95,17 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   async function fetchUnpaidData() {
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
+
       let query;
-      if (userRole === 'cabang' || userRole === 'couriers') {
+      // If userRole cabang/couriers but branchOrigin is empty/null, fallback to central table
+      if ((userRole === 'cabang' || userRole === 'couriers') && branchOrigin && branchOrigin.trim() !== "") {
         query = supabaseClient
           .from("manifest_cabang")
           .select("awb_no, awb_date, nama_pengirim, nama_penerima, total, buktimembayar, potongan, agent_customer")
           .eq("buktimembayar", false)
           .eq('origin_branch', branchOrigin)
       } else {
-        // Central users query central table without any filtering
+        // Central users or branch with empty origin use central table
         query = supabaseClient
           .from("manifest")
           .select("awb_no, awb_date, nama_pengirim, nama_penerima, total, buktimembayar, potongan, agent_customer")
@@ -139,14 +143,16 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   async function fetchAgents() {
     try {
       // Central users: query central tables, Branch users: query branch tables with filtering
+
       let query;
-      if (userRole === 'cabang' || userRole === 'couriers') {
+      // If userRole cabang/couriers but branchOrigin is empty/null, fallback to central table
+      if ((userRole === 'cabang' || userRole === 'couriers') && branchOrigin && branchOrigin.trim() !== "") {
         query = supabaseClient
           .from("manifest_cabang")
           .select("agent_customer")
           .eq('origin_branch', branchOrigin)
       } else {
-        // Central users query central table without any filtering
+        // Central users or branch with empty origin use central table
         query = supabaseClient
           .from("manifest")
           .select("agent_customer")
@@ -220,13 +226,21 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     setLoading(true)
     setError("")
 
+
     try {
       // Process each selected row
       for (const row of selectedRows) {
-        // Determine tables based on user role
-        const pelunasanTable = userRole === 'cabang' || userRole === 'couriers' ? "pelunasan_cabang" : "pelunasan"
-        const manifestTable = userRole === 'cabang' || userRole === 'couriers' ? "manifest_cabang" : "manifest"
-        
+        // Determine tables based on user role and branchOrigin
+        let pelunasanTable: string;
+        let manifestTable: string;
+        if ((userRole === 'cabang' || userRole === 'couriers') && branchOrigin && branchOrigin.trim() !== "") {
+          pelunasanTable = "pelunasan_cabang";
+          manifestTable = "manifest_cabang";
+        } else {
+          pelunasanTable = "pelunasan";
+          manifestTable = "manifest";
+        }
+
         // 1. Insert into pelunasan table
         const pelunasanData: Record<string, unknown> = {
           awb_no: row.awb_no,
@@ -238,23 +252,23 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
           final_amount: row.discountedTotal,
           agent_customer: row.agent_customer,
           payment_number: currentPaymentNumber.trim(),
-        }
-        
+        };
+
         // Set payment_date and handle origin_branch
-        const paymentDate = (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan')
+        const paymentDate = (branchOrigin && (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan'))
           ? selectedDate || new Date()
           : new Date();
         pelunasanData.payment_date = format(paymentDate, "yyyy-MM-dd");
-        
+
         // Only set origin_branch for Bangka and Tanjung Pandan
-        if (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan') {
+        if (branchOrigin && (branchOrigin.toLowerCase() === 'bangka' || branchOrigin.toLowerCase() === 'tanjung pandan')) {
           pelunasanData.origin_branch = branchOrigin;
         }
-        
-        const { error: insertError } = await supabaseClient.from(pelunasanTable).insert(pelunasanData)
+
+        const { error: insertError } = await supabaseClient.from(pelunasanTable).insert(pelunasanData);
 
         if (insertError) {
-          throw insertError
+          throw insertError;
         }
 
         // 2. Update manifest table to mark as paid
@@ -265,10 +279,10 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
             potongan: row.potongan || 0,
             total: row.discountedTotal,
           })
-          .eq("awb_no", row.awb_no)
+          .eq("awb_no", row.awb_no);
 
         if (updateError) {
-          throw updateError
+          throw updateError;
         }
       }
 
