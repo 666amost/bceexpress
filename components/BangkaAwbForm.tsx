@@ -4,6 +4,48 @@ import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout"
 
+// Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
+const areaCodeMapping: Record<string, string> = {
+  // Heading mappings
+  'GREEN LAKE CITY': 'GLC',
+  'GRENLAKE CITY': 'GLC',
+  'GRENLAKE CITY / BARAT': 'GLC',
+  // Jakarta Barat - GLC group
+  'CENGKARENG': 'GLC',
+  'GROGOL': 'GLC',
+  'KEBON JERUK': 'GLC',
+  'KALI DERES': 'GLC',
+  'PAL MERAH': 'GLC',
+  'KEMBANGAN': 'GLC',
+  // Jakarta Selatan - GLC group
+  'CILANDAK': 'GLC',
+  'JAGAKARSA': 'GLC',
+  'KEBAYORAN BARU': 'GLC',
+  'KEBAYORAN LAMA': 'GLC',
+  'MAMPANG PRAPATAN': 'GLC',
+  'PASAR MINGGU': 'GLC',
+  'PESANGGRAHAN': 'GLC',
+  // Jakarta Utara - GLC group
+  'PENJARINGAN': 'GLC',
+
+  // Kreko mappings
+  'KREKOT': 'KMY',
+  'KREKOT / PUSAT': 'KMY',
+  // Jakarta Barat - KMY group
+  'TAMAN SARI': 'KMY',
+  'TAMBORA': 'KMY',
+  // Jakarta Selatan - KMY group
+  'PANCORAN': 'KMY',
+  'SETIABUDI': 'KMY',
+  'TEBET': 'KMY',
+  // Jakarta Utara - KMY group
+  'CILINCING': 'KMY',
+  'KELAPA GADING': 'KMY',
+  'KOJA': 'KMY',
+  'PADEMANGAN': 'KMY',
+  'TANJUNG PRIOK': 'KMY'
+};
+
 interface BangkaAwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
@@ -700,6 +742,12 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   }
 
   const handlePrint = (onAfterPrint?: () => void) => {
+    // Hitung kode wilayah berdasarkan mapping khusus
+    const key = Object.keys(areaCodeMapping).find(k =>
+      form.kota_tujuan.toUpperCase().includes(k) || form.kecamatan.toUpperCase().includes(k)
+    );
+    const areaCode = key ? areaCodeMapping[key] : '';
+
     // CSS dari PrintLayout.jsx yang sudah diperbarui (DISINKRONKAN)
     const printLayoutCss = `
       /* === START: CSS disinkronkan dari PrintLayout.jsx === */
@@ -1429,4 +1477,4 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       </form>
     </>
   )
-} 
+}

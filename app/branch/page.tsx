@@ -21,7 +21,10 @@ import { Oval as LoadingIcon } from 'react-loading-icons'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import BranchDashboard from "@/components/branchdashboard";
+import BranchDebugger from "@/components/BranchDebugger";
 import { supabaseClient } from "../../lib/auth"
+import type { UserRole, AWBFormData } from "@/types/branch"
+import { isValidUserRole, validateBranchAccess } from "@/types/branch"
 
 ChartJS.register(
   CategoryScale,
@@ -38,10 +41,10 @@ export default function BranchPage() {
   const [selectedSubMenu, setSelectedSubMenu] = useState("input_resi")
   const [isClient, setIsClient] = useState(false)
   const [showAwbForm, setShowAwbForm] = useState(false)
-  const [userRole, setUserRole] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [branchOrigin, setBranchOrigin] = useState<string | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
-  const [selectedAwb, setSelectedAwb] = useState<Record<string, unknown> | null>(null)
+  const [selectedAwb, setSelectedAwb] = useState<AWBFormData | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
 
@@ -70,8 +73,13 @@ export default function BranchPage() {
               .eq("id", user.id)
               .single();
             if (userData) {
-              setUserRole(userData.role as string);
-              setBranchOrigin(userData.origin_branch as string);
+              const role = userData.role as string;
+              if (isValidUserRole(role)) {
+                setUserRole(role);
+                setBranchOrigin(userData.origin_branch as string);
+              } else {
+                console.warn('Invalid user role:', role);
+              }
             }
           }
         } catch {
@@ -151,6 +159,9 @@ export default function BranchPage() {
                   onShowAwbForm={setShowAwbForm}
                 />
               )
+            )}
+            {selectedSubMenu === "debug" && userRole === 'admin' && (
+              <BranchDebugger />
             )}
             {selectedSubMenu === "search_manifest" && userRole && (
               <HistoryManifest mode="pelunasan" 

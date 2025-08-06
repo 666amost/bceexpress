@@ -142,7 +142,8 @@ export default function PrintLabelPage() {
           // Map data to format expected by PrintLayout
           const processedData = {
             ...data,
-            wilayah: data.kota_tujuan, // For airport code mapping
+            // Preserve actual wilayah field from database, fallback to kota_tujuan only if wilayah is empty
+            wilayah: data.wilayah || data.kota_tujuan, // Use actual wilayah field first, then kota_tujuan as fallback
             agent_customer: data.agent_customer || data.origin_branch || 'Agent' // Fallback for agent display
           };
           setAwbData(processedData);

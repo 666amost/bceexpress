@@ -80,7 +80,7 @@ function BulkPrintContent(): JSX.Element {
         catatan: booking.catatan as string | undefined,
         status: booking.status as string,
         created_at: booking.created_at as string,
-        wilayah: booking.kota_tujuan as string | undefined
+        wilayah: (booking.wilayah as string) || (booking.kota_tujuan as string) // Use actual wilayah field first, then kota_tujuan as fallback
       })) || []
 
       setAwbs(formattedData)

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
-import AwbForm from "./AwbForm"
+// import AwbForm from "./AwbForm" // Unused import removed to resolve TS warning
 
 const agentList = [
   'GLC COD UDR',
@@ -619,6 +619,13 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
         text-align: right;
         margin-right: 2mm;
         margin-top: -3mm;
+      }
+      .area-code {
+        font-size: 14px;
+        font-weight: bold;
+        text-align: right;
+        margin-right: 2mm;
+        margin-top: -1mm;
       }
 
       @media print {

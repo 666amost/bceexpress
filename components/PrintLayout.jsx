@@ -52,6 +52,53 @@ export default function PrintLayout({ data }) {
     "BOGOR KABUPATEN": "BGB",
   };
 
+  // Mapping kecamatan or kota to special area codes
+  const areaCodes = {
+  // Green Lake City (GLC) variants and Jakarta group
+  "GREEN LAKE CITY": "GLC",
+  "GRENLAKE CITY": "GLC",
+  "GRENLAKE CITY / BARAT": "GLC",
+  // Jakarta Barat - GLC group
+  "CENGKARENG": "GLC",
+  "GROGOL": "GLC",
+  "KEBON JERUK": "GLC",
+  "KALI DERES": "GLC",
+  "PAL MERAH": "GLC",
+  "KEMBANGAN": "GLC",
+  // Jakarta Selatan - GLC group
+  "CILANDAK": "GLC",
+  "JAGAKARSA": "GLC",
+  "KEBAYORAN BARU": "GLC",
+  "KEBAYORAN LAMA": "GLC",
+  "MAMPANG PRAPATAN": "GLC",
+  "PASAR MINGGU": "GLC",
+  "PESANGGRAHAN": "GLC",
+  // Jakarta Utara - GLC group
+  "PENJARINGAN": "GLC",
+  // Kreko (KMY) variants and Jakarta group
+  "KREKOT": "KMY",
+  "KREKOT / PUSAT": "KMY",
+  // Jakarta Barat - KMY group
+  "TAMAN SARI": "KMY",
+  "TAMBORA": "KMY",
+  // Jakarta Selatan - KMY group
+  "PANCORAN": "KMY",
+  "SETIABUDI": "KMY",
+  "TEBET": "KMY",
+  // Jakarta Utara - KMY group
+  "CILINCING": "KMY",
+  "KELAPA GADING": "KMY",
+  "KOJA": "KMY",
+  "PADEMANGAN": "KMY",
+  "TANJUNG PRIOK": "KMY",
+  };
+
+  // Get the area code based on kota_tujuan or kecamatan
+  const getAreaCode = (kota, kec) => {
+    const key = (kec || kota || "").toUpperCase();
+    return areaCodes[key] || "";
+  };
+
   // Get the airport code based on the wilayah
   const getAirportCode = (wilayah) => {
     return airportCodes[wilayah] || wilayah || "N/A";
@@ -307,7 +354,11 @@ export default function PrintLayout({ data }) {
           </div>
           <div className="top-header-right">
             <div className="airport-code">
-              {data.wilayah ? getAirportCode(data.wilayah) : (data.kota_tujuan ? getAirportCode(data.kota_tujuan) : "")}
+               {(() => {
+                 const ac = data.wilayah ? getAirportCode(data.wilayah) : (data.kota_tujuan ? getAirportCode(data.kota_tujuan) : "");
+                 const ar = getAreaCode(data.kota_tujuan, data.kecamatan);
+                 return ar ? `${ac}/${ar}` : ac;
+               })()}
             </div>
           </div>
         </div>
@@ -419,6 +470,9 @@ export default function PrintLayout({ data }) {
 
         .top-header-right {
           flex: 0 0 auto;
+          display: flex;
+          align-items: flex-end;
+          gap: 1mm;
         }
 
         .cod-text {
@@ -619,6 +673,13 @@ export default function PrintLayout({ data }) {
           text-align: right;
           margin-right: 2mm;
           margin-top: -3mm;
+        }
+        .area-code {
+          font-size: 14px;
+          font-weight: bold;
+          text-align: right;
+          margin-right: 2mm;
+          margin-top: -1mm;
         }
 
         .address-box .recipient-info > div.address-content {

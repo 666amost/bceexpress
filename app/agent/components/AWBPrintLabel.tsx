@@ -6,6 +6,55 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { FaPrint, FaTimes, FaBoxOpen, FaMapMarkerAlt, FaUser, FaPhone, FaCalendarAlt } from 'react-icons/fa';
 
+// Tambahkan mapping kode bandara dan kode area
+const airportCodes: Record<string, string> = {
+  'JAKARTA BARAT': 'JKB',
+  'JAKARTA PUSAT': 'JKP',
+  'JAKARTA TIMUR': 'JKT',
+  'JAKARTA SELATAN': 'JKS',
+  'JAKARTA UTARA': 'JKU',
+};
+const areaCodes: Record<string, string> = {
+  // Heading mappings
+  'GREEN LAKE CITY': 'GLC',
+  'GRENLAKE CITY': 'GLC',
+  'GRENLAKE CITY / BARAT': 'GLC',
+  // Jakarta Barat - GLC group
+  'CENGKARENG': 'GLC',
+  'GROGOL PETAMBURAN': 'GLC',
+  'KALIDERES': 'GLC',
+  'KEBON JERUK': 'GLC',
+  'KEMBANGAN': 'GLC',
+  'PALMERAH': 'GLC',
+  // Jakarta Selatan - GLC group
+  'CILANDAK': 'GLC',
+  'JAGAKARSA': 'GLC',
+  'KEBAYORAN BARU': 'GLC',
+  'KEBAYORAN LAMA': 'GLC',
+  'MAMPANG PRAPATAN': 'GLC',
+  'PASAR MINGGU': 'GLC',
+  'PESANGGRAHAN': 'GLC',
+  // Jakarta Utara - GLC group
+  'PENJARINGAN': 'GLC',
+
+  // Kreko mappings
+  'KREKOT': 'KMY',
+  'KREKOT / PUSAT': 'KMY',
+  // Jakarta Barat - KMY group
+  'TAMAN SARI': 'KMY',
+  'TAMBORA': 'KMY',
+  // Jakarta Selatan - KMY group
+  'PANCORAN': 'KMY',
+  'SETIABUDI': 'KMY',
+  'TEBET': 'KMY',
+  // Jakarta Utara - KMY group
+  'CILINCING': 'KMY',
+  'KELAPA GADING': 'KMY',
+  'KOJA': 'KMY',
+  'PADEMANGAN': 'KMY',
+  'TANJUNG PRIOK': 'KMY'
+};
+
 interface ManifestBookingData {
   id?: string;
   awb_no: string;
@@ -39,6 +88,9 @@ interface AWBPrintLabelProps {
 
 export const AWBPrintLabel: React.FC<AWBPrintLabelProps> = ({ awbData, onClose }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  // Hitung kode bandara dan area
+  const airportCode = airportCodes[awbData.kota_tujuan] || '';
+  const areaCode = areaCodes[awbData.kecamatan] || '';
 
   const handlePrint = () => {
     if (printRef.current) {
@@ -65,17 +117,23 @@ export const AWBPrintLabel: React.FC<AWBPrintLabelProps> = ({ awbData, onClose }
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header with actions */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">AWB Label Print Preview</h2>
-          <div className="flex gap-2">
-            <Button onClick={handlePrint} className="flex items-center gap-2">
-              <FaPrint className="h-4 w-4" />
-              Print
-            </Button>
-            <Button variant="outline" onClick={onClose}>
-              <FaTimes className="h-4 w-4" />
-            </Button>
+          <div>
+            <h2 className="text-lg font-semibold">AWB Label Print Preview</h2>
           </div>
-        </div>
+          <div className="text-right">
+            <div className="text-xl font-bold airport-code">{airportCode}</div>
+            <div className="text-lg font-semibold area-code">{areaCode}</div>
+          </div>
+           <div className="flex gap-2">
+             <Button onClick={handlePrint} className="flex items-center gap-2">
+               <FaPrint className="h-4 w-4" />
+               Print
+             </Button>
+             <Button variant="outline" onClick={onClose}>
+               <FaTimes className="h-4 w-4" />
+             </Button>
+           </div>
+         </div>
 
         {/* Print content */}
         <div ref={printRef} className="p-6">

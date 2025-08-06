@@ -54,6 +54,7 @@ interface ManifestBookingData {
   awb_date: string;
   kirim_via: string;
   kota_tujuan: string;
+  wilayah?: string;
   kecamatan: string;
   metode_pembayaran: string;
   agent_customer: string;
@@ -364,6 +365,9 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         awb_date: awbData.awb_date,
         kirim_via: awbData.kirim_via,
         kota_tujuan: awbData.kota_tujuan,
+        wilayah: currentAgent.branchOrigin?.toLowerCase().includes('bangka') 
+          ? awbData.kecamatan 
+          : (awbData.wilayah || ""),
         kecamatan: awbData.kecamatan,
         metode_pembayaran: awbData.metode_pembayaran,
         agent_customer: currentAgent.email,

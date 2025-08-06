@@ -10,17 +10,73 @@ import { useToast } from '@/hooks/use-toast';
 import { FaCheckCircle, FaPrint, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import { useAgent } from '../context/AgentContext';
 
-// Data wilayah dan harga
-const kotaWilayahJabodetabek = {
-  "JAKARTA BARAT": { kecamatan: ["Cengkareng", "Grogol petamburan", "Kalideres", "Kebon jeruk", "Kembangan", "Palmerah", "Tambora", "Taman sari"], harga: 28000 },
-  "JAKARTA PUSAT": { kecamatan: ["Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang"], harga: 27000 },
-  "JAKARTA TIMUR": { kecamatan: ["Cakung", "Ciracas", "Cipayung", "Duren sawit", "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulogadung"], harga: 29000 },
-  "JAKARTA SELATAN": { kecamatan: ["Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", "Pancoran", "Pasar minggu", "Pesanggrahan", "Setiabudi", "Tebet"], harga: 30000 },
-  "JAKARTA UTARA": { kecamatan: ["Cilincing", "Kelapa gading", "Koja", "Pademangan", "Penjaringan", "Tanjung priok"], harga: 31000 },
-  "BOGOR": { kecamatan: ["Bogor Barat", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Bogor Selatan", "Tanah Sareal"], harga: 32000 },
-  "DEPOK": { kecamatan: ["Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung", "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"], harga: 33000 },
-  "TANGERANG": { kecamatan: ["Benda", "Jatiuwung", "Larangan", "Karawaci", "Tangerang"], harga: 34000 },
-  "BEKASI": { kecamatan: ["Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", "Bantargebang", "Jatiasih", "Jatisampurna", "Medan Satria", "Mustika Jaya", "Pondokgede", "Pondok Melati", "Rawalumbu"], harga: 35000 }
+// Tambahkan mapping kode bandara dan kode area dengan explicit typing
+interface CityData {
+  kecamatan: string[];
+  harga: number;
+}
+
+type KotaWilayah = Record<string, CityData>;
+
+const kotaWilayahJabodetabek: KotaWilayah = {
+  "JAKARTA BARAT": { kecamatan: ["CENGKARENG", "GROGOL PETAMBURAN", "KALIDERES", "KEBON JERUK", "KEMBANGAN", "PALMERAH", "TAMBORA", "TAMAN SARI"], harga: 28000 },
+  "JAKARTA PUSAT": { kecamatan: ["CEMPAKA PUTIH", "GAMBIR", "JOHAR BARU", "KEMAYORAN", "MENTENG", "SAWAH BESAR", "SENEN", "TANAH ABANG"], harga: 27000 },
+  "JAKARTA TIMUR": { kecamatan: ["CAKUNG", "CIRACAS", "CIPAYUNG", "DUREN SAWIT", "JATINEGARA", "KRAMAT JATI", "MAKASAR", "MATRAMAN", "PASAR REBO", "PULOGADUNG"], harga: 29000 },
+  "JAKARTA SELATAN": { kecamatan: ["CILANDAK", "JAGAKARSA", "KEBAYORAN BARU", "KEBAYORAN LAMA", "MAMPANG PRAPATAN", "PANCORAN", "PASAR MINGGU", "PESANGGRAHAN", "SETIABUDI", "TEBET"], harga: 30000 },
+  "JAKARTA UTARA": { kecamatan: ["CILINCING", "KELAPA GADING", "KOJA", "PADEMANGAN", "PENJARINGAN", "TANJUNG PRIOK"], harga: 31000 },
+  "BOGOR": { kecamatan: ["BOGOR BARAT", "BOGOR TENGAH", "BOGOR TIMUR", "BOGOR UTARA", "BOGOR SELATAN", "TANAH SAREAL"], harga: 32000 },
+  "DEPOK": { kecamatan: ["BEJI", "BOJONGSARI", "CILODONG", "CIMANGGIS", "CINERE", "CIPAYUNG", "LIMO", "PANCORAN MAS", "SAWANGAN", "SUKMAJAYA", "TAPOS"], harga: 33000 },
+  "TANGERANG": { kecamatan: ["BENDA", "JATIUWUNG", "LARANGAN", "KARAWACI", "TANGERANG"], harga: 34000 },
+  "BEKASI": { kecamatan: ["BEKASI BARAT", "BEKASI SELATAN", "BEKASI TIMUR", "BEKASI UTARA", "BANTARGEBANG", "JATIASIH", "JATISAMPURNA", "MEDAN SATRIA", "MUSTIKA JAYA", "PONDOKGEDE", "PONDOK MELATI", "RAWALUMBU"], harga: 35000 }
+};
+
+// Tambahkan mapping kode bandara dan kode area dengan explicit typing
+const airportCodes: Record<string, string> = {
+  'JAKARTA BARAT': 'JKB',
+  'JAKARTA PUSAT': 'JKP',
+  'JAKARTA TIMUR': 'JKT',
+  'JAKARTA SELATAN': 'JKS',
+  'JAKARTA UTARA': 'JKU',
+};
+const areaCodes: Record<string, string> = {
+  // Heading mappings
+  'GREEN LAKE CITY': 'GLC',
+  'GRENLAKE CITY': 'GLC',
+  'GRENLAKE CITY / BARAT': 'GLC',
+  // Jakarta Barat - GLC group
+  'CENGKARENG': 'GLC',
+  'GROGOL PETAMBURAN': 'GLC',
+  'KALIDERES': 'GLC',
+  'KEBON JERUK': 'GLC',
+  'KEMBANGAN': 'GLC',
+  'PALMERAH': 'GLC',
+  // Jakarta Selatan - GLC group
+  'CILANDAK': 'GLC',
+  'JAGAKARSA': 'GLC',
+  'KEBAYORAN BARU': 'GLC',
+  'KEBAYORAN LAMA': 'GLC',
+  'MAMPANG PRAPATAN': 'GLC',
+  'PASAR MINGGU': 'GLC',
+  'PESANGGRAHAN': 'GLC',
+  // Jakarta Utara - GLC group
+  'PENJARINGAN': 'GLC',
+
+  // Kreko mappings
+  'KREKOT': 'KMY',
+  'KREKOT / PUSAT': 'KMY',
+  // Jakarta Barat - KMY group
+  'TAMAN SARI': 'KMY',
+  'TAMBORA': 'KMY',
+  // Jakarta Selatan - KMY group
+  'PANCORAN': 'KMY',
+  'SETIABUDI': 'KMY',
+  'TEBET': 'KMY',
+  // Jakarta Utara - KMY group
+  'CILINCING': 'KMY',
+  'KELAPA GADING': 'KMY',
+  'KOJA': 'KMY',
+  'PADEMANGAN': 'KMY',
+  'TANJUNG PRIOK': 'KMY'
 };
 
 interface FormDataType {
@@ -28,6 +84,7 @@ interface FormDataType {
   awb_date: string;
   kirim_via: string;
   kota_tujuan: string;
+  wilayah: string;
   kecamatan: string;
   metode_pembayaran: string;
   agent_customer: string;
@@ -60,6 +117,7 @@ export const AWBCreationForm: React.FC = () => {
     awb_date: new Date().toISOString().split('T')[0],
     kirim_via: 'UDARA', // Default to UDARA
     kota_tujuan: '',
+    wilayah: '',
     kecamatan: '',
     metode_pembayaran: 'CASH',
     agent_customer: '',
@@ -82,11 +140,17 @@ export const AWBCreationForm: React.FC = () => {
 
   // Calculate kecamatan options
   const kecamatanOptions = useMemo(() => {
-    if (!formData.kota_tujuan || !kotaWilayahJabodetabek[formData.kota_tujuan as keyof typeof kotaWilayahJabodetabek]) {
+    if (!formData.kota_tujuan || !kotaWilayahJabodetabek[formData.kota_tujuan]) {
       return [];
     }
-    return kotaWilayahJabodetabek[formData.kota_tujuan as keyof typeof kotaWilayahJabodetabek].kecamatan;
+    return kotaWilayahJabodetabek[formData.kota_tujuan].kecamatan;
   }, [formData.kota_tujuan]);
+
+  // Hitung kode bandara dan area
+  const selectedCity = formData.kota_tujuan;
+  const selectedDistrict = formData.kecamatan;
+  const airportCode = airportCodes[selectedCity] || '';
+  const areaCode = areaCodes[selectedDistrict] || '';
 
   // Generate AWB number function
   const generateNewAWBNumber = useCallback((): void => {
@@ -106,7 +170,7 @@ export const AWBCreationForm: React.FC = () => {
   // Auto calculate pricing
   const updatePricing = useCallback((): void => {
     if (formData.kota_tujuan && formData.berat_kg > 0) {
-      const cityData = kotaWilayahJabodetabek[formData.kota_tujuan as keyof typeof kotaWilayahJabodetabek];
+      const cityData = kotaWilayahJabodetabek[formData.kota_tujuan];
       if (cityData) {
         const hargaPerKg = cityData.harga;
         const subTotal = formData.berat_kg * hargaPerKg;
@@ -134,14 +198,33 @@ export const AWBCreationForm: React.FC = () => {
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       
-      // Reset kecamatan when kota_tujuan changes
+      // Reset kecamatan and calculate wilayah when kota_tujuan changes
       if (name === 'kota_tujuan') {
         newData.kecamatan = '';
+        newData.wilayah = airportCodes[value] || '';
+      }
+      
+      // Calculate wilayah when kecamatan changes
+      if (name === 'kecamatan' && newData.kota_tujuan) {
+        const airportCode = airportCodes[newData.kota_tujuan] || '';
+        const areaCode = areaCodes[value] || '';
+        
+        // For Bangka branch: use kecamatan directly as wilayah
+        if (currentAgent?.branchOrigin?.toLowerCase().includes('bangka')) {
+          newData.wilayah = value; // Use kecamatan directly
+        } else {
+          // For other branches: use airport code + area code format
+          if (areaCode) {
+            newData.wilayah = `${airportCode}/${areaCode}`;
+          } else {
+            newData.wilayah = airportCode;
+          }
+        }
       }
       
       return newData;
     });
-  }, []);
+  }, [currentAgent?.branchOrigin]);
 
   const validateForm = useCallback((): boolean => {
     const requiredFields = [
@@ -218,6 +301,7 @@ export const AWBCreationForm: React.FC = () => {
         awb_date: formData.awb_date,
         kirim_via: formData.kirim_via || 'DARAT',
         kota_tujuan: formData.kota_tujuan,
+        wilayah: formData.wilayah,
         kecamatan: formData.kecamatan,
         metode_pembayaran: formData.metode_pembayaran,
         agent_customer: currentAgent.email,
@@ -255,6 +339,7 @@ export const AWBCreationForm: React.FC = () => {
             awb_date: new Date().toISOString().split('T')[0],
             kirim_via: 'UDARA', // Default to UDARA
             kota_tujuan: '',
+            wilayah: '',
             kecamatan: '',
             metode_pembayaran: 'CASH',
             agent_customer: currentAgent.email,
@@ -275,7 +360,7 @@ export const AWBCreationForm: React.FC = () => {
             catatan: ''
           });
           generateNewAWBNumber();
-        }, 3000);
+        }, 10000); // Increased from 3000 to 10000 (10 seconds)
       }
 
     } catch (error) {
@@ -354,16 +439,46 @@ export const AWBCreationForm: React.FC = () => {
           <div className="text-green-600">
             <FaCheckCircle className="h-16 w-16 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Booking Created Successfully!</h3>
-            <p className="text-gray-600 mb-6">Resi Number: {submittedAWB}</p>
+            <p className="text-gray-600 mb-2">Resi Number: <span className="font-bold text-blue-600">{submittedAWB}</span></p>
+            <p className="text-sm text-gray-500 mb-6">Form akan reset otomatis dalam 10 detik</p>
             <div className="flex gap-3 justify-center">
               <Button onClick={handlePrintAWB} className="bg-blue-600 hover:bg-blue-700">
                 <FaPrint className="h-4 w-4 mr-2" />
                 Print Resi
               </Button>
               <Button 
-                onClick={() => setShowSuccess(false)} 
+                onClick={() => {
+                  setShowSuccess(false);
+                  setFormData({
+                    awb_no: '',
+                    awb_date: new Date().toISOString().split('T')[0],
+                    kirim_via: 'UDARA',
+                    kota_tujuan: '',
+                    wilayah: '',
+                    kecamatan: '',
+                    metode_pembayaran: 'CASH',
+                    agent_customer: currentAgent?.email || '',
+                    nama_pengirim: '',
+                    nomor_pengirim: '',
+                    nama_penerima: '',
+                    nomor_penerima: '',
+                    alamat_penerima: '',
+                    coli: 1,
+                    berat_kg: 1,
+                    harga_per_kg: 0,
+                    sub_total: 0,
+                    biaya_admin: 2000,
+                    biaya_packaging: 0,
+                    biaya_transit: 0,
+                    total: 0,
+                    isi_barang: '',
+                    catatan: ''
+                  });
+                  generateNewAWBNumber();
+                }} 
                 variant="outline"
               >
+                <FaRedo className="h-4 w-4 mr-2" />
                 Create New Booking
               </Button>
             </div>
@@ -378,6 +493,10 @@ export const AWBCreationForm: React.FC = () => {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Create New Booking</span>
+          <div className="text-right">
+            <div className="text-lg font-bold airport-code">{airportCode}</div>
+            <div className="text-sm font-semibold area-code">{areaCode}</div>
+          </div>
           <Button
             onClick={generateNewAWBNumber}
             variant="outline"

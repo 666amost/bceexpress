@@ -16,6 +16,7 @@ interface BookingData {
   nama_pengirim: string
   nama_penerima: string
   kota_tujuan: string
+  wilayah?: string
   kecamatan: string
   coli: number
   berat_kg: number
@@ -55,7 +56,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
   const [scannedAWB, setScannedAWB] = useState("")
 
   // Function to get agent details from users table
-  const getAgentDetails = async (agentId: string) => {
+  const getAgentDetails = async (agentId: string): Promise<{ name: string; email: string }> => {
     try {
       const { data: userData, error } = await supabaseClient
         .from('users')
@@ -67,14 +68,17 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
         return { name: 'Unknown Agent', email: 'unknown@email.com' }
       }
       
-      return userData
+      return {
+        name: userData.name || 'Unknown Agent',
+        email: userData.email || 'unknown@email.com'
+      }
     } catch (err) {
       return { name: 'Unknown Agent', email: 'unknown@email.com' }
     }
   }
 
   // Fungsi refresh sederhana
-  const refreshBookings = () => {
+  const refreshBookings = (): void => {
     setIsProcessing(prev => !prev) // Trigger useEffect refresh
   }
   useEffect(() => {
@@ -100,13 +104,16 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
       }
 
       // Transform data untuk include agent info
-      const transformedData = await Promise.all((data || []).map(async (booking: Record<string, unknown>) => {
-        const agentDetails = booking.agent_id ? await getAgentDetails(booking.agent_id as string) : { name: 'Unknown', email: 'Unknown' }
+      const transformedData = await Promise.all((data || []).map(async (booking: BookingData) => {
+        const agentDetails = booking.agent_id 
+          ? await getAgentDetails(booking.agent_id) 
+          : { name: 'Unknown', email: 'Unknown' }
+        
         return {
           ...booking,
           agent_name: agentDetails.name,
           agent_email: agentDetails.email
-        } as BookingData
+        }
       }))
       
       setBookings(transformedData)
@@ -114,7 +121,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
     })
   }, [userRole, branchOrigin, isProcessing]) // Refresh saat ada perubahan processing
 
-  const handleOpenVerifyModal = (booking: BookingData, action: 'verify' | 'reject') => {
+  const handleOpenVerifyModal = (booking: BookingData, action: 'verify' | 'reject'): void => {
     setSelectedBooking(booking)
     setVerifyAction(action)
     setEditableData({
@@ -129,7 +136,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
     setShowVerifyModal(true)
   }
 
-  const handleCloseModal = () => {
+  const handleCloseModal = (): void => {
     setShowVerifyModal(false)
     setSelectedBooking(null)
     setVerifyAction("")
@@ -138,16 +145,16 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
   }
 
   // QR Scanner Functions
-  const handleQRScan = (scannedText: string) => {
+  const handleQRScan = (scannedText: string): void => {
     setScannedAWB(scannedText)
     searchBookingByAWB(scannedText)
   }
 
-  const closeQRScanner = () => {
+  const closeQRScanner = (): void => {
     setShowQRScanner(false)
   }
 
-  const searchBookingByAWB = async (awbNo: string) => {
+  const searchBookingByAWB = async (awbNo: string): Promise<void> => {
     if (!awbNo.trim()) return
 
     try {
@@ -173,12 +180,17 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
       }
 
       if (data && data.length > 0) {
-        const agentDetails = data[0].agent_id ? await getAgentDetails(data[0].agent_id) : { name: 'Unknown', email: 'Unknown' }
-        const booking = {
-          ...data[0],
+        const bookingData = data[0] as BookingData
+        const agentDetails = bookingData.agent_id 
+          ? await getAgentDetails(bookingData.agent_id) 
+          : { name: 'Unknown', email: 'Unknown' }
+        
+        const booking: BookingData = {
+          ...bookingData,
           agent_name: agentDetails.name,
           agent_email: agentDetails.email
         }
+        
         // Langsung buka modal verifikasi
         handleOpenVerifyModal(booking, 'verify')
         setScannedAWB("")
@@ -186,26 +198,27 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
       } else {
         setError(`Booking dengan AWB ${awbNo} tidak ditemukan atau sudah diverifikasi`)
       }
-    } catch (err) {
-      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : 'Unknown error'))
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError("Terjadi kesalahan: " + errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleManualAWBSearch = () => {
+  const handleManualAWBSearch = (): void => {
     if (scannedAWB.trim()) {
       searchBookingByAWB(scannedAWB)
     }
   }
 
-  const calculateTotal = () => {
+  const calculateTotal = (): { subTotal: number; total: number } => {
     const subTotal = (editableData.berat_kg || 0) * (editableData.harga_per_kg || 0)
     const total = subTotal + (editableData.biaya_admin || 0) + (editableData.biaya_packaging || 0) + (editableData.biaya_transit || 0)
     return { subTotal, total }
   }
 
-  const handleProcessVerification = async () => {
+  const handleProcessVerification = async (): Promise<void> => {
     if (!selectedBooking) return
 
     setIsProcessing(true)
@@ -243,6 +256,9 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
           awb_date: selectedBooking.awb_date,
           kirim_via: selectedBooking.kirim_via,
           kota_tujuan: selectedBooking.kota_tujuan,
+          wilayah: branchOrigin?.toLowerCase().includes('bangka') 
+            ? selectedBooking.kecamatan 
+            : (selectedBooking.wilayah || ""),
           kecamatan: selectedBooking.kecamatan,
           metode_pembayaran: selectedBooking.metode_pembayaran,
           agent_customer: selectedBooking.agent_customer,
@@ -304,14 +320,15 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
       handleCloseModal()
       refreshBookings() // Refresh data
 
-    } catch (err) {
-      setError("Terjadi kesalahan: " + (err instanceof Error ? err.message : 'Unknown error'))
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError("Terjadi kesalahan: " + errorMessage)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
@@ -319,7 +336,7 @@ export default function BookingVerification({ userRole, branchOrigin }: BookingV
     }).format(amount)
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
       month: '2-digit',
