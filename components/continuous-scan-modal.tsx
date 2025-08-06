@@ -98,38 +98,30 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
 
   const validateAwb = (awb: string): boolean => {
     const cleanAwb = awb.trim().toUpperCase();
-    return cleanAwb.startsWith('BCE') || cleanAwb.startsWith('BE');
+    // Only allow AWB that starts with BE or BCE (no length/format check)
+    // Example: BE..., BCE...
+    return cleanAwb.startsWith("BE") || cleanAwb.startsWith("BCE");
   };
 
   const checkManifestAwb = async (awb: string) => {
     try {
       const cleanAwb = awb.trim().toUpperCase();
-      let awbsToCheck = [cleanAwb];
-      if (cleanAwb.startsWith('BCE')) {
-        awbsToCheck.push(cleanAwb.substring(3));
-      } else if (cleanAwb.startsWith('BE')) {
-        awbsToCheck.push(cleanAwb.substring(2));
-      } else if (/^\d+$/.test(cleanAwb)) {
-        awbsToCheck.push('BCE' + cleanAwb);
-        awbsToCheck.push('BE' + cleanAwb);
+      // Only check the exact AWB, do not generate variants
+      const { data: branchData, error: branchError } = await supabaseClient
+        .from("manifest_cabang")
+        .select("nama_penerima,alamat_penerima,nomor_penerima")
+        .ilike("awb_no", cleanAwb)
+        .maybeSingle();
+      if (!branchError && branchData) {
+        return { ...branchData, manifest_source: "cabang" };
       }
-      for (const awbFormat of awbsToCheck) {
-        const { data: branchData, error: branchError } = await supabaseClient
-          .from("manifest_cabang")
-          .select("nama_penerima,alamat_penerima,nomor_penerima")
-          .ilike("awb_no", awbFormat)
-          .maybeSingle();
-        if (!branchError && branchData) {
-          return { ...branchData, manifest_source: "cabang" };
-        }
-        const { data: centralData, error: centralError } = await supabaseClient
-          .from("manifest")
-          .select("nama_penerima,alamat_penerima,nomor_penerima")
-          .ilike("awb_no", awbFormat)
-          .maybeSingle();
-        if (!centralError && centralData) {
-          return { ...centralData, manifest_source: "central" };
-        }
+      const { data: centralData, error: centralError } = await supabaseClient
+        .from("manifest")
+        .select("nama_penerima,alamat_penerima,nomor_penerima")
+        .ilike("awb_no", cleanAwb)
+        .maybeSingle();
+      if (!centralError && centralData) {
+        return { ...centralData, manifest_source: "central" };
       }
       return null;
     } catch (err) {
