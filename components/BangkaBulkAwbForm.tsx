@@ -4,6 +4,54 @@ import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout"
 
+// Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
+const areaCodeMapping: Record<string, string> = {
+  // Heading mappings
+  'GREEN LAKE CITY': 'GLC',
+  'GRENLAKE CITY': 'GLC',
+  'GRENLAKE CITY / BARAT': 'GLC',
+  // Jakarta Barat - GLC group
+  'CENGKARENG': 'GLC',
+  'GROGOL': 'GLC',
+  'KEBON JERUK': 'GLC',
+  'KALI DERES': 'GLC',
+  'PAL MERAH': 'GLC',
+  'KEMBANGAN': 'GLC',
+  // Jakarta Selatan - GLC group
+  'CILANDAK': 'GLC',
+  'JAGAKARSA': 'GLC',
+  'KEBAYORAN BARU': 'GLC',
+  'KEBAYORAN LAMA': 'GLC',
+  'MAMPANG PRAPATAN': 'GLC',
+  'PASAR MINGGU': 'GLC',
+  'PESANGGRAHAN': 'GLC',
+  // Jakarta Utara - GLC group
+  'PENJARINGAN': 'GLC',
+  // Jakarta Pusat - GLC group
+  'TANAH ABANG': 'GLC',
+  // Bogor - GLC group
+  'GUNUNG SINDUR': 'GLC',
+
+  // Kreko mappings
+  'KREKOT': 'KMY',
+  'KREKOT / PUSAT': 'KMY',
+  // Jakarta Barat - KMY group
+  'TAMAN SARI': 'KMY',
+  'TAMBORA': 'KMY',
+  // Jakarta Selatan - KMY group
+  'PANCORAN': 'KMY',
+  'SETIABUDI': 'KMY',
+  'TEBET': 'KMY',
+  // Jakarta Utara - KMY group
+  'CILINCING': 'KMY',
+  'KELAPA GADING': 'KMY',
+  'KOJA': 'KMY',
+  'PADEMANGAN': 'KMY',
+  'TANJUNG PRIOK': 'KMY',
+  // Jakarta Pusat - KMY group (special cases)
+  'TANAH ABANG (gelora)': 'KMY'
+};
+
 interface BangkaBulkAwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
@@ -62,7 +110,7 @@ const kotaWilayahJabodetabek = {
   "JAKARTA PUSAT": {
     kecamatan: [
       "Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", 
-      "Sawah besar", "Senen", "Tanah abang"
+      "Sawah besar", "Senen", "Tanah abang", "Tanah abang (gelora)"
     ],
     harga: 27000
   },
@@ -147,39 +195,73 @@ const kotaWilayahJabodetabek = {
 }
 
 const agentListJabodetabek = [
-  "UDR CASH",
-  "SEA CASH",
-  "GLC UDR TRF",
-  "GLC SEA TRF",
-  "COD UDR",
-  "COD SEA",
-  "KMY UDR TRF",
-  "KMY SEA TRF",
-  "KARTINI KIKI",
-  "DUTA GARDEN FRENITA",
-  "FELLISIA PORIS EX 3",
-  "OTTY OFFICIAL",
-  "CITRA 3 RENY",
-  "HENDI",
-  "PRALITA",
-  "SALIM",
-  "ISKANDAR",
-  "IMAM",
-  "DONI",
-  "HERFAN",
-  "EZZA",
-  "YANDRI",
-  "DIKY",
-  "YOS",
-  "INDAH SUSHI TIME",
+  "555 in2 PKP",
+  "BELINYU AGEN",
+  "KOLIM SLT",
+  "SUNGAILIAT AGEN",
+  "TOBOALI (ABING)",
+  "KOBA (ABING)",
+  "JEBUS (MARETTA)",
+  "JEBUS (ROBI SAFARI)",
+  "MENTOK (LILY)",
+  "ACHUANG KOBA",
+  "BCE TONI WEN",
+  "7FUN SLT",
+  "ASIONG SAUCU",
+  "AFUK BOM2 SAUCU",
+  "TONI SAUCU",
+  "AFO SAUCU",
+  "KEN KEN SAUCU",
+  "ADI BOB SAUCU",
+  "AFEN SAUCU",
+  "AHEN SAUCU",
+  "AKIUNG SAUCU",
+  "ALIM SAUCU",
+  "ALIONG SAUCU",
+  "APHING SAUCU",
+  "ATER SAUCU",
+  "BULL BULL SAUCU",
+  "CHANDRA SAUCU",
+  "DANIEL SAUCU",
+  "DEDI PEN SAUCU",
+  "EDO SAUCU",
+  "HENDRA ABOY SAUCU",
+  "NYUNNYUN SAUCU",
+  "RIO SAUCU",
+  "YOPY SAUCU",
+  "ACN SNACK",
+  "ACS SNACK",
+  "ADOK RUMAH MAKAN",
+  "JI FUN MESU",
+  "BE YOU",
+  "BEST DURIAN",
+  "BOM BOM BUAH",
+  "TOKO AGUNG",
+  "AINY OTAK OTAK",
+  "APO SPX SLT",
+  "AFUI SPX P3",
+  "ASUN OTAK OTAK",
+  "BANGKA CITRA SNACK",
+  "BANGKA BULIONG SNACK",
+  "BILLY JNE",
+  "TOKO BINTANG 5",
+  "CENTRAL FOOD",
   "CENTRAL NURSERY BANGKA",
-  "MAMAPIA",
-  "AMELIA PEDINDANG",
-  "HENDRY LIMIA",
-  "JESS DOT",
-  "SEPIRING RASA BASO",
-  "CHRISTINE PADEMANGAN",
-  "Amertha / Holai Resto"
+  "CHIKA",
+  "GLORIA MOTOR",
+  "HELDA ASIAT",
+  "HANS KOKO DURIAN",
+  "KIM NYUN AGEN",
+  "AFAT SUBUR",
+  "MR ADOX",
+  "PEMPEK KOKO LINGGAU",
+  "PEMPEK SUMBER RASA",
+  "PEMPEK WONG KITO",
+  "RAJAWALI (AKHIONG)",
+  "THEW FU CAU AWEN",
+  "THEW FU CAU PAULUS",
+  "COD UDARA",
+  "COD LAUT"
 ]
 
 const metodePembayaran = ["cash", "transfer", "cod"]
@@ -201,7 +283,7 @@ function getPriceByArea(kotaTujuan: string, kecamatan: string): number {
   // Logika harga khusus Jakarta Utara
   if (kotaTujuan === 'JAKARTA UTARA') {
     if ([
-      'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas'
+      'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja'
     ].includes(kecamatan)) {
       return 30000;
     } else if ([
@@ -212,8 +294,38 @@ function getPriceByArea(kotaTujuan: string, kecamatan: string): number {
       return 27000;
     }
   }
+  // Logika harga khusus Jakarta Pusat  
+  else if (kotaTujuan === 'JAKARTA PUSAT') {
+    // Semua kecamatan di Jakarta Pusat menggunakan harga 27000
+    return 27000;
+  }
+  // Logika harga khusus Tangerang
+  else if (kotaTujuan === 'TANGERANG') {
+    if (['Neglasari', 'Benda', 'Jatiuwung', 'Cibodas', 'Periuk'].includes(kecamatan)) {
+      return 30000;
+    } else {
+      return 27000;
+    }
+  }
+  // Logika harga khusus Tangerang Selatan
+  else if (kotaTujuan === 'TANGERANG SELATAN') {
+    if (kecamatan === 'Serpong Utara') {
+      return 27000;
+    } else {
+      return 30000;
+    }
+  }
+  // Logika harga khusus Tangerang Kabupaten
+  else if (kotaTujuan === 'TANGERANG KABUPATEN') {
+    if (['Kelapa Dua', 'Curug', 'Kosambi', 'Pagedangan'].includes(kecamatan)) {
+      return 30000;
+    } else {
+      return 35000;
+    }
+  }
+
   // Harga default sesuai wilayah
-  let wilayah = kotaTujuan.toUpperCase();
+  const wilayah = kotaTujuan.toUpperCase();
   if (wilayah.includes('JAKARTA')) {
     if (wilayah.includes('BARAT') || wilayah.includes('PUSAT')) {
       return 27000;
@@ -242,6 +354,8 @@ function getPriceByArea(kotaTujuan: string, kecamatan: string): number {
 
 function getTransitFee(kotaTujuan: string, kecamatan: string): number {
   const wilayah = `${kotaTujuan} ${kecamatan}`.toUpperCase();
+  
+  // Tangerang Kabupaten
   if (wilayah.includes('TELUKNAGA')) return 20000;
   if (wilayah.includes('BALARAJA')) return 50000;
   if (wilayah.includes('PAKUHAJI')) return 50000;
@@ -251,6 +365,8 @@ function getTransitFee(kotaTujuan: string, kecamatan: string): number {
   if (wilayah.includes('SINDANG JAYA')) return 20000;
   if (wilayah.includes('SOLEAR')) return 100000;
   if (wilayah.includes('TIGARAKSA')) return 75000;
+
+  // Bekasi
   if (wilayah.includes('JATISAMPURNA')) return 30000;
   if (wilayah.includes('TARUMAJAYA')) return 30000;
   if (wilayah.includes('BABELAN')) return 30000;
@@ -267,7 +383,11 @@ function getTransitFee(kotaTujuan: string, kecamatan: string): number {
   if (wilayah.includes('SETU') && wilayah.includes('BEKASI')) return 100000;
   if (wilayah.includes('TAMBUN SELATAN')) return 50000;
   if (wilayah.includes('TAMBUN UTARA')) return 50000;
+
+  // Depok
   if (wilayah.includes('TAPOS')) return 30000;
+
+  // Bogor
   if (wilayah.includes('BOGOR BARAT')) return 100000;
   if (wilayah.includes('BOGOR SELATAN')) return 100000;
   if (wilayah.includes('BOGOR TENGAH')) return 100000;
@@ -276,17 +396,22 @@ function getTransitFee(kotaTujuan: string, kecamatan: string): number {
   if (wilayah.includes('TANAH SEREAL')) return 100000;
   if (wilayah.includes('GUNUNG SINDUR')) return 100000;
   if (wilayah.includes('BABAKAN MADANG')) return 100000;
-  if (wilayah.includes('BOJONG GEDE')) return 75000;
+  if (wilayah.includes('BOJONGGEDE')) return 75000;
   if (wilayah.includes('CIBINONG')) return 50000;
   if (wilayah.includes('CILEUNGSI')) return 75000;
   if (wilayah.includes('GUNUNG PUTRI')) return 75000;
+
+  // Kecamatan Bogor dengan transit 100.000
   const kecamatanBogor100k = [
     'CITEUREUP', 'JONGGOL', 'CIOMAS', 'CISEENG', 'TAJURHALANG',
     'CARINGIN', 'DRAMAGA', 'CARIU', 'KLAPANUNGGAL', 'RUMPIN'
   ];
   if (kecamatanBogor100k.some(kec => wilayah.includes(kec))) return 100000;
+
+  // Kecamatan Bogor dengan transit 150.000
   if (wilayah.includes('CIAWI') || wilayah.includes('TAMANSARI')) return 150000;
-  return 0;
+
+  return 0; // Default jika tidak ada biaya transit
 }
 
 export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin, initialData = null, isEditing = false }: BangkaBulkAwbFormProps) {
