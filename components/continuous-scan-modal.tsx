@@ -106,23 +106,55 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   const checkManifestAwb = async (awb: string) => {
     try {
       const cleanAwb = awb.trim().toUpperCase();
-      // Only check the exact AWB, do not generate variants
-      const { data: branchData, error: branchError } = await supabaseClient
-        .from("manifest_cabang")
-        .select("nama_penerima,alamat_penerima,nomor_penerima")
-        .ilike("awb_no", cleanAwb)
-        .maybeSingle();
-      if (!branchError && branchData) {
-        return { ...branchData, manifest_source: "cabang" };
+      
+      // OPTIMIZED: Route based on prefix for better performance
+      if (cleanAwb.startsWith('BE')) {
+        // For BE resi: Directly call Borneo web cabang API
+        try {
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${cleanAwb}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const borneoBranchManifest = branchData.data;
+              
+              // Map Borneo API response to expected format
+              return {
+                nama_penerima: borneoBranchManifest.penerima?.nama_penerima || borneoBranchManifest.penerima || "Auto Generated",
+                alamat_penerima: borneoBranchManifest.penerima?.alamat_penerima || borneoBranchManifest.alamat_penerima || "Auto Generated",
+                nomor_penerima: borneoBranchManifest.penerima?.no_penerima || borneoBranchManifest.telepon_penerima || "Auto Generated",
+                manifest_source: "borneo_branch"
+              };
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from Borneo branch:', branchError);
+        }
+      } else if (cleanAwb.startsWith('BCE')) {
+        // For BCE resi: Check manifest_cabang first, then manifest
+        
+        // 1. Check manifest_cabang table first
+        const { data: branchData, error: branchError } = await supabaseClient
+          .from("manifest_cabang")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", cleanAwb)
+          .maybeSingle();
+        if (!branchError && branchData) {
+          return { ...branchData, manifest_source: "cabang" };
+        }
+        
+        // 2. Check central manifest table
+        const { data: centralData, error: centralError } = await supabaseClient
+          .from("manifest")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", cleanAwb)
+          .maybeSingle();
+        if (!centralError && centralData) {
+          return { ...centralData, manifest_source: "central" };
+        }
       }
-      const { data: centralData, error: centralError } = await supabaseClient
-        .from("manifest")
-        .select("nama_penerima,alamat_penerima,nomor_penerima")
-        .ilike("awb_no", cleanAwb)
-        .maybeSingle();
-      if (!centralError && centralData) {
-        return { ...centralData, manifest_source: "central" };
-      }
+      
       return null;
     } catch (err) {
       return null;

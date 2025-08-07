@@ -47,6 +47,64 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     getCurrentUser()
   }, [])
 
+  const checkManifestAwb = async (awb: string) => {
+    try {
+      const cleanAwb = awb.trim().toUpperCase();
+      
+      // OPTIMIZED: Route based on prefix for better performance
+      if (cleanAwb.startsWith('BE')) {
+        // For BE resi: Directly call Borneo web cabang API
+        try {
+          const branchResponse = await fetch(`/api/manifest/search?awb_number=${cleanAwb}`);
+          
+          if (branchResponse.ok) {
+            const branchData = await branchResponse.json();
+            
+            if (branchData.success && branchData.data) {
+              const borneoBranchManifest = branchData.data;
+              
+              // Map Borneo API response to expected format
+              return {
+                nama_penerima: borneoBranchManifest.penerima?.nama_penerima || borneoBranchManifest.penerima || "Auto Generated",
+                alamat_penerima: borneoBranchManifest.penerima?.alamat_penerima || borneoBranchManifest.alamat_penerima || "Auto Generated",
+                nomor_penerima: borneoBranchManifest.penerima?.no_penerima || borneoBranchManifest.telepon_penerima || "Auto Generated",
+                manifest_source: "borneo_branch"
+              };
+            }
+          }
+        } catch (branchError) {
+          console.error('Error fetching from Borneo branch:', branchError);
+        }
+      } else if (cleanAwb.startsWith('BCE')) {
+        // For BCE resi: Check manifest_cabang first, then manifest
+        
+        // 1. Check manifest_cabang table first
+        const { data: branchData, error: branchError } = await supabaseClient
+          .from("manifest_cabang")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", cleanAwb)
+          .maybeSingle();
+        if (!branchError && branchData) {
+          return { ...branchData, manifest_source: "cabang" };
+        }
+        
+        // 2. Check central manifest table
+        const { data: centralData, error: centralError } = await supabaseClient
+          .from("manifest")
+          .select("nama_penerima,alamat_penerima,nomor_penerima")
+          .ilike("awb_no", cleanAwb)
+          .maybeSingle();
+        if (!centralError && centralData) {
+          return { ...centralData, manifest_source: "central" };
+        }
+      }
+      
+      return null;
+    } catch (err) {
+      return null;
+    }
+  };
+
   const updateShipmentStatus = async (awbNumber: string) => {
     // Type-safe, robust update/insert logic for shipment and shipment_history
     const currentDate: string = new Date().toISOString();
@@ -68,25 +126,28 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
 
     let shipmentSuccess = false;
     if (!existing) {
+      // Try to get manifest data for better shipment creation
+      const manifestData = await checkManifestAwb(awbNumber);
+      
+      const shipmentData = {
+        awb_number: awbNumber,
+        sender_name: "Auto Generated",
+        sender_address: "Auto Generated", 
+        sender_phone: "Auto Generated",
+        receiver_name: manifestData?.nama_penerima || "Auto Generated",
+        receiver_address: manifestData?.alamat_penerima || "Auto Generated",
+        receiver_phone: manifestData?.nomor_penerima || "Auto Generated",
+        weight: 1,
+        dimensions: "10x10x10",
+        service_type: "Standard",
+        current_status: status,
+        created_at: currentDate,
+        updated_at: currentDate,
+        courier_id: userId,
+      };
+      
       // Insert new shipment
-      const { error: insertError } = await supabaseClient.from("shipments").insert([
-        {
-          awb_number: awbNumber,
-          sender_name: "Auto Generated",
-          sender_address: "Auto Generated",
-          sender_phone: "Auto Generated",
-          receiver_name: "Auto Generated",
-          receiver_address: "Auto Generated",
-          receiver_phone: "Auto Generated",
-          weight: 1,
-          dimensions: "10x10x10",
-          service_type: "Standard",
-          current_status: status,
-          created_at: currentDate,
-          updated_at: currentDate,
-          courier_id: userId,
-        },
-      ]);
+      const { error: insertError } = await supabaseClient.from("shipments").insert([shipmentData]);
       if (insertError) return false;
       shipmentSuccess = true;
     } else if (existing.current_status && existing.current_status.toLowerCase() === "out_for_delivery") {
@@ -133,7 +194,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
             awb_number: awbNumber,
             status,
             location,
-            notes: `Bulk update - Out for Delivery by ${userName}`,
+            notes: `QR Scanner - Out for Delivery by ${userName}`,
             created_at: currentDate,
           },
         ]);

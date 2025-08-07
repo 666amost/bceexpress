@@ -276,11 +276,11 @@ export function CourierDashboard() {
       clearTimeout(refreshTimeout.current)
     }
     
-    // OPTIMASI: Tingkatkan debounce time untuk mengurangi API calls di device low-end
+    // OPTIMASI: Percepat refresh setelah scan untuk UX yang lebih responsif
     const timeout = setTimeout(() => {
       loadShipmentData(user)
       refreshTimeout.current = null
-    }, 2000)  // Naikan dari 1 detik ke 2 detik
+    }, 800)  // Turunkan dari 2 detik ke 800ms untuk responsifitas lebih baik
     
     refreshTimeout.current = timeout
   }, [loadShipmentData])
@@ -541,7 +541,8 @@ export function CourierDashboard() {
 
   const handleContinuousScanSuccess = () => {
     if (currentUser) {
-      debouncedRefresh(currentUser)
+      // Immediate refresh untuk scan success agar lebih responsif
+      loadShipmentData(currentUser)
     }
   }
 
