@@ -40,7 +40,9 @@ export default function BranchLogin() {
           userData.role === 'admin' ||
           userData.role === 'cabang'
         )) {
-          if (userData.role === 'cabang' && (userData.origin_branch === 'tanjung_pandan' || userData.origin_branch === 'bangka')) {
+          // Izinkan akses untuk role cabang dengan origin_branch apa pun (termasuk null/kosong)
+          // Jika origin_branch kosong, akan menggunakan manifest pusat
+          if (userData.role === 'cabang') {
             router.push('/branch');
           } else if (userData.role === 'branch' || userData.role === 'admin' || userData.role === 'couriers, branch' || userData.role === 'couriers') {
             router.push('/branch');

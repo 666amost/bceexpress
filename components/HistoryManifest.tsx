@@ -309,20 +309,20 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const currentAgentList = userRole === 'cabang' || userRole === 'couriers'
+  const currentAgentList = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
     ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan)
     : agentList;
-  const currentKotaWilayah = userRole === 'cabang' || userRole === 'couriers'
+  const currentKotaWilayah = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
     ? (branchOrigin === 'bangka' ? kotaWilayahBangka : kotaWilayahTanjungPandan) 
     : kotaWilayahPusat;
-  const currentKotaTujuan = userRole === 'cabang' || userRole === 'couriers'
+  const currentKotaTujuan = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
     ? (branchOrigin === 'bangka' ? Object.keys(kotaWilayahBangka) : kotaTujuanTanjungPandan) 
     : kotaTujuanPusat;
-  const currentKirimVia = userRole === 'cabang' || userRole === 'couriers' ? kirimViaTanjungPandan : kirimViaPusat;
-  const currentMetodePembayaran = userRole === 'cabang' || userRole === 'couriers' ? metodePembayaranTanjungPandan : metodePembayaranPusat;
+  const currentKirimVia = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan') ? kirimViaTanjungPandan : kirimViaPusat;
+  const currentMetodePembayaran = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan') ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
   // Penentuan tabel yang benar (harus di sini, agar bisa diakses semua handler)
-  const isCabangTable = (userRole === 'cabang') || 
+  const isCabangTable = (userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) || 
                        (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) ||
                        (userRole === 'couriers' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
   const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';

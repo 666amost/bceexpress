@@ -134,7 +134,10 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
 
         setIsLoading(true);
 
-        const isCabangTable = userRole === 'cabang' || 
+        // Tentukan apakah menggunakan table cabang atau pusat
+        // Rule: Gunakan manifest_cabang hanya jika user cabang dan memiliki origin_branch yang valid
+        // Atau jika admin/couriers dengan origin_branch bangka/tanjung_pandan
+        const isCabangTable = (userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) || 
                              (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) ||
                              (userRole === 'couriers' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
         const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';

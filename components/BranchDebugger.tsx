@@ -106,7 +106,7 @@ export default function BranchDebugger() {
       const permissions = {
         hasValidRole: userRole !== null,
         hasBranchAccess: validateBranchAccess(userRole, branchOrigin),
-        canAccessCabang: userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
+        canAccessCabang: userRole === 'cabang' // Sekarang cabang bisa akses tanpa batasan origin_branch
       };
 
       setDebugInfo({

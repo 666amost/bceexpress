@@ -8,7 +8,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   // ================== BRANCH / ROLE SWITCH ==================
   const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
   const isBranchMode =
-    userRole === "cabang" ||
+    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin)) ||
     (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
   // ===========================================================
 

@@ -62,8 +62,10 @@ export function validateBranchAccess(userRole: UserRole | null, branchOrigin: st
   
   if (userRole === 'admin') return true;
   
+  // Izinkan role cabang dengan origin_branch apa pun (termasuk null/kosong)
+  // Jika origin_branch kosong, akan menggunakan manifest pusat
   if (userRole === 'cabang') {
-    return branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan';
+    return true;
   }
   
   return ['branch', 'couriers'].includes(userRole);
