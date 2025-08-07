@@ -36,6 +36,10 @@ const areaCodes: Record<string, string> = {
   'PESANGGRAHAN': 'GLC',
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
+  // Jakarta Pusat - GLC group
+  'TANAH ABANG': 'GLC',
+  // Bogor - GLC group
+  'GUNUNG SINDUR': 'GLC',
 
   // Kreko mappings
   'KREKOT': 'KMY',
@@ -52,7 +56,9 @@ const areaCodes: Record<string, string> = {
   'KELAPA GADING': 'KMY',
   'KOJA': 'KMY',
   'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY'
+  'TANJUNG PRIOK': 'KMY',
+  // Jakarta Pusat - KMY group (special cases)
+  'TANAH ABANG (gelora)': 'KMY'
 };
 
 interface ManifestBookingData {

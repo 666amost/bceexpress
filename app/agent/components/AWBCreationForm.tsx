@@ -20,7 +20,7 @@ type KotaWilayah = Record<string, CityData>;
 
 const kotaWilayahJabodetabek: KotaWilayah = {
   "JAKARTA BARAT": { kecamatan: ["CENGKARENG", "GROGOL PETAMBURAN", "KALIDERES", "KEBON JERUK", "KEMBANGAN", "PALMERAH", "TAMBORA", "TAMAN SARI"], harga: 28000 },
-  "JAKARTA PUSAT": { kecamatan: ["CEMPAKA PUTIH", "GAMBIR", "JOHAR BARU", "KEMAYORAN", "MENTENG", "SAWAH BESAR", "SENEN", "TANAH ABANG"], harga: 27000 },
+  "JAKARTA PUSAT": { kecamatan: ["CEMPAKA PUTIH", "GAMBIR", "JOHAR BARU", "KEMAYORAN", "MENTENG", "SAWAH BESAR", "SENEN", "TANAH ABANG", "TANAH ABANG (gelora)"], harga: 27000 },
   "JAKARTA TIMUR": { kecamatan: ["CAKUNG", "CIRACAS", "CIPAYUNG", "DUREN SAWIT", "JATINEGARA", "KRAMAT JATI", "MAKASAR", "MATRAMAN", "PASAR REBO", "PULOGADUNG"], harga: 29000 },
   "JAKARTA SELATAN": { kecamatan: ["CILANDAK", "JAGAKARSA", "KEBAYORAN BARU", "KEBAYORAN LAMA", "MAMPANG PRAPATAN", "PANCORAN", "PASAR MINGGU", "PESANGGRAHAN", "SETIABUDI", "TEBET"], harga: 30000 },
   "JAKARTA UTARA": { kecamatan: ["CILINCING", "KELAPA GADING", "KOJA", "PADEMANGAN", "PENJARINGAN", "TANJUNG PRIOK"], harga: 31000 },
@@ -60,6 +60,10 @@ const areaCodes: Record<string, string> = {
   'PESANGGRAHAN': 'GLC',
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
+  // Jakarta Pusat - GLC group
+  'TANAH ABANG': 'GLC',
+  // Bogor - GLC group
+  'GUNUNG SINDUR': 'GLC',
 
   // Kreko mappings
   'KREKOT': 'KMY',
@@ -76,7 +80,9 @@ const areaCodes: Record<string, string> = {
   'KELAPA GADING': 'KMY',
   'KOJA': 'KMY',
   'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY'
+  'TANJUNG PRIOK': 'KMY',
+  // Jakarta Pusat - KMY group (special cases)
+  'TANAH ABANG (gelora)': 'KMY'
 };
 
 interface FormDataType {

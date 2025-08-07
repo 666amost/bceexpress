@@ -27,6 +27,10 @@ const areaCodeMapping: Record<string, string> = {
   'PESANGGRAHAN': 'GLC',
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
+  // Jakarta Pusat - GLC group
+  'TANAH ABANG': 'GLC',
+  // Bogor - GLC group
+  'GUNUNG SINDUR': 'GLC',
 
   // Kreko mappings
   'KREKOT': 'KMY',
@@ -43,7 +47,9 @@ const areaCodeMapping: Record<string, string> = {
   'KELAPA GADING': 'KMY',
   'KOJA': 'KMY',
   'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY'
+  'TANJUNG PRIOK': 'KMY',
+  // Jakarta Pusat - KMY group (special cases)
+  'TANAH ABANG (gelora)': 'KMY'
 };
 
 interface BangkaAwbFormProps {
@@ -91,7 +97,7 @@ const kotaWilayahJabodetabek = {
   "JAKARTA PUSAT": {
     kecamatan: [
       "Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", 
-      "Sawah besar", "Senen", "Tanah abang"
+      "Sawah besar", "Senen", "Tanah abang", "Tanah abang (gelora)"
     ],
     harga: 27000
   },
@@ -290,7 +296,8 @@ function getPriceByArea(wilayah: string): number {
       if (wilayah.includes('NEGLASARI') || 
           wilayah.includes('BENDA') || 
           wilayah.includes('JATIUWUNG') || 
-          wilayah.includes('CIBODAS')) {
+          wilayah.includes('CIBODAS') ||
+          wilayah.includes('PERIUK')) {
         price = 30000;
       } else {
         price = 27000;
@@ -356,7 +363,7 @@ function getTransitFee(wilayah: string): number {
   if (wilayah.includes('TANAH SEREAL')) return 100000;
   if (wilayah.includes('GUNUNG SINDUR')) return 100000;
   if (wilayah.includes('BABAKAN MADANG')) return 100000;
-  if (wilayah.includes('BOJONG GEDE')) return 75000;
+  if (wilayah.includes('BOJONGGEDE')) return 75000;
   if (wilayah.includes('CIBINONG')) return 50000;
   if (wilayah.includes('CILEUNGSI')) return 75000;
   if (wilayah.includes('GUNUNG PUTRI')) return 75000;
@@ -463,7 +470,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       } 
       // Logika harga khusus Tangerang
       else if (kotaTujuan === 'TANGERANG') {
-        if (['Neglasari', 'Benda', 'Jatiuwung', 'Cibodas'].includes(kecamatan)) {
+        if (['Neglasari', 'Benda', 'Jatiuwung', 'Cibodas', 'Periuk'].includes(kecamatan)) {
           harga = 30000;
         } else {
           harga = 27000;

@@ -75,6 +75,10 @@ export default function PrintLayout({ data }) {
   "PESANGGRAHAN": "GLC",
   // Jakarta Utara - GLC group
   "PENJARINGAN": "GLC",
+  // Jakarta Pusat - GLC group
+  "TANAH ABANG": "GLC",
+  // Bogor - GLC group
+  "GUNUNG SINDUR": "GLC",
   // Kreko (KMY) variants and Jakarta group
   "KREKOT": "KMY",
   "KREKOT / PUSAT": "KMY",
@@ -91,6 +95,8 @@ export default function PrintLayout({ data }) {
   "KOJA": "KMY",
   "PADEMANGAN": "KMY",
   "TANJUNG PRIOK": "KMY",
+  // Jakarta Pusat - KMY group (special cases)
+  "TANAH ABANG (gelora)": "KMY"
   };
 
   // Get the area code based on kota_tujuan or kecamatan
