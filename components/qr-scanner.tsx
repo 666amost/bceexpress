@@ -16,6 +16,17 @@ interface QRScannerProps {
   disableAutoUpdate?: boolean
 }
 
+interface ManifestData {
+  nama_penerima: string
+  alamat_penerima: string
+  nomor_penerima: string
+  manifest_source: "borneo_branch" | "cabang" | "central"
+}
+
+interface TorchFeature {
+  apply: (value: boolean) => Promise<void>
+}
+
 export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAutoUpdate = false }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -24,7 +35,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [isTorchAvailable, setIsTorchAvailable] = useState(false)
   const [isTorchOn, setIsTorchOn] = useState(false)
-  const torchFeatureRef = useRef<unknown | null>(null)
+  const torchFeatureRef = useRef<TorchFeature | null>(null)
 
   useEffect(() => {
     // Get current user
@@ -47,7 +58,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     getCurrentUser()
   }, [])
 
-  const checkManifestAwb = async (awb: string) => {
+  const checkManifestAwb = async (awb: string): Promise<ManifestData | null> => {
     try {
       const cleanAwb = awb.trim().toUpperCase();
       
@@ -101,11 +112,12 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       
       return null;
     } catch (err) {
+      console.error('Error in checkManifestAwb:', err);
       return null;
     }
   };
 
-  const updateShipmentStatus = async (awbNumber: string) => {
+  const updateShipmentStatus = async (awbNumber: string): Promise<boolean> => {
     // Type-safe, robust update/insert logic for shipment and shipment_history
     const currentDate: string = new Date().toISOString();
     const status = "out_for_delivery";
@@ -113,7 +125,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     // Get current user session
     const { data: session } = await supabaseClient.auth.getSession();
     const userId: string | undefined = session?.session?.user?.id;
-    const userName: string = currentUser || session?.session?.user?.email?.split("@") [0] || "courier";
+    const userName: string = currentUser || session?.session?.user?.email?.split("@")[0] || "courier";
     if (!userId) return false;
 
     // Check if shipment exists
@@ -268,7 +280,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
         if (scannerRef.current) {
           const capabilities = scannerRef.current.getRunningTrackCameraCapabilities();
           const torchFeature = capabilities?.torchFeature?.();
-          if (torchFeature) {
+          if (torchFeature && typeof torchFeature.apply === 'function') {
             setIsTorchAvailable(true);
             torchFeatureRef.current = torchFeature;
             // Turn torch on automatically
@@ -302,7 +314,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       // Turn torch off before stopping scanner
       if (isTorchOn && torchFeatureRef.current) {
         try {
-          await (torchFeatureRef.current as { apply: (value: boolean) => Promise<void> }).apply(false);
+          await torchFeatureRef.current.apply(false);
           setIsTorchOn(false);
         } catch (err) {
           // Silently handle torch turn off errors
@@ -326,7 +338,7 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
             // Turn torch off before stopping scanner
             if (isTorchOn && torchFeatureRef.current) {
               try {
-                await (torchFeatureRef.current as { apply: (value: boolean) => Promise<void> }).apply(false);
+                await torchFeatureRef.current.apply(false);
               } catch (err) {
                 // Silently handle torch turn off errors
               }
