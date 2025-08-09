@@ -54,7 +54,7 @@ const nextConfig = {
           },
           {
             key: 'X-Frame-Options',
-            value: 'DENY'
+            value: 'SAMEORIGIN'  // Allow same-origin iframe embedding
           },
           {
             key: 'X-XSS-Protection',
@@ -72,10 +72,42 @@ const nextConfig = {
             key: 'Access-Control-Allow-Headers',
             value: 'X-Requested-With, Content-Type, Authorization'
           },
+          // Content Security Policy to allow Capacitor webview
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' file: capacitor: ionic: https://localhost:* http://localhost:*"
+          },
           // Cache optimization for static assets
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable'
+          }
+        ]
+      },
+      // More permissive iframe policy for mobile app critical routes
+      {
+        source: '/agent/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'ALLOWALL'  // Allow iframe for agent routes in mobile app
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors *"  // Allow all frame ancestors for agent routes
+          }
+        ]
+      },
+      {
+        source: '/courier/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'ALLOWALL'  // Allow iframe for courier routes in mobile app
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors *"  // Allow all frame ancestors for courier routes
           }
         ]
       }
