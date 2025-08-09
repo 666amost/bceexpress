@@ -16,6 +16,7 @@ import {
   Close as CloseIcon,
   Camera as CameraIcon,
   CheckmarkFilled as CheckmarkIcon,
+  Information as InfoIcon,
 } from '@carbon/icons-react'
 import { supabaseClient } from "@/lib/auth"
 import type { ShipmentStatus } from "@/lib/db"
@@ -62,7 +63,7 @@ const PhotoPreview = lazy(() => Promise.resolve({
     <img
       src={src || "/placeholder.svg"}
       alt="Preview"
-      className="mx-auto photo-preview max-h-48 sm:max-h-60 rounded-lg shadow-md"
+      className="mx-auto photo-preview max-h-32 sm:max-h-48 rounded-lg shadow-md"
     />
   )
 }));
@@ -88,6 +89,7 @@ function CourierUpdateFormComponent() {
   const [useHighCompression, setUseHighCompression] = useState(false)
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
+  const [showShipmentDetails, setShowShipmentDetails] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -990,11 +992,12 @@ function CourierUpdateFormComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-2 sm:p-4 md:p-6">
-      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <CardContent className="p-4 sm:p-6">
-          <div className="mb-4 sm:mb-6">
-            <div className="flex items-center gap-3 mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-1 sm:p-4 md:p-6">
+      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-lg sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+        <CardContent className="p-3 sm:p-6">
+          {/* Header - Kompak untuk mobile */}
+          <div className="mb-3 sm:mb-6">
+            <div className="flex items-center justify-between mb-3">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1004,91 +1007,102 @@ function CourierUpdateFormComponent() {
                 <ChevronLeft className="w-4 h-4" />
                 <span className="text-sm">Back</span>
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Update Shipment Status</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Update Status</h1>
+              
+              {/* Toggle Shipment Details */}
+              {shipmentDetails && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowShipmentDetails(!showShipmentDetails)}
+                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 p-1"
+                >
+                  <InfoIcon className="w-4 h-4" />
+                  <span className="text-xs">Details</span>
+                </Button>
+              )}
             </div>
           </div>
-        {shipmentDetails && (
-          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Shipment Details</h3>
-            <div className="space-y-1 text-sm">
+
+        {/* Shipment Details - Collapsible */}
+        {shipmentDetails && showShipmentDetails && (
+          <div className="mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+            <h3 className="font-medium mb-2 text-gray-900 dark:text-white text-sm">Shipment Details</h3>
+            <div className="space-y-1 text-xs">
               <p><span className="text-gray-500 dark:text-gray-400">Receiver:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_name}</span></p>
               <p><span className="text-gray-500 dark:text-gray-400">Phone:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_phone || "Auto Generated"}</span></p>
               <p><span className="text-gray-500 dark:text-gray-400">Address:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_address}</span></p>
-              <p><span className="text-gray-500 dark:text-gray-400">Current Status:</span> <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "out for delivery"}</span></p>
+              <p><span className="text-gray-500 dark:text-gray-400">Status:</span> <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "out for delivery"}</span></p>
             </div>
           </div>
         )}
 
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive" className="mb-3">
             <AlertDescription className="text-sm">{error}</AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {/* AWB Number */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
             <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-medium text-sm">AWB Number</Label>
-            <div className="mt-2">
+            <div className="mt-1">
               <AwbInput awbNumber={awbNumber} setAwbNumber={setAwbNumber} fetchShipmentDetails={fetchShipmentDetails} />
             </div>
           </div>
 
-          {/* Status */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Status</Label>
-            <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
-              <SelectTrigger className="mt-2 h-12 text-base bg-white dark:bg-gray-700">
-                <SelectValue placeholder="Select Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Current Location */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <div className="flex justify-between items-center mb-2">
-              <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Current Location</Label>
-              <Button 
-                type="button" 
-                onClick={getCurrentLocation} 
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm"
-              >
-                <FontAwesomeIcon icon={faMapPin} className="h-3 w-3 mr-1" />
-                Get GPS
-              </Button>
+          {/* Status & Location - Side by side untuk mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Status */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Status</Label>
+              <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
+                <SelectTrigger className="mt-1 h-10 text-sm bg-white dark:bg-gray-700">
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Input
-              id="location"
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Enter location or use GPS"
-              className="h-12 text-base bg-white dark:bg-gray-700"
-              required
-            />
-            {gpsCoords && (
-              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                Lat: {gpsCoords.lat.toFixed(6)}, Lng: {gpsCoords.lng.toFixed(6)}
-              </p>
-            )}
+
+            {/* Location */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+              <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Current Location</Label>
+              <div className="flex gap-1 mt-1">
+                <Input
+                  id="location"
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Enter location or use GPS"
+                  className="h-10 text-sm bg-white dark:bg-gray-700"
+                  required
+                />
+                <Button
+                  type="button"
+                  onClick={getCurrentLocation}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-2 h-10 text-xs shrink-0"
+                >
+                  <FontAwesomeIcon icon={faMapPin} className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
           </div>
 
-          {/* Photo Upload */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+          {/* Photo Upload - Kompak untuk mobile */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
             <Label className="text-gray-700 dark:text-gray-300 font-medium text-sm">Proof of Delivery</Label>
             
             {!photoPreview ? (
-              <div className="mt-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
-                <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                  <CameraIcon className="h-6 w-6 text-gray-400" />
+              <div className="mt-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center">
+                <div className="w-8 h-8 mx-auto mb-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                  <CameraIcon className="h-4 w-4 text-gray-400" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Upload photo proof of delivery (Optional)</p>
-                <div className="space-y-3">
+                <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
+                <div className="grid grid-cols-2 gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1100,36 +1114,36 @@ function CourierUpdateFormComponent() {
                   <Button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm"
                     disabled={photoLoading}
                   >
-                    <CameraIcon className="h-4 w-4 mr-2" />
+                    <CameraIcon className="h-3 w-3 mr-1" />
                     Camera
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-11 text-base border-gray-300 dark:border-gray-600"
+                    className="w-full h-9 text-sm border-gray-300 dark:border-gray-600"
                     disabled={photoLoading}
                   >
-                    <FontAwesomeIcon icon={faUpload} className="h-4 w-4 mr-2" />
+                    <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
                     Gallery
                   </Button>
-                  <div className="flex items-center text-xs text-red-600 mt-2">
-                    <input 
-                      type="checkbox" 
-                      checked={useHighCompression} 
-                      onChange={(e) => setUseHighCompression(e.target.checked)} 
-                      className="mr-2" 
-                    />
-                    <span>LOW QUALITY (for slow device/weak network)</span>
-                  </div>
+                </div>
+                <div className="flex items-center text-xs text-red-600 mt-2">
+                  <input 
+                    type="checkbox" 
+                    checked={useHighCompression} 
+                    onChange={(e) => setUseHighCompression(e.target.checked)} 
+                    className="mr-2" 
+                  />
+                  <span>LOW QUALITY (for slow device/weak network)</span>
                 </div>
               </div>
             ) : (
-              <div className="mt-3 relative">
-                <Suspense fallback={<div className="h-48 bg-gray-200 rounded-lg animate-pulse"></div>}>
+              <div className="mt-2 relative">
+                <Suspense fallback={<div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>}>
                   <PhotoPreview src={photoPreview} />
                 </Suspense>
                 <Button
@@ -1137,7 +1151,7 @@ function CourierUpdateFormComponent() {
                   variant="outline"
                   size="sm"
                   onClick={removePhoto}
-                  className="absolute top-2 right-2 bg-red-100 hover:bg-red-200 text-red-700 w-7 h-7 p-0 rounded-full"
+                  className="absolute top-1 right-1 bg-red-100 hover:bg-red-200 text-red-700 w-6 h-6 p-0 rounded-full"
                 >
                   <CloseIcon className="h-3 w-3" />
                 </Button>
@@ -1145,44 +1159,50 @@ function CourierUpdateFormComponent() {
             )}
 
             {photoLoading && (
-              <div className="mt-4 text-center text-xs text-gray-600 dark:text-gray-400">
-                <p className="mb-2">Processing photo... {photoProgress}%</p>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="mt-3 text-center text-xs text-gray-600 dark:text-gray-400">
+                <p className="mb-1">Processing photo... {photoProgress}%</p>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
                     style={{ width: `${photoProgress}%` }}
                   ></div>
                 </div>
               </div>
             )}
+
+            {gpsCoords && (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                GPS: {gpsCoords.lat.toFixed(6)}, {gpsCoords.lng.toFixed(6)}
+              </p>
+            )}
           </div>
 
-          {/* Notes */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+          {/* Notes - Kompak */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
             <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Notes (Optional)</Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any additional notes about this update"
-              rows={3}
-              className="mt-2 text-base resize-none bg-white dark:bg-gray-700"
+              rows={2}
+              className="mt-1 text-sm resize-none bg-white dark:bg-gray-700"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Your name ({currentUser || "admin"}) will be added to the update notes.
             </p>
           </div>
 
           {/* Submit Button */}
-          <div className="pt-2">
+          <div className="pt-1">
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base h-12 rounded-lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-sm h-10 rounded-lg"
             >
               {isLoading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} spin className="h-4 w-4 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} spin className="h-3 w-3 mr-2" />
                   Updating Status...
                 </>
               ) : (
@@ -1222,7 +1242,7 @@ const AwbInput = ({ awbNumber, setAwbNumber, fetchShipmentDetails }: {
       value={awbNumber}
       onChange={handleChange}
       placeholder="Enter AWB number"
-      className="h-12 text-base font-mono tracking-wide"
+      className="h-10 text-sm font-mono tracking-wide"
       required
       autoComplete="off"
       autoCapitalize="characters"
