@@ -352,12 +352,12 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="text-sm text-gray-600">
               Found {filteredAWBs.length} AWB{filteredAWBs.length !== 1 ? 's' : ''}
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="bg-yellow-50">
                   Pending: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'pending').length}
                 </Badge>
@@ -388,7 +388,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
       </Card>
 
       {/* AWB List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>AWB List</CardTitle>
@@ -413,11 +413,11 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                     }`}
                     onClick={() => setSelectedAWB(awb)}
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
                       <div className="font-mono font-semibold text-blue-600">
                         {awb.awb_no}
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 self-start sm:self-center">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -457,7 +457,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                         <span>{awb.kota_tujuan}</span>
                       </div>
                       
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                         <div className="flex items-center gap-2">
                           <FaCalendarAlt className="h-3 w-3 text-gray-400" />
                           <span>{new Date(awb.awb_date).toLocaleDateString('id-ID')}</span>
@@ -492,11 +492,11 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
           <CardContent>
             {selectedAWB ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 className="font-mono text-lg font-semibold text-blue-600">
                     {selectedAWB.awb_no}
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Badge className={getStatusColor(selectedAWB.status)}>
                       {selectedAWB.status}
                     </Badge>
@@ -506,13 +506,12 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                           📦 {(selectedAWB as AWBData).shipment_status}
                         </Badge>
                     )}
-
                   </div>
                 </div>
 
                 <Separator />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-3">
                     <div>
                       <Label className="text-sm font-medium text-gray-500">Sender</Label>
@@ -554,7 +553,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                     <Separator />
                     <div className="space-y-3">
                       <Label className="text-sm font-medium text-gray-500">📦 Shipment Information</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-3">
                         {(selectedAWB as AWBData).courier_name && (
                           <div>
                             <Label className="text-sm font-medium text-gray-500">Courier</Label>
