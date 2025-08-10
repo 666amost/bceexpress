@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabaseClient } from '../../../../lib/auth';
 import PrintLayout from '../../../../components/PrintLayout';
 
@@ -111,6 +111,61 @@ export default function PrintLabelPage() {
     checkAuthentication()
   }, [])
 
+  // Extract fetchAWBData as useCallback to fix dependency issues
+  const fetchAWBData = useCallback(async (): Promise<void> => {
+    try {
+      // Check if running in mobile app and handle session
+      if (typeof window !== 'undefined') {
+        const userAgent = navigator.userAgent || '';
+        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || 
+                           window.location.hostname === 'capacitor' ||
+                           window.parent !== window;
+        
+        if (isMobileApp) {
+          // For mobile app, try to restore session if available
+          const mobileSession = localStorage.getItem('mobile_session');
+          if (mobileSession) {
+            try {
+              const sessionData = JSON.parse(mobileSession);
+              // Try to set session if available
+              await supabaseClient.auth.setSession(sessionData);
+            } catch (sessionError: unknown) {
+              // Continue anyway, maybe manual session is already active
+              // Silent error handling for mobile session restoration
+            }
+          }
+        }
+      }
+      
+      const { data, error } = await supabaseClient
+        .from('manifest_booking')
+        .select('*')
+        .eq('awb_no', awb_no)
+        .single();
+
+      if (error) {
+        setError('AWB tidak ditemukan');
+        return;
+      }
+
+      if (data) {
+        // Map data to format expected by PrintLayout
+        const processedData = {
+          ...data,
+          // Preserve actual wilayah field from database, fallback to kota_tujuan only if wilayah is empty
+          wilayah: data.wilayah || data.kota_tujuan, // Use actual wilayah field first, then kota_tujuan as fallback
+          agent_customer: data.agent_customer || data.origin_branch || 'Agent' // Fallback for agent display
+        };
+        setAwbData(processedData);
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Terjadi kesalahan saat mengambil data AWB: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [awb_no]);
+
   // Listen for session data from mobile app parent
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -135,69 +190,13 @@ export default function PrintLabelPage() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [awb_no])
-
-  // Extract fetchAWBData as a separate function for reuse
-  const fetchAWBData = async () => {
-    try {
-      // Check if running in mobile app and handle session
-      if (typeof window !== 'undefined') {
-        const userAgent = navigator.userAgent || '';
-        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || 
-                           window.location.hostname === 'capacitor' ||
-                           window.parent !== window;
-        
-        if (isMobileApp) {
-          // For mobile app, try to restore session if available
-          const mobileSession = localStorage.getItem('mobile_session');
-          if (mobileSession) {
-            try {
-              const sessionData = JSON.parse(mobileSession);
-              // Try to set session if available
-              await supabaseClient.auth.setSession(sessionData);
-            } catch (error) {
-              console.log('Failed to restore mobile session:', error);
-              // Continue anyway, maybe manual session is already active
-            }
-          }
-        }
-      }
-      
-      const { data, error } = await supabaseClient
-        .from('manifest_booking')
-        .select('*')
-        .eq('awb_no', awb_no)
-        .single();
-
-      if (error) {
-        console.error('Error fetching AWB:', error);
-        setError('AWB tidak ditemukan');
-        return;
-      }
-
-      if (data) {
-        // Map data to format expected by PrintLayout
-        const processedData = {
-          ...data,
-          // Preserve actual wilayah field from database, fallback to kota_tujuan only if wilayah is empty
-          wilayah: data.wilayah || data.kota_tujuan, // Use actual wilayah field first, then kota_tujuan as fallback
-          agent_customer: data.agent_customer || data.origin_branch || 'Agent' // Fallback for agent display
-        };
-        setAwbData(processedData);
-      }
-    } catch (err) {
-      console.error('Error:', err);
-      setError('Terjadi kesalahan saat mengambil data AWB');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [awb_no, fetchAWBData])
 
   useEffect(() => {
     if (awb_no) {
       fetchAWBData();
     }
-  }, [awb_no]);
+  }, [awb_no, fetchAWBData]);
 
   const handleDownloadPDF = async () => {
     if (!awbData) return;
