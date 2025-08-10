@@ -6,6 +6,7 @@ import { supabaseClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/hooks/use-toast'
 import PrintLayout from '@/components/PrintLayout'
 import { FaPrint, FaDownload } from 'react-icons/fa'
 
@@ -39,9 +40,12 @@ interface AWBDetails {
 
 function BulkPrintContent(): JSX.Element {
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const [awbs, setAwbs] = useState<AWBDetails[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string>('')
+  const [printReady, setPrintReady] = useState<boolean>(false)
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false)
 
   const fetchAWBs = useCallback(async (awbNumbers: string[]): Promise<void> => {
     try {
@@ -85,7 +89,6 @@ function BulkPrintContent(): JSX.Element {
 
       setAwbs(formattedData)
     } catch (err) {
-      console.error('Error fetching AWBs:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch AWB data')
     } finally {
       setLoading(false)
@@ -108,30 +111,112 @@ function BulkPrintContent(): JSX.Element {
     }
   }, [searchParams, fetchAWBs])
 
+  // After AWBs are loaded, trigger printReady after next tick
+  useEffect(() => {
+    if (!loading && awbs.length > 0) {
+      setPrintReady(false);
+      // Wait for refs to attach
+      setTimeout(() => {
+        setPrintReady(true);
+      }, 0);
+    } else {
+      setPrintReady(false);
+    }
+  }, [loading, awbs]);
+
   const handlePrint = useCallback((): void => {
     window.print()
   }, [])
 
   const handleDownloadPDF = useCallback(async (): Promise<void> => {
-    const html2pdf = (await import('html2pdf.js')).default
-    const element = document.getElementById('bulk-print-content')
-    
-    if (!element) return
-
-    const options = {
-      margin: 0.5,
-      filename: `bulk-awb-${awbs.length}-labels.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+    if (!awbs.length || !printReady) {
+      toast({
+        title: "AWB belum siap.",
+        description: "Tunggu beberapa detik hingga semua label siap sebelum mengunduh PDF.",
+        variant: "destructive",
+      });
+      return;
     }
 
-    try {
-      await html2pdf().set(options).from(element).save()
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-    }
-  }, [awbs.length])
+    setIsGeneratingPDF(true);
+    toast({
+      title: "Memproses PDF...",
+      description: `Membuat PDF untuk ${awbs.length} resi. Mohon tunggu...`,
+      variant: "default",
+    });
+
+    setTimeout(async () => {
+      try {
+        const html2canvas = await import('html2canvas');
+        const { jsPDF } = await import('jspdf');
+
+        const pdf = new jsPDF({
+          unit: 'mm',
+          format: [100, 100],
+          orientation: 'portrait'
+        });
+
+        let isFirstPage = true;
+
+        for (let i = 0; i < awbs.length; i++) {
+          const awb = awbs[i];
+          
+          const visibleElement = document.querySelector(`[data-awb="${awb.awb_no}"] .print-layout-container`) as HTMLElement;
+
+          if (visibleElement) {
+            if (!isFirstPage) {
+              pdf.addPage();
+            }
+
+            try {
+              await new Promise<void>(resolve => setTimeout(resolve, 300));
+              
+              const canvas = await html2canvas.default(visibleElement, {
+                scale: 3,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                width: 378,
+                height: 378,
+                scrollX: 0,
+                scrollY: 0
+              });
+
+              const dataURL = canvas.toDataURL('image/jpeg', 1.0);
+
+              if (dataURL && typeof dataURL === 'string' && dataURL.startsWith('data:image/')) {
+                pdf.addImage(dataURL, 'JPEG', 0, 0, 100, 100);
+                isFirstPage = false;
+              }
+            } catch (elementError) {
+              // Silent error handling - continue with next AWB
+              continue;
+            }
+          }
+        }
+
+        if (!isFirstPage) {
+          pdf.save(`bulk-awb-${awbs.length}-labels.pdf`);
+          toast({
+            title: "PDF Berhasil Dibuat!",
+            description: `PDF dengan ${awbs.length} AWB telah diunduh.`,
+            variant: "default",
+          });
+        } else {
+          throw new Error('Tidak ada AWB yang berhasil diproses. Coba tunggu beberapa detik lagi untuk memastikan halaman sudah sepenuhnya dimuat.');
+        }
+
+      } catch (error) {
+        toast({
+          title: "Gagal mengunduh PDF.",
+          description: error instanceof Error ? error.message : "Terjadi kesalahan saat membuat PDF. Silakan coba lagi.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 1000);
+  }, [awbs, toast, printReady])
 
   if (loading) {
     return (
@@ -206,14 +291,18 @@ function BulkPrintContent(): JSX.Element {
       </div>
 
       {/* Print Content */}
-      <div id="bulk-print-content" className="container mx-auto p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 print:grid-cols-2 print:gap-2">
-          {awbs.map((awb) => (
-            <div key={awb.awb_no} className="break-inside-avoid">
+      <div id="bulk-print-content" className="container mx-auto p-4 print:p-0">
+        {awbs.map((awb, index) => (
+          <div 
+            key={awb.awb_no} 
+            className={`print-page-container ${index > 0 ? 'print:page-break-before' : ''}`}
+            data-awb={awb.awb_no}
+          >
+            <div className="print-layout-container">
               <PrintLayout data={awb} />
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
       {/* Print Styles */}
@@ -223,29 +312,70 @@ function BulkPrintContent(): JSX.Element {
             display: none !important;
           }
           
-          .print\\:grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          .print\\:p-0 {
+            padding: 0 !important;
           }
           
-          .print\\:gap-2 {
-            gap: 0.5rem !important;
+          .print\\:page-break-before {
+            page-break-before: always !important;
+            break-before: page !important;
           }
           
           body {
             margin: 0;
             padding: 0;
             background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
           
           .container {
             max-width: none !important;
             margin: 0 !important;
-            padding: 0.5rem !important;
+            padding: 0 !important;
           }
           
-          .break-inside-avoid {
-            break-inside: avoid;
+          .print-page-container {
+            width: 100mm;
+            height: 100mm;
+            margin: 0;
+            padding: 0;
             page-break-inside: avoid;
+            break-inside: avoid;
+            display: block;
+            position: relative;
+            overflow: hidden;
+          }
+          
+          .print-layout-container {
+            width: 100mm;
+            height: 100mm;
+            margin: 0;
+            padding: 0;
+            display: block;
+            position: relative;
+          }
+          
+          @page {
+            size: 100mm 100mm;
+            margin: 0;
+          }
+        }
+        
+        @media screen {
+          .print-page-container {
+            border: 1px dashed #ccc;
+            margin: 20px auto;
+            width: 100mm;
+            height: 100mm;
+            display: block;
+            position: relative;
+            overflow: hidden;
+          }
+          
+          .print-layout-container {
+            width: 100%;
+            height: 100%;
           }
         }
       `}</style>
