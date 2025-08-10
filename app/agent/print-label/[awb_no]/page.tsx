@@ -42,6 +42,163 @@ export default function PrintLabelPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Smart authentication check for mobile app - with bypass
+  useEffect(() => {
+    const checkAuthentication = async () => {
+      try {
+        // Check if running in mobile app context
+        const userAgent = navigator.userAgent || '';
+        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || 
+                           window.location.hostname === 'capacitor' ||
+                           window.parent !== window; // iframe context
+        
+        // For mobile app, check if parent app has session first
+        if (isMobileApp) {
+          const mobileSession = localStorage.getItem('mobile_session');
+          const authTimestamp = localStorage.getItem('mobile_auth_timestamp');
+          
+          if (mobileSession && authTimestamp) {
+            const sessionAge = Date.now() - parseInt(authTimestamp);
+            // If mobile session is valid (less than 24 hours), skip auth check
+            if (sessionAge < 24 * 60 * 60 * 1000) {
+              // Skip authentication check for mobile
+              return;
+            }
+          }
+          
+          // If no valid mobile session, post message to parent for auth
+          window.parent?.postMessage({
+            type: 'AUTH_CHECK_REQUIRED',
+            url: window.location.href
+          }, '*');
+          return; // Don't do strict auth check, let parent handle
+        }
+        
+        // Only do strict authentication check for web browser access
+        const { data: { session } } = await supabaseClient.auth.getSession()
+        if (!session) {
+          window.location.href = '/agent/login';
+          return;
+        }
+        
+        // Check user role for web browser
+        const { data: userData } = await supabaseClient
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (!userData || userData.role !== 'agent') {
+          setError('Unauthorized access. Agent login required.')
+          setTimeout(() => {
+            window.location.href = '/agent/login';
+          }, 2000);
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown authentication error';
+        // Don't show error for mobile app context
+        const userAgent = navigator.userAgent || '';
+        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || 
+                           window.location.hostname === 'capacitor' ||
+                           window.parent !== window;
+        
+        if (!isMobileApp) {
+          setError(`Authentication error: ${errorMessage}. Please login again.`);
+        }
+      }
+    }
+    
+    checkAuthentication()
+  }, [])
+
+  // Listen for session data from mobile app parent
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'SESSION_DATA' || event.data.type === 'RESTORE_SESSION') {
+        // Received session data from mobile parent
+        if (event.data.sessionData) {
+          supabaseClient.auth.setSession(event.data.sessionData)
+            .then(() => {
+              // Session restored successfully
+              // Refresh data after session restore
+              if (awb_no) {
+                fetchAWBData();
+              }
+            })
+            .catch((sessionError: unknown) => {
+              const errorMessage = sessionError instanceof Error ? sessionError.message : 'Unknown session error';
+              setError(`Failed to restore session: ${errorMessage}`);
+            });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [awb_no])
+
+  // Extract fetchAWBData as a separate function for reuse
+  const fetchAWBData = async () => {
+    try {
+      // Check if running in mobile app and handle session
+      if (typeof window !== 'undefined') {
+        const userAgent = navigator.userAgent || '';
+        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || 
+                           window.location.hostname === 'capacitor' ||
+                           window.parent !== window;
+        
+        if (isMobileApp) {
+          // For mobile app, try to restore session if available
+          const mobileSession = localStorage.getItem('mobile_session');
+          if (mobileSession) {
+            try {
+              const sessionData = JSON.parse(mobileSession);
+              // Try to set session if available
+              await supabaseClient.auth.setSession(sessionData);
+            } catch (error) {
+              console.log('Failed to restore mobile session:', error);
+              // Continue anyway, maybe manual session is already active
+            }
+          }
+        }
+      }
+      
+      const { data, error } = await supabaseClient
+        .from('manifest_booking')
+        .select('*')
+        .eq('awb_no', awb_no)
+        .single();
+
+      if (error) {
+        console.error('Error fetching AWB:', error);
+        setError('AWB tidak ditemukan');
+        return;
+      }
+
+      if (data) {
+        // Map data to format expected by PrintLayout
+        const processedData = {
+          ...data,
+          // Preserve actual wilayah field from database, fallback to kota_tujuan only if wilayah is empty
+          wilayah: data.wilayah || data.kota_tujuan, // Use actual wilayah field first, then kota_tujuan as fallback
+          agent_customer: data.agent_customer || data.origin_branch || 'Agent' // Fallback for agent display
+        };
+        setAwbData(processedData);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setError('Terjadi kesalahan saat mengambil data AWB');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (awb_no) {
+      fetchAWBData();
+    }
+  }, [awb_no]);
+
   const handleDownloadPDF = async () => {
     if (!awbData) return;
     
@@ -122,44 +279,6 @@ export default function PrintLabelPage() {
       alert('Gagal membuat PDF. Silakan coba lagi.');
     }
   };
-
-  useEffect(() => {
-    const fetchAWBData = async () => {
-      try {
-        const { data, error } = await supabaseClient
-          .from('manifest_booking')
-          .select('*')
-          .eq('awb_no', awb_no)
-          .single();
-
-        if (error) {
-          console.error('Error fetching AWB:', error);
-          setError('AWB tidak ditemukan');
-          return;
-        }
-
-        if (data) {
-          // Map data to format expected by PrintLayout
-          const processedData = {
-            ...data,
-            // Preserve actual wilayah field from database, fallback to kota_tujuan only if wilayah is empty
-            wilayah: data.wilayah || data.kota_tujuan, // Use actual wilayah field first, then kota_tujuan as fallback
-            agent_customer: data.agent_customer || data.origin_branch || 'Agent' // Fallback for agent display
-          };
-          setAwbData(processedData);
-        }
-      } catch (err) {
-        console.error('Error:', err);
-        setError('Terjadi kesalahan saat mengambil data AWB');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (awb_no) {
-      fetchAWBData();
-    }
-  }, [awb_no]);
 
   useEffect(() => {
     // Auto print when data is loaded
