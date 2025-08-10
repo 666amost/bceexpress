@@ -51,6 +51,20 @@ function BulkPrintContent(): JSX.Element {
     try {
       setLoading(true)
       
+      // Check if running in mobile app and handle session
+      if (typeof window !== 'undefined') {
+        const userAgent = navigator.userAgent || '';
+        const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || window.location.hostname === 'capacitor';
+        
+        if (isMobileApp) {
+          // Notify parent app about session requirement
+          window.parent?.postMessage({
+            type: 'SESSION_REQUIRED',
+            url: window.location.href
+          }, '*');
+        }
+      }
+      
       const { data, error } = await supabaseClient
         .from('manifest_booking')
         .select('*')
@@ -110,6 +124,49 @@ function BulkPrintContent(): JSX.Element {
       setLoading(false)
     }
   }, [searchParams, fetchAWBs])
+
+  // Authentication check for mobile app
+  useEffect(() => {
+    const checkAuthentication = async () => {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession()
+        if (!session) {
+          // Not authenticated, redirect to login
+          const userAgent = navigator.userAgent || '';
+          const isMobileApp = userAgent.includes('BCE-Agent-Mobile') || window.location.hostname === 'capacitor';
+          
+          if (isMobileApp) {
+            window.parent?.postMessage({
+              type: 'AUTH_REQUIRED',
+              redirectUrl: '/agent/login'
+            }, '*');
+          } else {
+            window.location.href = '/agent/login';
+          }
+          return;
+        }
+        
+        // Check user role
+        const { data: userData } = await supabaseClient
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (!userData || userData.role !== 'agent') {
+          setError('Unauthorized access. Agent login required.')
+          setTimeout(() => {
+            window.location.href = '/agent/login';
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
+        setError('Authentication error. Please login again.')
+      }
+    }
+    
+    checkAuthentication()
+  }, [])
 
   // After AWBs are loaded, trigger printReady after next tick
   useEffect(() => {
