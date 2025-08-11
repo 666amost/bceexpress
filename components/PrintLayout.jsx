@@ -61,9 +61,12 @@ export default function PrintLayout({ data }) {
   // Jakarta Barat - GLC group
   "CENGKARENG": "GLC",
   "GROGOL": "GLC",
+  "GROGOL PETAMBURAN": "GLC", 
   "KEBON JERUK": "GLC",
   "KALI DERES": "GLC",
+  "KALIDERES": "GLC",
   "PAL MERAH": "GLC",
+  "PALMERAH": "GLC",
   "KEMBANGAN": "GLC",
   // Jakarta Selatan - GLC group
   "CILANDAK": "GLC",
@@ -96,13 +99,17 @@ export default function PrintLayout({ data }) {
   "PADEMANGAN": "KMY",
   "TANJUNG PRIOK": "KMY",
   // Jakarta Pusat - KMY group (special cases)
-  "TANAH ABANG (gelora)": "KMY"
+  "TANAH ABANG (GELORA)": "KMY"
   };
 
   // Get the area code based on kota_tujuan or kecamatan
   const getAreaCode = (kota, kec) => {
-    const key = (kec || kota || "").toUpperCase();
-    return areaCodes[key] || "";
+    // Convert both kecamatan and kota to uppercase for consistent matching
+    const kecamatanKey = (kec || "").toUpperCase();
+    const kotaKey = (kota || "").toUpperCase();
+    
+    // Try to find match in kecamatan first, then kota
+    return areaCodes[kecamatanKey] || areaCodes[kotaKey] || "";
   };
 
   // Get the airport code based on the wilayah

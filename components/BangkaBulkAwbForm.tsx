@@ -663,12 +663,28 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
         biaya_transit: template.biaya_transit,
       }
 
-      const printDiv = document.createElement("div")
-      printDiv.className = "print-only"
-      const printLayout = <PrintLayout data={data} />
-      // Render PrintLayout to string and append to printDiv
-      // This is a simplified version - you'll need to implement proper rendering
-      printWindow.document.write(printDiv.outerHTML)
+      // Create a temporary div to render PrintLayout
+      const tempDiv = document.createElement("div")
+      tempDiv.style.position = "absolute"
+      tempDiv.style.left = "-9999px"
+      tempDiv.className = "print-only"
+      document.body.appendChild(tempDiv)
+
+      // Use React to render PrintLayout into tempDiv
+      const { createRoot } = await import('react-dom/client')
+      const root = createRoot(tempDiv)
+      
+      // Render the PrintLayout component
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(PrintLayout, { data }))
+        // Wait a bit for rendering to complete
+        setTimeout(() => {
+          printWindow.document.write(tempDiv.innerHTML)
+          root.unmount()
+          document.body.removeChild(tempDiv)
+          resolve()
+        }, 100)
+      })
     }
 
     printWindow.document.write("</body></html>")
