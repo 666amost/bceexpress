@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
+import { getEnhancedAgentList } from "../lib/agent-mapping"
 import PrintLayout from "./PrintLayout"
 
 // Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
@@ -194,7 +195,7 @@ const kotaWilayahJabodetabek = {
   }
 }
 
-const agentListJabodetabek = [
+const baseAgentListJabodetabek = [
   "555 in2 PKP",
   "BELINYU AGEN",
   "KOLIM SLT",
@@ -263,6 +264,9 @@ const agentListJabodetabek = [
   "COD UDARA",
   "COD LAUT"
 ]
+
+// Enhanced agent list with email mappings
+const agentListJabodetabek = getEnhancedAgentList(baseAgentListJabodetabek)
 
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]

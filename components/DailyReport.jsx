@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
+import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from "../lib/agent-mapping"
 
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
@@ -54,7 +55,11 @@ export default function DailyReport({ userRole, branchOrigin }) {
       }
 
       if (selectedKirimVia) query = query.eq("kirim_via", selectedKirimVia)
-      if (selectedAgentCustomer) query = query.eq("agent_customer", selectedAgentCustomer)
+      if (selectedAgentCustomer) {
+        // Use enhanced agent matching for emails
+        const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer)
+        query = query.in("agent_customer", agentIdentifiers)
+      }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
 
@@ -73,114 +78,120 @@ export default function DailyReport({ userRole, branchOrigin }) {
   }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah]);
 
   // Now declare agentList and other variables below
+  const baseAgentListBangka = [
+    "555 in2 PKP",
+    "BELINYU AGEN",
+    "KOLIM SLT",
+    "SUNGAILIAT AGEN",
+    "TOBOALI (ABING)",
+    "KOBA (ABING)",
+    "JEBUS (MARETTA)",
+    "JEBUS (ROBI SAFARI)",
+    "MENTOK (LILY)",
+    "ACHUANG KOBA",
+    "BCE TONI WEN",
+    "7FUN SLT",
+    "ASIONG SAUCU",
+    "AFUK BOM2 SAUCU",
+    "TONI SAUCU",
+    "AFO SAUCU",
+    "KEN KEN SAUCU",
+    "ADI BOB SAUCU",
+    "AFEN SAUCU",
+    "AHEN SAUCU",
+    "AKIUNG SAUCU",
+    "ALIM SAUCU",
+    "ALIONG SAUCU",
+    "APHING SAUCU",
+    "ATER SAUCU",
+    "BULL BULL SAUCU",
+    "CHANDRA SAUCU",
+    "DANIEL SAUCU",
+    "DEDI PEN SAUCU",
+    "EDO SAUCU",
+    "HENDRA ABOY SAUCU",
+    "NYUNNYUN SAUCU",
+    "RIO SAUCU",
+    "YOPY SAUCU",
+    "ACN SNACK",
+    "ACS SNACK",
+    "ADOK RUMAH MAKAN",
+    "JI FUN MESU",
+    "BE YOU",
+    "BEST DURIAN",
+    "BOM BOM BUAH",
+    "TOKO AGUNG",
+    "AINY OTAK OTAK",
+    "APO SPX SLT",
+    "AFUI SPX P3",
+    "ASUN OTAK OTAK",
+    "BANGKA CITRA SNACK",
+    "BANGKA BULIONG SNACK",
+    "BILLY JNE",
+    "TOKO BINTANG 5",
+    "CENTRAL FOOD",
+    "CENTRAL NURSERY BANGKA",
+    "CHIKA",
+    "GLORIA MOTOR",
+    "HELDA ASIAT",
+    "HANS KOKO DURIAN",
+    "KIM NYUN AGEN",
+    "AFAT SUBUR",
+    "MR ADOX",
+    "PEMPEK KOKO LINGGAU",
+    "PEMPEK SUMBER RASA",
+    "PEMPEK WONG KITO",
+    "RAJAWALI (AKHIONG)",
+    "THEW FU CAU AWEN",
+    "THEW FU CAU PAULUS",
+    "COD UDARA",
+    "COD LAUT"
+  ];
+
+  const baseAgentListTanjungPandan = ["COD", "TRANSFER", "CASH", "Wijaya Crab"];
+
+  const baseAgentListCentral = [
+    "GLC COD UDR",
+    "GLC COD DRT",
+    "OTTY OFFICIAL",
+    "UDR CASH",
+    "SEA CASH",
+    "GLC UDR TRF",
+    "GLC SEA TRF",
+    "COD UDR",
+    "COD SEA",
+    "KMY UDR TRF",
+    "KMY SEA TRF",
+    "KARTINI KIKI",
+    "DUTA GARDEN FRENITA",
+    "FELLISIA PORIS EX 3",
+    "CITRA 3 RENY",
+    "HENDI",
+    "PRALITA",
+    "SALIM",
+    "ISKANDAR",
+    "IMAM",
+    "DONI",
+    "HERFAN",
+    "EZZA",
+    "YANDRI",
+    "DIKY",
+    "YOS",
+    "INDAH SUSHI TIME",
+    "CENTRAL NURSERY BANGKA",
+    "MAMAPIA",
+    "AMELIA PEDINDANG",
+    "HENDRY LIMIA",
+    "JESS DOT",
+    "SEPIRING RASA BASO",
+    "CHRISTINE PADEMANGAN"
+  ];
+
   const agentList = isBranchMode
     ? (branchOrigin === 'bangka'
-        ? [
-            "555 in2 PKP",
-            "BELINYU AGEN",
-            "KOLIM SLT",
-            "SUNGAILIAT AGEN",
-            "TOBOALI (ABING)",
-            "KOBA (ABING)",
-            "JEBUS (MARETTA)",
-            "JEBUS (ROBI SAFARI)",
-            "MENTOK (LILY)",
-            "ACHUANG KOBA",
-            "BCE TONI WEN",
-            "7FUN SLT",
-            "ASIONG SAUCU",
-            "AFUK BOM2 SAUCU",
-            "TONI SAUCU",
-            "AFO SAUCU",
-            "KEN KEN SAUCU",
-            "ADI BOB SAUCU",
-            "AFEN SAUCU",
-            "AHEN SAUCU",
-            "AKIUNG SAUCU",
-            "ALIM SAUCU",
-            "ALIONG SAUCU",
-            "APHING SAUCU",
-            "ATER SAUCU",
-            "BULL BULL SAUCU",
-            "CHANDRA SAUCU",
-            "DANIEL SAUCU",
-            "DEDI PEN SAUCU",
-            "EDO SAUCU",
-            "HENDRA ABOY SAUCU",
-            "NYUNNYUN SAUCU",
-            "RIO SAUCU",
-            "YOPY SAUCU",
-            "ACN SNACK",
-            "ACS SNACK",
-            "ADOK RUMAH MAKAN",
-            "JI FUN MESU",
-            "BE YOU",
-            "BEST DURIAN",
-            "BOM BOM BUAH",
-            "TOKO AGUNG",
-            "AINY OTAK OTAK",
-            "APO SPX SLT",
-            "AFUI SPX P3",
-            "ASUN OTAK OTAK",
-            "BANGKA CITRA SNACK",
-            "BANGKA BULIONG SNACK",
-            "BILLY JNE",
-            "TOKO BINTANG 5",
-            "CENTRAL FOOD",
-            "CENTRAL NURSERY BANGKA",
-            "CHIKA",
-            "GLORIA MOTOR",
-            "HELDA ASIAT",
-            "HANS KOKO DURIAN",
-            "KIM NYUN AGEN",
-            "AFAT SUBUR",
-            "MR ADOX",
-            "PEMPEK KOKO LINGGAU",
-            "PEMPEK SUMBER RASA",
-            "PEMPEK WONG KITO",
-            "RAJAWALI (AKHIONG)",
-            "THEW FU CAU AWEN",
-            "THEW FU CAU PAULUS",
-            "COD UDARA",
-            "COD LAUT"
-          ]
-        : ["COD", "TRANSFER", "CASH", "Wijaya Crab"])
-    : [
-      "GLC COD UDR",
-      "GLC COD DRT",
-      "OTTY OFFICIAL",
-      "UDR CASH",
-      "SEA CASH",
-      "GLC UDR TRF",
-      "GLC SEA TRF",
-      "COD UDR",
-      "COD SEA",
-      "KMY UDR TRF",
-      "KMY SEA TRF",
-      "KARTINI KIKI",
-      "DUTA GARDEN FRENITA",
-      "FELLISIA PORIS EX 3",
-      "CITRA 3 RENY",
-      "HENDI",
-      "PRALITA",
-      "SALIM",
-      "ISKANDAR",
-      "IMAM",
-      "DONI",
-      "HERFAN",
-      "EZZA",
-      "YANDRI",
-      "DIKY",
-      "YOS",
-      "INDAH SUSHI TIME",
-      "CENTRAL NURSERY BANGKA",
-      "MAMAPIA",
-      "AMELIA PEDINDANG",
-      "HENDRY LIMIA",
-      "JESS DOT",
-      "SEPIRING RASA BASO",
-      "CHRISTINE PADEMANGAN"
-    ];
+        ? getEnhancedAgentList(baseAgentListBangka)
+        : getEnhancedAgentList(baseAgentListTanjungPandan))
+    : getEnhancedAgentList(baseAgentListCentral);
 
   const kotaTujuan = isBranchMode
     ? (branchOrigin === 'bangka'

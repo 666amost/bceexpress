@@ -6,6 +6,7 @@ import { FaDownload, FaPrint, FaCalendarAlt } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 import { Calendar } from "./ui/calendar"
 import { format } from "date-fns"
+import { getEnhancedAgentList, doesAgentMatch } from "../lib/agent-mapping"
 
 interface PaymentHistoryType {
   id?: string;
@@ -163,7 +164,9 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         // Silent error - agents are not critical
       } else {
         const distinctAgents = Array.from(new Set(data.map((item: { agent_customer: string }) => item.agent_customer).filter(Boolean))) as string[]
-        setAgentList(distinctAgents)
+        // Enhance agent list with email mappings
+        const enhancedAgents = getEnhancedAgentList(distinctAgents)
+        setAgentList(enhancedAgents)
       }
     } catch (err) {
       // Silent error - agents are not critical
@@ -394,7 +397,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   // Filter unpaid data based on search and selected agent
   const filteredUnpaidData = unpaidData.filter(
     (row) =>
-      (selectedAgent ? row.agent_customer?.toLowerCase() === selectedAgent.toLowerCase() : true) &&
+      (selectedAgent ? doesAgentMatch(row.agent_customer, selectedAgent) : true) &&
       (search
         ? row.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
           row.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||

@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import { FaDownload, FaPrint } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
+import { getEnhancedAgentList, getAllAgentIdentifiers } from "../lib/agent-mapping"
 
-const agentListBangka = [
+const baseAgentListBangka = [
   "555 in2 PKP",
   "BELINYU AGEN",
   "KOLIM SLT",
@@ -75,12 +76,16 @@ const agentListBangka = [
   "COD LAUT"
 ];
 
-const agentListTanjungPandan = [
+const baseAgentListTanjungPandan = [
   "COD",
-  "TRANSFER",
+  "TRANSFER", 
   "CASH",
   "Wijaya Crab"
 ];
+
+// Enhanced agent lists with email mappings
+const agentListBangka = getEnhancedAgentList(baseAgentListBangka);
+const agentListTanjungPandan = getEnhancedAgentList(baseAgentListTanjungPandan);
 
 /**
  * @param {{ userRole: string, branchOrigin: string }} props
@@ -183,7 +188,9 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
       }
 
       if (selectedAgent) {
-        query = query.eq("agent_customer", selectedAgent)
+        // Use enhanced agent matching for emails
+        const agentIdentifiers = getAllAgentIdentifiers(selectedAgent)
+        query = query.in("agent_customer", agentIdentifiers)
       }
 
       if (startDate) {

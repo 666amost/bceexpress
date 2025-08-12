@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { supabaseClient } from "../lib/auth"
 import { FaDownload, FaPrint } from 'react-icons/fa'
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
+import { getEnhancedAgentList } from "../lib/agent-mapping"
 
 const kirimViaOptions = ["udara", "darat"]  // Diambil dari AwbForm.jsx
 const kotaTujuanOptions = ["bangka", "kalimantan barat", "belitung", "bali"]  // Diambil dari AwbForm.jsx dan HistoryManifest.jsx

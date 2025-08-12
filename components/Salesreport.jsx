@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabaseClient } from '../lib/auth';  // Ganti impor ini
 import { createStyledExcelWithHTML } from '../lib/excel-utils';
+import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from '../lib/agent-mapping';
 
 const SalesReport = ({ userRole, branchOrigin }) => {
   // ================== BRANCH / ROLE SWITCH ==================
@@ -21,7 +22,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   const [error, setError] = useState('');
   const [agentList, setAgentList] = useState([]);
 
-  const agentListBangka = [
+  const baseAgentListBangka = [
     "555 in2 PKP",
     "BELINYU AGEN",
     "KOLIM SLT",
@@ -91,14 +92,14 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     "COD LAUT"
   ];
 
-  const agentListTanjungPandan = [
+  const baseAgentListTanjungPandan = [
     "COD",
     "TRANSFER",
     "CASH",
     "Wijaya Crab"
   ];
 
-  const agentListCentral = [
+  const baseAgentListCentral = [
     "GLC COD UDR",
     "GLC COD DRT",
     "OTTY OFFICIAL",
@@ -134,6 +135,11 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     "SEPIRING RASA BASO",
     "CHRISTINE PADEMANGAN"
   ];
+
+  // Enhanced agent lists with email mappings
+  const agentListBangka = getEnhancedAgentList(baseAgentListBangka);
+  const agentListTanjungPandan = getEnhancedAgentList(baseAgentListTanjungPandan);
+  const agentListCentral = getEnhancedAgentList(baseAgentListCentral);
 
   const currentAgentList = isBranchMode 
     ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) 
@@ -233,7 +239,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     }
 
     const filtered = data.filter(item => {
-      const matchesAgent = agent ? item.agent_customer === agent : true;  // Ganti 'agent' dengan 'agent_customer'
+      const matchesAgent = agent ? doesAgentMatch(item.agent_customer, agent) : true;  // Use enhanced agent matching
       const matchesDateRange = fromDate && toDate ? new Date(item.awb_date) >= new Date(fromDate) && new Date(item.awb_date) <= new Date(toDate) : true;
       return matchesAgent && matchesDateRange;
     });
