@@ -92,3 +92,6 @@ EXCEL_EXPORT_IMPROVEMENTS.md
 node_modules
 bcerepo.code-workspace
 bce-wrapper/
+
+# Branch wrapper build files
+branch-wrap/

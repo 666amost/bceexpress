@@ -19,15 +19,98 @@ interface CityData {
 type KotaWilayah = Record<string, CityData>;
 
 const kotaWilayahJabodetabek: KotaWilayah = {
-  "JAKARTA BARAT": { kecamatan: ["CENGKARENG", "GROGOL PETAMBURAN", "KALIDERES", "KEBON JERUK", "KEMBANGAN", "PALMERAH", "TAMBORA", "TAMAN SARI"], harga: 28000 },
-  "JAKARTA PUSAT": { kecamatan: ["CEMPAKA PUTIH", "GAMBIR", "JOHAR BARU", "KEMAYORAN", "MENTENG", "SAWAH BESAR", "SENEN", "TANAH ABANG", "TANAH ABANG (gelora)"], harga: 27000 },
-  "JAKARTA TIMUR": { kecamatan: ["CAKUNG", "CIRACAS", "CIPAYUNG", "DUREN SAWIT", "JATINEGARA", "KRAMAT JATI", "MAKASAR", "MATRAMAN", "PASAR REBO", "PULOGADUNG"], harga: 29000 },
-  "JAKARTA SELATAN": { kecamatan: ["CILANDAK", "JAGAKARSA", "KEBAYORAN BARU", "KEBAYORAN LAMA", "MAMPANG PRAPATAN", "PANCORAN", "PASAR MINGGU", "PESANGGRAHAN", "SETIABUDI", "TEBET"], harga: 30000 },
-  "JAKARTA UTARA": { kecamatan: ["CILINCING", "KELAPA GADING", "KOJA", "PADEMANGAN", "PENJARINGAN", "TANJUNG PRIOK"], harga: 31000 },
-  "BOGOR": { kecamatan: ["BOGOR BARAT", "BOGOR TENGAH", "BOGOR TIMUR", "BOGOR UTARA", "BOGOR SELATAN", "TANAH SAREAL"], harga: 32000 },
-  "DEPOK": { kecamatan: ["BEJI", "BOJONGSARI", "CILODONG", "CIMANGGIS", "CINERE", "CIPAYUNG", "LIMO", "PANCORAN MAS", "SAWANGAN", "SUKMAJAYA", "TAPOS"], harga: 33000 },
-  "TANGERANG": { kecamatan: ["BENDA", "JATIUWUNG", "LARANGAN", "KARAWACI", "TANGERANG"], harga: 34000 },
-  "BEKASI": { kecamatan: ["BEKASI BARAT", "BEKASI SELATAN", "BEKASI TIMUR", "BEKASI UTARA", "BANTARGEBANG", "JATIASIH", "JATISAMPURNA", "MEDAN SATRIA", "MUSTIKA JAYA", "PONDOKGEDE", "PONDOK MELATI", "RAWALUMBU"], harga: 35000 }
+  "JAKARTA BARAT": {
+    kecamatan: [
+      "Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan",
+      "Taman sari", "Tambora"
+    ],
+    harga: 27000
+  },
+  "JAKARTA PUSAT": {
+    kecamatan: [
+      "Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", 
+      "Sawah besar", "Senen", "Tanah abang", "Tanah abang (gelora)"
+    ],
+    harga: 27000
+  },
+  "JAKARTA SELATAN": {
+    kecamatan: [
+      "Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", 
+      "Pasar minggu", "Pesanggrahan", "Pancoran", "Setiabudi", "Tebet"
+    ],
+    harga: 29000
+  },
+  "JAKARTA TIMUR": {
+    kecamatan: [
+      "Cakung", "Cipayung", "Ciracas", "Duren sawit", "Jatinegara", "Kramat jati",
+      "Makasar", "Matraman", "Pasar rebo", "Pulo gadung"
+    ],
+    harga: 29000
+  },
+  "JAKARTA UTARA": {
+    kecamatan: [
+      "Penjaringan", "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok"
+    ],
+    harga: 27000
+  },
+  "TANGERANG": {
+    kecamatan: [
+      "Batuceper", "Benda", "Cibodas", "Ciledug", "Cipondoh", "Jatiuwung", 
+      "Karangtengah", "Karawaci", "Larangan", "Neglasari", "Periuk", "Pinang", "Tangerang"
+    ],
+    harga: 27000
+  },
+  "TANGERANG SELATAN": {
+    kecamatan: [
+      "Ciputat", "Ciputat Timur", "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara"
+    ],
+    harga: 30000
+  },
+  "TANGERANG KABUPATEN": {
+    kecamatan: [
+      "Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", 
+      "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", 
+      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"
+    ],
+    harga: 35000
+  },
+  "BEKASI KOTA": {
+    kecamatan: [
+      "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara",
+      "Jatiasih", "Jatisampurna", "Medan Satria", "Mustikajaya", "pondokgede",
+      "pondokmelati", "Rawalumbu"
+    ],
+    harga: 32000
+  },
+  "BEKASI KABUPATEN": {
+    kecamatan: [
+      "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", "Cikarang Pusat",
+      "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", "Karangbahagia",
+      "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", "Tambun Utara"
+    ],
+    harga: 32000
+  },
+  "DEPOK": {
+    kecamatan: [
+      "Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Cipayung",
+      "Limo", "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos"
+    ],
+    harga: 35000
+  },
+  "BOGOR KOTA": {
+    kecamatan: [
+      "Bogor Barat", "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal"
+    ],
+    harga: 35000
+  },
+  "BOGOR KABUPATEN": {
+    kecamatan: [
+      "Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri", 
+      "Gunung Sindur", "Citeureup", "Jonggol", "Ciomas", "Ciseeng", "Tajurhalang",
+      "Caringin", "Dramaga", "Cariu", "Klapanunggal", "Rumpin", "Ciawi", "Tamansari"
+    ],
+    harga: 35000
+  }
 };
 
 // Tambahkan mapping kode bandara dan kode area dengan explicit typing
@@ -37,6 +120,14 @@ const airportCodes: Record<string, string> = {
   'JAKARTA TIMUR': 'JKT',
   'JAKARTA SELATAN': 'JKS',
   'JAKARTA UTARA': 'JKU',
+  'TANGERANG': 'TNG',
+  'TANGERANG SELATAN': 'TGS',
+  'TANGERANG KABUPATEN': 'TGK',
+  'BEKASI KOTA': 'BKK',
+  'BEKASI KABUPATEN': 'BKB',
+  'DEPOK': 'DPK',
+  'BOGOR KOTA': 'BGR',
+  'BOGOR KABUPATEN': 'BGB'
 };
 const areaCodes: Record<string, string> = {
   // Heading mappings
@@ -45,45 +136,133 @@ const areaCodes: Record<string, string> = {
   'GRENLAKE CITY / BARAT': 'GLC',
   // Jakarta Barat - GLC group
   'CENGKARENG': 'GLC',
+  'Cengkareng': 'GLC',
   'GROGOL PETAMBURAN': 'GLC',
+  'Grogol': 'GLC',
   'KALIDERES': 'GLC',
+  'Kali deres': 'GLC',
   'KEBON JERUK': 'GLC',
+  'Kebon jeruk': 'GLC',
   'KEMBANGAN': 'GLC',
+  'Kembangan': 'GLC',
   'PALMERAH': 'GLC',
+  'Pal merah': 'GLC',
   // Jakarta Selatan - GLC group
   'CILANDAK': 'GLC',
+  'Cilandak': 'GLC',
   'JAGAKARSA': 'GLC',
+  'Jagakarsa': 'GLC',
   'KEBAYORAN BARU': 'GLC',
+  'Kebayoran baru': 'GLC',
   'KEBAYORAN LAMA': 'GLC',
+  'Kebayoran lama': 'GLC',
   'MAMPANG PRAPATAN': 'GLC',
+  'Mampang prapatan': 'GLC',
   'PASAR MINGGU': 'GLC',
+  'Pasar minggu': 'GLC',
   'PESANGGRAHAN': 'GLC',
+  'Pesanggrahan': 'GLC',
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
+  'Penjaringan': 'GLC',
   // Jakarta Pusat - GLC group
   'TANAH ABANG': 'GLC',
+  'Tanah abang': 'GLC',
   // Bogor - GLC group
   'GUNUNG SINDUR': 'GLC',
+  'Gunung Sindur': 'GLC',
 
   // Kreko mappings
   'KREKOT': 'KMY',
   'KREKOT / PUSAT': 'KMY',
   // Jakarta Barat - KMY group
   'TAMAN SARI': 'KMY',
+  'Taman sari': 'KMY',
   'TAMBORA': 'KMY',
+  'Tambora': 'KMY',
   // Jakarta Selatan - KMY group
   'PANCORAN': 'KMY',
+  'Pancoran': 'KMY',
   'SETIABUDI': 'KMY',
+  'Setiabudi': 'KMY',
   'TEBET': 'KMY',
+  'Tebet': 'KMY',
   // Jakarta Utara - KMY group
   'CILINCING': 'KMY',
+  'Cilincing': 'KMY',
   'KELAPA GADING': 'KMY',
+  'Kelapa gading': 'KMY',
   'KOJA': 'KMY',
+  'Koja': 'KMY',
   'PADEMANGAN': 'KMY',
+  'Pademangan': 'KMY',
   'TANJUNG PRIOK': 'KMY',
+  'Tanjung priok': 'KMY',
   // Jakarta Pusat - KMY group (special cases)
-  'TANAH ABANG (gelora)': 'KMY'
+  'TANAH ABANG (gelora)': 'KMY',
+  'Tanah abang (gelora)': 'KMY'
 };
+
+// Fungsi untuk mendapatkan biaya transit berdasarkan wilayah (sama seperti di BangkaAwbForm)
+function getTransitFee(wilayah: string): number {
+  // Tangerang Kabupaten
+  if (wilayah.includes('TELUKNAGA')) return 20000;
+  if (wilayah.includes('BALARAJA')) return 50000;
+  if (wilayah.includes('PAKUHAJI')) return 50000;
+  if (wilayah.includes('RAJEG')) return 50000;
+  if (wilayah.includes('SEPATAN TIMUR')) return 30000;
+  if (wilayah.includes('SEPATAN')) return 30000;
+  if (wilayah.includes('SINDANG JAYA')) return 20000;
+  if (wilayah.includes('SOLEAR')) return 100000;
+  if (wilayah.includes('TIGARAKSA')) return 75000;
+
+  // Bekasi
+  if (wilayah.includes('JATISAMPURNA')) return 30000;
+  if (wilayah.includes('TARUMAJAYA')) return 30000;
+  if (wilayah.includes('BABELAN')) return 30000;
+  if (wilayah.includes('CIBARUSAH')) return 30000;
+  if (wilayah.includes('CIBITUNG')) return 50000;
+  if (wilayah.includes('CIKARANG BARAT')) return 75000;
+  if (wilayah.includes('CIKARANG PUSAT')) return 75000;
+  if (wilayah.includes('CIKARANG UTARA')) return 75000;
+  if (wilayah.includes('CIKARANG SELATAN')) return 100000;
+  if (wilayah.includes('CIKARANG TIMUR')) return 100000;
+  if (wilayah.includes('KARANGBAHAGIA')) return 75000;
+  if (wilayah.includes('KEDUNGWARINGIN')) return 100000;
+  if (wilayah.includes('SERANG BARU')) return 100000;
+  if (wilayah.includes('SETU') && wilayah.includes('BEKASI')) return 100000;
+  if (wilayah.includes('TAMBUN SELATAN')) return 50000;
+  if (wilayah.includes('TAMBUN UTARA')) return 50000;
+
+  // Depok
+  if (wilayah.includes('TAPOS')) return 30000;
+
+  // Bogor
+  if (wilayah.includes('BOGOR BARAT')) return 100000;
+  if (wilayah.includes('BOGOR SELATAN')) return 100000;
+  if (wilayah.includes('BOGOR TENGAH')) return 100000;
+  if (wilayah.includes('BOGOR TIMUR')) return 100000;
+  if (wilayah.includes('BOGOR UTARA')) return 100000;
+  if (wilayah.includes('TANAH SEREAL')) return 100000;
+  if (wilayah.includes('GUNUNG SINDUR')) return 100000;
+  if (wilayah.includes('BABAKAN MADANG')) return 100000;
+  if (wilayah.includes('BOJONGGEDE')) return 75000;
+  if (wilayah.includes('CIBINONG')) return 50000;
+  if (wilayah.includes('CILEUNGSI')) return 75000;
+  if (wilayah.includes('GUNUNG PUTRI')) return 75000;
+
+  // Kecamatan Bogor dengan transit 100.000
+  const kecamatanBogor100k = [
+    'CITEUREUP', 'JONGGOL', 'CIOMAS', 'CISEENG', 'TAJURHALANG',
+    'CARINGIN', 'DRAMAGA', 'CARIU', 'KLAPANUNGGAL', 'RUMPIN'
+  ];
+  if (kecamatanBogor100k.some(kec => wilayah.includes(kec))) return 100000;
+
+  // Kecamatan Bogor dengan transit 150.000
+  if (wilayah.includes('CIAWI') || wilayah.includes('TAMANSARI')) return 150000;
+
+  return 0; // Default jika tidak ada biaya transit
+}
 
 interface FormDataType {
   awb_no: string;
@@ -136,7 +315,7 @@ export const AWBCreationForm: React.FC = () => {
     berat_kg: 1,
     harga_per_kg: 0,
     sub_total: 0,
-    biaya_admin: 2000,
+    biaya_admin: 0,
     biaya_packaging: 0,
     biaya_transit: 0,
     total: 0,
@@ -208,12 +387,17 @@ export const AWBCreationForm: React.FC = () => {
       if (name === 'kota_tujuan') {
         newData.kecamatan = '';
         newData.wilayah = airportCodes[value] || '';
+        newData.biaya_transit = 0; // Reset biaya transit when city changes
       }
       
-      // Calculate wilayah when kecamatan changes
+      // Calculate wilayah and biaya_transit when kecamatan changes
       if (name === 'kecamatan' && newData.kota_tujuan) {
         const airportCode = airportCodes[newData.kota_tujuan] || '';
         const areaCode = areaCodes[value] || '';
+        
+        // Calculate biaya transit based on kecamatan
+        const transitFee = getTransitFee(`${newData.kota_tujuan} ${value}`.toUpperCase());
+        newData.biaya_transit = transitFee;
         
         // For Bangka branch: use kecamatan directly as wilayah
         if (currentAgent?.branchOrigin?.toLowerCase().includes('bangka')) {
@@ -320,7 +504,7 @@ export const AWBCreationForm: React.FC = () => {
         berat_kg: formData.berat_kg || 1,
         harga_per_kg: formData.harga_per_kg || 0,
         sub_total: formData.sub_total || 0,
-        biaya_admin: formData.biaya_admin || 2000,
+        biaya_admin: formData.biaya_admin || 0,
         biaya_packaging: formData.biaya_packaging || 0,
         biaya_transit: formData.biaya_transit || 0,
         total: formData.total || 0,
@@ -358,7 +542,7 @@ export const AWBCreationForm: React.FC = () => {
             berat_kg: 1,
             harga_per_kg: 0,
             sub_total: 0,
-            biaya_admin: 2000,
+            biaya_admin: 0,
             biaya_packaging: 0,
             biaya_transit: 0,
             total: 0,
@@ -473,7 +657,7 @@ export const AWBCreationForm: React.FC = () => {
                     berat_kg: 1,
                     harga_per_kg: 0,
                     sub_total: 0,
-                    biaya_admin: 2000,
+                    biaya_admin: 0,
                     biaya_packaging: 0,
                     biaya_transit: 0,
                     total: 0,
@@ -697,7 +881,7 @@ export const AWBCreationForm: React.FC = () => {
           </div>
 
           {/* Pricing */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
               <Label htmlFor="harga_per_kg">Harga per Kg</Label>
               <Input
@@ -730,6 +914,28 @@ export const AWBCreationForm: React.FC = () => {
                 type="number"
                 value={formData.biaya_admin}
                 onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="biaya_packaging">Biaya Packaging</Label>
+              <Input
+                id="biaya_packaging"
+                name="biaya_packaging"
+                type="number"
+                value={formData.biaya_packaging}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="biaya_transit">Biaya Transit</Label>
+              <Input
+                id="biaya_transit"
+                name="biaya_transit"
+                type="number"
+                value={formData.biaya_transit}
+                onChange={handleInputChange}
+                readOnly
+                className="bg-gray-50"
               />
             </div>
             <div>
