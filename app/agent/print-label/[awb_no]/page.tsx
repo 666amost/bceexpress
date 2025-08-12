@@ -138,7 +138,7 @@ export default function PrintLabelPage() {
       }
       
       const { data, error } = await supabaseClient
-        .from('manifest_booking')
+        .from('manifest_cabang')
         .select('*')
         .eq('awb_no', awb_no)
         .single();

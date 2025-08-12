@@ -97,11 +97,12 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const loadCustomerHistory = React.useCallback(async (agentId: string): Promise<CustomerHistory[]> => {
+  const loadCustomerHistory = React.useCallback(async (agentEmail: string): Promise<CustomerHistory[]> => {
+    // PERUBAHAN: Load dari manifest_cabang berdasarkan agent_customer (email)
     const { data } = await supabaseClient
-      .from('manifest_booking')
+      .from('manifest_cabang')
       .select('nama_pengirim, nomor_pengirim, nama_penerima, nomor_penerima, alamat_penerima, kota_tujuan, kecamatan, isi_barang, created_at')
-      .eq('agent_id', agentId)
+      .eq('agent_customer', agentEmail)
       .order('created_at', { ascending: false });
 
     if (!data) return [];
@@ -155,18 +156,18 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalAWBs: awbHistory.length,
       todayAWBs: awbHistory.filter(awb => new Date(awb.created_at) >= startOfToday).length,
       thisWeekAWBs: awbHistory.filter(awb => new Date(awb.created_at) >= startOfWeek).length,
-      pendingAWBs: awbHistory.filter(awb => awb.status === 'pending' || !awb.status).length,
-      completedAWBs: awbHistory.filter(awb => awb.status === 'delivered').length,
+      pendingAWBs: awbHistory.filter(awb => awb.status === 'outstanding' || awb.status === 'pending').length,
+      completedAWBs: awbHistory.filter(awb => awb.status === 'lunas' || awb.status === 'delivered').length,
     };
   }, []);
 
   const processAgentData = React.useCallback(async (userData: UserData, userId: string) => {
     try {
-      // Load AWB history for agent using agent_id
+      // PERUBAHAN: Load AWB history dari manifest_cabang berdasarkan agent_customer (email)
       const { data: awbHistory, error: awbError } = await supabaseClient
-        .from('manifest_booking')
+        .from('manifest_cabang')
         .select('*')
-        .eq('agent_id', userId)
+        .eq('agent_customer', userData.email)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -174,8 +175,8 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.error('Error loading AWB history:', awbError);
       }
 
-      // Load customer history
-      const customerHistory = await loadCustomerHistory(userId);
+      // Load customer history using email instead of userId
+      const customerHistory = await loadCustomerHistory(userData.email);
 
       // Calculate stats
       const stats = calculateStats(awbHistory || []);
@@ -191,8 +192,24 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           nama_pengirim: awb.nama_pengirim,
           nama_penerima: awb.nama_penerima,
           kota_tujuan: awb.kota_tujuan,
-          status: awb.status || 'pending',
+          kecamatan: awb.kecamatan,
+          alamat_penerima: awb.alamat_penerima,
+          nomor_pengirim: awb.nomor_pengirim,
+          nomor_penerima: awb.nomor_penerima,
+          coli: awb.coli,
+          berat_kg: awb.berat_kg,
           total: awb.total,
+          isi_barang: awb.isi_barang,
+          metode_pembayaran: awb.metode_pembayaran,
+          kirim_via: awb.kirim_via,
+          harga_per_kg: awb.harga_per_kg,
+          sub_total: awb.sub_total,
+          biaya_admin: awb.biaya_admin,
+          biaya_packaging: awb.biaya_packaging,
+          biaya_transit: awb.biaya_transit,
+          catatan: awb.catatan,
+          agent_customer: awb.agent_customer,
+          status: 'pending', // Default status untuk AWB baru yang belum masuk tracking
           created_at: awb.created_at
         })),
         customerHistory,
@@ -360,6 +377,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Agent branch information missing. Please contact support.');
       }
 
+      // PERUBAHAN: Langsung insert ke manifest_cabang, bukan manifest_booking
       const insertData = {
         awb_no: awbData.awb_no,
         awb_date: awbData.awb_date,
@@ -370,7 +388,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           : (awbData.wilayah || ""),
         kecamatan: awbData.kecamatan,
         metode_pembayaran: awbData.metode_pembayaran,
-        agent_customer: currentAgent.email,
+        agent_customer: currentAgent.email, // Nama agent untuk filter di DailyReport
         nama_pengirim: awbData.nama_pengirim,
         nomor_pengirim: awbData.nomor_pengirim,
         nama_penerima: awbData.nama_penerima,
@@ -385,16 +403,16 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         biaya_transit: awbData.biaya_transit,
         total: awbData.total,
         isi_barang: awbData.isi_barang,
-        catatan: awbData.catatan || '',
-        agent_id: sessionData.session.user.id,
+        catatan: awbData.catatan || `Agent booking: ${currentAgent.email}`,
         origin_branch: currentAgent.branchOrigin,
-        status: 'pending',
-        payment_status: 'outstanding',
-        input_time: new Date().toISOString()
+        status_pelunasan: 'outstanding',
+        buktimembayar: false,
+        potongan: 0
       };
 
+      // LANGSUNG INSERT KE MANIFEST_CABANG
       const { data, error } = await supabaseClient
-        .from('manifest_booking')
+        .from('manifest_cabang')
         .insert(insertData)
         .select()
         .single();

@@ -33,7 +33,7 @@ interface AWBDetails {
   total: number
   isi_barang: string
   catatan?: string
-  status: string
+  status: string // Default status untuk keperluan display
   created_at: string
   wilayah?: string
 }
@@ -75,7 +75,7 @@ function BulkPrintContent(): JSX.Element {
       }
       
       const { data, error } = await supabaseClient
-        .from('manifest_booking')
+        .from('manifest_cabang')
         .select('*')
         .in('awb_no', awbNumbers)
         .order('created_at', { ascending: false })
@@ -85,27 +85,27 @@ function BulkPrintContent(): JSX.Element {
       const formattedData = data?.map((booking: Record<string, unknown>) => ({
         awb_no: booking.awb_no as string,
         awb_date: booking.awb_date as string,
-        kirim_via: booking.kirim_via as string,
+        kirim_via: (booking.kirim_via as string) || 'DARAT',
         kota_tujuan: booking.kota_tujuan as string,
-        kecamatan: booking.kecamatan as string,
+        kecamatan: (booking.kecamatan as string) || (booking.wilayah as string) || booking.kota_tujuan as string, // Fallback chain
         metode_pembayaran: booking.metode_pembayaran as string,
-        agent_customer: booking.agent_customer as string,
+        agent_customer: (booking.agent_customer as string) || '',
         nama_pengirim: booking.nama_pengirim as string,
-        nomor_pengirim: booking.nomor_pengirim as string,
+        nomor_pengirim: (booking.nomor_pengirim as string) || '',
         nama_penerima: booking.nama_penerima as string,
-        nomor_penerima: booking.nomor_penerima as string,
-        alamat_penerima: booking.alamat_penerima as string,
-        coli: booking.coli as number,
-        berat_kg: booking.berat_kg as number,
-        harga_per_kg: booking.harga_per_kg as number,
-        sub_total: booking.sub_total as number,
-        biaya_admin: booking.biaya_admin as number,
-        biaya_packaging: booking.biaya_packaging as number,
-        biaya_transit: booking.biaya_transit as number,
-        total: booking.total as number,
-        isi_barang: booking.isi_barang as string,
+        nomor_penerima: (booking.nomor_penerima as string) || '',
+        alamat_penerima: (booking.alamat_penerima as string) || '',
+        coli: (booking.coli as number) || 1,
+        berat_kg: (booking.berat_kg as number) || 1,
+        harga_per_kg: (booking.harga_per_kg as number) || 0,
+        sub_total: (booking.sub_total as number) || 0,
+        biaya_admin: (booking.biaya_admin as number) || 0,
+        biaya_packaging: (booking.biaya_packaging as number) || 0,
+        biaya_transit: (booking.biaya_transit as number) || 0,
+        total: (booking.total as number) || 0,
+        isi_barang: (booking.isi_barang as string) || '',
         catatan: booking.catatan as string | undefined,
-        status: booking.status as string,
+        status: 'pending', // Default status untuk AWB yang baru dibuat
         created_at: booking.created_at as string,
         wilayah: (booking.wilayah as string) || (booking.kota_tujuan as string) // Use actual wilayah field first, then kota_tujuan as fallback
       })) || []
@@ -400,13 +400,13 @@ function BulkPrintContent(): JSX.Element {
           {/* Status Summary */}
           <div className="flex gap-2 mt-4">
             <Badge variant="outline" className="bg-yellow-50">
-              Pending: {awbs.filter(awb => awb.status.toLowerCase() === 'pending').length}
+              Pending: {awbs.filter(awb => (awb.status || '').toLowerCase() === 'pending').length}
             </Badge>
             <Badge variant="outline" className="bg-blue-50">
-              In Transit: {awbs.filter(awb => awb.status.toLowerCase() === 'in transit').length}
+              In Transit: {awbs.filter(awb => (awb.status || '').toLowerCase() === 'in transit').length}
             </Badge>
             <Badge variant="outline" className="bg-green-50">
-              Delivered: {awbs.filter(awb => awb.status.toLowerCase() === 'delivered').length}
+              Delivered: {awbs.filter(awb => (awb.status || '').toLowerCase() === 'delivered').length}
             </Badge>
           </div>
         </div>

@@ -157,16 +157,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   >
                     Pelunasan Resi
                   </button>
-                  <button
-                    className={`block px-4 py-2 text-sm w-full text-left transition-colors ${
-                      selectedSubMenu === "booking_verification" 
-                        ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white" 
-                        : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
-                    onClick={() => handleMenuClick("transaction", "booking_verification")}
-                  >
-                    Verifikasi Booking Agent
-                  </button>
+                  {/* REMOVED: Verifikasi Booking Agent - tidak diperlukan lagi */}
                 </div>
               )}
             </div>
@@ -353,16 +344,7 @@ export default function BranchNavbar({ selectedMenu, selectedSubMenu, onMenuChan
                   >
                     Pelunasan Resi
                   </button>
-                  <button
-                    className={`w-full text-left block px-3 py-2 rounded-md text-sm transition-colors ${
-                      selectedSubMenu === "booking_verification" 
-                        ? "bg-gray-100 dark:bg-gray-700 font-medium text-gray-900 dark:text-white" 
-                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    }`}
-                    onClick={() => handleMenuClick("transaction", "booking_verification")}
-                  >
-                    Verifikasi Booking Agent
-                  </button>
+                  {/* REMOVED: Verifikasi Booking Agent - tidak diperlukan lagi */}
                 </div>
               )}
 

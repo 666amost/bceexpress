@@ -359,13 +359,22 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="bg-yellow-50">
-                  Pending: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'pending').length}
+                  Pending: {filteredAWBs.filter(awb => {
+                    const currentStatus = (awb as any).shipment_status || (awb as any).status || 'pending';
+                    return currentStatus.toLowerCase() === 'pending';
+                  }).length}
                 </Badge>
                 <Badge variant="outline" className="bg-blue-50">
-                  In Transit: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'in transit').length}
+                  In Transit: {filteredAWBs.filter(awb => {
+                    const currentStatus = (awb as any).shipment_status || (awb as any).status || 'pending';
+                    return currentStatus.toLowerCase() === 'in transit' || currentStatus.toLowerCase() === 'in_transit';
+                  }).length}
                 </Badge>
                 <Badge variant="outline" className="bg-green-50">
-                  Delivered: {filteredAWBs.filter(awb => awb.status.toLowerCase() === 'delivered').length}
+                  Delivered: {filteredAWBs.filter(awb => {
+                    const currentStatus = (awb as any).shipment_status || (awb as any).status || 'pending';
+                    return currentStatus.toLowerCase() === 'delivered';
+                  }).length}
                 </Badge>
               </div>
               

@@ -15,8 +15,7 @@ import AwbForm from "./AwbForm";
 import BulkAwbForm from "./BulkAwbForm";
 import BangkaAwbForm from "./BangkaAwbForm";
 import BangkaBulkAwbForm from "./BangkaBulkAwbForm";
-import QuickQRScanner from "./QuickQRScanner";
-import BookingVerification from "./BookingVerification";
+// REMOVED: QuickQRScanner, BookingVerification - tidak diperlukan lagi
 
 ChartJS.register(
   CategoryScale,
@@ -85,8 +84,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
   const [activeChart, setActiveChart] = useState<'kota' | 'agent' | 'trend'>('kota');
   const [showBulkAwbForm, setShowBulkAwbForm] = useState(false);
   const [showAwbForm, setShowAwbForm] = useState(false);
-  const [showQuickQRScanner, setShowQuickQRScanner] = useState(false);
-  const [showBookingVerification, setShowBookingVerification] = useState(false);
+  // REMOVED: showQuickQRScanner, showBookingVerification - tidak diperlukan lagi
   let delayed = false;
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -349,17 +347,8 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
         </div>
       )}
 
-      {/* Tombol Tambahkan Resi dan QR Scanner */}
+      {/* Tombol Tambahkan Resi - QR Scanner dihapus */}
       <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center mb-4 gap-2">
-        {/* QR Scanner Button - Only for admin and cabang */}
-        {(userInfo?.role === 'admin' || userInfo?.role === 'cabang') && (
-          <Button
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 dark:bg-purple-700 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors"
-            onClick={() => setShowQuickQRScanner(true)}
-          >
-            <FaQrcode /> QR Scanner
-          </Button>
-        )}
         <Button
           className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
           onClick={() => {
@@ -428,37 +417,9 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
         )
       )}
 
-      {/* Quick QR Scanner Modal */}
-      {showQuickQRScanner && (
-        <QuickQRScanner
-          userRole={userRole}
-          branchOrigin={branchOrigin}
-          onClose={() => setShowQuickQRScanner(false)}
-        />
-      )}
+      {/* REMOVED: QR Scanner & Booking Verification - tidak diperlukan lagi */}
 
-      {/* Booking Verification Modal */}
-      {showBookingVerification && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">QR Scanner & Verifikasi Booking</h2>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBookingVerification(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </Button>
-              </div>
-              <BookingVerification userRole={userRole} branchOrigin={branchOrigin} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!showBulkAwbForm && !showAwbForm && !showBookingVerification && !showQuickQRScanner && (
+      {!showBulkAwbForm && !showAwbForm && (
         <>
           {/* Main content area: Stats and Recent AWBs in a two-column layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
