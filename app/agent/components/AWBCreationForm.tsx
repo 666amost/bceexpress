@@ -113,6 +113,60 @@ const kotaWilayahJabodetabek: KotaWilayah = {
   }
 };
 
+// Fungsi untuk mendapatkan harga berdasarkan wilayah (sama seperti di BangkaAwbForm)
+function getPriceByArea(wilayah: string): number {
+  // Harga default
+  let price = 27000;
+
+  // Harga untuk wilayah Jakarta
+  if (wilayah.includes('JAKARTA')) {
+    if (wilayah.includes('BARAT') || wilayah.includes('PUSAT')) {
+      price = 27000;
+    } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
+      price = 29000;
+    } else if (wilayah.includes('UTARA')) {
+      if (wilayah.includes('KOJA')) {
+        price = 30000;
+      } else {
+        price = 27000;
+      }
+    }
+  }
+  // Harga untuk wilayah Tangerang
+  else if (wilayah.includes('TANGERANG')) {
+    if (wilayah.includes('SELATAN')) {
+      price = 30000;
+    } else if (wilayah.includes('KABUPATEN')) {
+      price = 35000;
+    } else {
+      // Kecamatan khusus di Tangerang dengan harga 30000
+      if (wilayah.includes('NEGLASARI') || 
+          wilayah.includes('BENDA') || 
+          wilayah.includes('JATIUWUNG') || 
+          wilayah.includes('CIBODAS') ||
+          wilayah.includes('PERIUK')) {
+        price = 30000;
+      } else {
+        price = 27000;
+      }
+    }
+  }
+  // Harga untuk wilayah Bekasi
+  else if (wilayah.includes('BEKASI')) {
+    price = 32000;
+  }
+  // Harga untuk wilayah Depok
+  else if (wilayah.includes('DEPOK')) {
+    price = 35000;
+  }
+  // Harga untuk wilayah Bogor
+  else if (wilayah.includes('BOGOR')) {
+    price = 35000;
+  }
+
+  return price;
+}
+
 // Tambahkan mapping kode bandara dan kode area dengan explicit typing
 const airportCodes: Record<string, string> = {
   'JAKARTA BARAT': 'JKB',
@@ -355,28 +409,39 @@ export const AWBCreationForm: React.FC = () => {
   // Auto calculate pricing
   const updatePricing = useCallback((): void => {
     if (formData.kota_tujuan && formData.berat_kg > 0) {
-      const cityData = kotaWilayahJabodetabek[formData.kota_tujuan];
-      if (cityData) {
-        const hargaPerKg = cityData.harga;
-        const subTotal = formData.berat_kg * hargaPerKg;
-        const total = subTotal + formData.biaya_admin + formData.biaya_packaging + formData.biaya_transit;
-        
-        setFormData(prev => ({
-          ...prev,
-          harga_per_kg: hargaPerKg,
-          sub_total: subTotal,
-          total: total
-        }));
+      // Use getPriceByArea for more accurate pricing (same as BangkaAwbForm)
+      const wilayahForPricing = `${formData.kota_tujuan} ${formData.kecamatan}`.toUpperCase();
+      let hargaPerKg = getPriceByArea(wilayahForPricing);
+      
+      // Apply discount for specific agents
+      if (currentAgent?.email === 'blyagent01@bce.com' || currentAgent?.email === 'blyagent02@bce.com') {
+        hargaPerKg = Math.max(0, hargaPerKg - 3000);
       }
+      
+      const subTotal = formData.berat_kg * hargaPerKg;
+      const total = subTotal + formData.biaya_admin + formData.biaya_packaging + formData.biaya_transit;
+      
+      setFormData(prev => ({
+        ...prev,
+        harga_per_kg: hargaPerKg,
+        sub_total: subTotal,
+        total: total
+      }));
     }
-  }, [formData.kota_tujuan, formData.berat_kg, formData.biaya_admin, formData.biaya_packaging, formData.biaya_transit]);
+  }, [formData.kota_tujuan, formData.kecamatan, formData.berat_kg, formData.biaya_admin, formData.biaya_packaging, formData.biaya_transit, currentAgent?.email]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
-    }));
+    
+    setFormData(prev => {
+      if (name in prev) {
+        return {
+          ...prev,
+          [name as keyof FormDataType]: type === 'number' ? (parseFloat(value) || 0) : value
+        };
+      }
+      return prev;
+    });
   }, []);
 
   const handleSelectChange = useCallback((name: string, value: string): void => {
@@ -417,7 +482,7 @@ export const AWBCreationForm: React.FC = () => {
   }, [currentAgent?.branchOrigin]);
 
   const validateForm = useCallback((): boolean => {
-    const requiredFields = [
+    const requiredFields: Array<{ field: keyof FormDataType; label: string }> = [
       { field: 'kota_tujuan', label: 'Kota Tujuan' },
       { field: 'kecamatan', label: 'Kecamatan' },
       { field: 'nama_pengirim', label: 'Nama Pengirim' },
@@ -429,7 +494,8 @@ export const AWBCreationForm: React.FC = () => {
     ];
 
     for (const { field, label } of requiredFields) {
-      if (!formData[field as keyof FormDataType] || String(formData[field as keyof FormDataType]).trim() === '') {
+      const fieldValue = formData[field];
+      if (!fieldValue || String(fieldValue).trim() === '') {
         toast({
           title: "Validation Error",
           description: `${label} is required`,
