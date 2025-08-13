@@ -135,7 +135,12 @@ function getPriceByArea(wilayah: string): number {
   // Harga untuk wilayah Tangerang
   else if (wilayah.includes('TANGERANG')) {
     if (wilayah.includes('SELATAN')) {
-      price = 30000;
+      // Special case for Serpong Utara - should be 27000 according to jakarta.type
+      if (wilayah.includes('SERPONG UTARA')) {
+        price = 27000;
+      } else {
+        price = 30000;
+      }
     } else if (wilayah.includes('KABUPATEN')) {
       price = 35000;
     } else {
