@@ -20,10 +20,42 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [selectedAgentCustomer, setSelectedAgentCustomer] = useState("")  // State untuk filter Agent/Customer
   const [selectedKotaTujuan, setSelectedKotaTujuan] = useState("")  // State baru untuk filter kota tujuan
   const [selectedWilayah, setSelectedWilayah] = useState("")
+  const [selectedAreaCode, setSelectedAreaCode] = useState("")  // State baru untuk filter area code (GLC/KMY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   // ================== LISTS ==================
+  // Area code data from GLC-KMY.type file (matching BangkaAwbForm structure)
+  const areaCodeData = {
+    "BCE GLC": [
+      "Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", 
+      "Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", 
+      "Pasar minggu", "Pesanggrahan", "Penjaringan", "Batuceper", "Benda", "Cibodas", 
+      "Ciledug", "Cipondoh", "Jatiuwung", "Karangtengah", "Karawaci", "Larangan", 
+      "Neglasari", "Periuk", "Pinang", "Tangerang", "Ciputat", "Ciputat Timur", 
+      "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara", "Kelapa Dua", "Curug", 
+      "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", "Teluknaga", "Balaraja", 
+      "Cikupa", "Cisauk", "Pakuhaji", "Panongan", "Rajeg", "Sepatan", "Sepatan Timur", 
+      "Sindang Jaya", "Solear", "Tigaraksa", "Gunung Sindur"
+    ],
+    "BCE KMY": [
+      "Taman sari", "Tambora", "Cempaka putih", "Gambir", "Johar baru", 
+      "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang", "Pancoran", 
+      "Setiabudi", "Tebet", "Cakung", "Cipayung", "Ciracas", "Duren sawit", 
+      "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung", 
+      "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", 
+      "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", 
+      "Jatiasih", "Jatisampurna", "Medan Satria", "pondokgede", 
+      "pondokmelati", "Rawalumbu", "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", 
+      "Cikarang Pusat", "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", 
+      "Karangbahagia", "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", 
+      "Tambun Utara", "Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Limo", 
+      "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos", "Bogor Barat", 
+      "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal", 
+      "Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri"
+    ]
+  };
+
   // ...existing code...
 
   // Fetch function must be defined after all dependencies
@@ -62,6 +94,17 @@ export default function DailyReport({ userRole, branchOrigin }) {
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
+      if (selectedAreaCode && isBranchMode) {
+        // Area code filter HANYA untuk branch mode (manifest_cabang)
+        const areaWilayahList = areaCodeData[selectedAreaCode] || []
+        if (areaWilayahList.length > 0) {
+          // Search in kecamatan field untuk branch mode
+          const orConditions = areaWilayahList.map(area => `kecamatan.ilike.%${area}%`);
+          if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','));
+          }
+        }
+      }
 
       const { data: fetchedData, error: fetchError } = await query
 
@@ -75,7 +118,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
     } finally {
       setLoading(false)
     }
-  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah]);
+  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode]);
 
   // Now declare agentList and other variables below
   const baseAgentListBangka = [
@@ -232,12 +275,50 @@ export default function DailyReport({ userRole, branchOrigin }) {
         };
   }, [isBranchMode, branchOrigin]);
 
-  const wilayahOptions = useMemo(() => kotaWilayah[selectedKotaTujuan] || [], [selectedKotaTujuan, kotaWilayah]);
+  const wilayahOptions = useMemo(() => {
+    // Prioritas 1: Area code filter untuk branch mode
+    if (isBranchMode && selectedAreaCode && areaCodeData[selectedAreaCode]) {
+      return areaCodeData[selectedAreaCode];
+    }
+    // Prioritas 2: Kota tujuan filter (untuk semua mode)
+    if (selectedKotaTujuan && kotaWilayah[selectedKotaTujuan]) {
+      return kotaWilayah[selectedKotaTujuan];
+    }
+    // Prioritas 3: Default untuk branch mode tanpa filter area code dan kota tujuan
+    if (isBranchMode && !selectedAreaCode && !selectedKotaTujuan) {
+      const allAreaOptions = [...areaCodeData["BCE GLC"], ...areaCodeData["BCE KMY"]];
+      return [...new Set(allAreaOptions)]; // Remove duplicates
+    }
+    // Default: kosong
+    return [];
+  }, [selectedKotaTujuan, selectedAreaCode, kotaWilayah, isBranchMode]);
 
   // useEffect hook to fetch data on component mount and when filters change
   useEffect(() => {
     fetchDailyReport();
   }, [fetchDailyReport]);
+
+  // Reset area code untuk central mode (non-branch)
+  useEffect(() => {
+    if (!isBranchMode && selectedAreaCode) {
+      setSelectedAreaCode("");
+    }
+  }, [isBranchMode, selectedAreaCode]);
+
+  // Reset wilayah when area code changes (hanya untuk branch mode)
+  useEffect(() => {
+    if (isBranchMode && selectedAreaCode) {
+      setSelectedWilayah("");
+      setSelectedKotaTujuan(""); // Reset kota tujuan ketika area code dipilih
+    }
+  }, [selectedAreaCode, isBranchMode]);
+
+  // Reset area code when kota tujuan changes (hanya untuk branch mode)
+  useEffect(() => {
+    if (isBranchMode && selectedKotaTujuan) {
+      setSelectedAreaCode("");
+    }
+  }, [selectedKotaTujuan, isBranchMode]);
 
   // Function to download Excel file
   const downloadXLSX = useCallback(() => {
@@ -514,6 +595,17 @@ export default function DailyReport({ userRole, branchOrigin }) {
           <option value="">Semua</option>
           {agentList.map(agent => (<option key={agent} value={agent}>{agent}</option>))}
         </select>
+        {/* Area Code filter hanya untuk branch mode (manifest_cabang) */}
+        {isBranchMode && (
+          <>
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Area Code:</label>
+            <select value={selectedAreaCode} onChange={(e) => setSelectedAreaCode(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400">
+              <option value="">Semua</option>
+              <option value="BCE GLC">BCE GLC</option>
+              <option value="BCE KMY">BCE KMY</option>
+            </select>
+          </>
+        )}
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Kota Tujuan:</label>
         <select value={selectedKotaTujuan} onChange={(e) => setSelectedKotaTujuan(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400">
           <option value="">Semua</option>
@@ -522,7 +614,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Wilayah:</label>
         <select value={selectedWilayah} onChange={(e) => setSelectedWilayah(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400">
           <option value="">Semua</option>
-          {wilayahOptions.map(w => (<option key={w} value={w}>{w.toUpperCase()}</option>))}
+          {wilayahOptions.map((w, index) => (<option key={`${w}-${index}`} value={w}>{w.toUpperCase()}</option>))}
         </select>
       </div>
 
