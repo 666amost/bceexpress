@@ -349,12 +349,24 @@ interface FormDataType {
   catatan: string;
 }
 
+// Interface for tracking display values of numeric fields
+interface NumericDisplayState {
+  coli: string;
+  berat_kg: string;
+}
+
 export const AWBCreationForm: React.FC = () => {
   const { toast } = useToast();
   const { currentAgent, isLoading, addAWB } = useAgent();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [submittedAWB, setSubmittedAWB] = useState<string>('');
+
+  // State for tracking display values of numeric fields
+  const [numericDisplay, setNumericDisplay] = useState<NumericDisplayState>({
+    coli: '1',
+    berat_kg: '1'
+  });
 
   const [formData, setFormData] = useState<FormDataType>({
     awb_no: '',
@@ -438,6 +450,26 @@ export const AWBCreationForm: React.FC = () => {
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value, type } = e.target;
     
+    // Handle numeric fields that should clear when focused
+    if (name === 'coli' || name === 'berat_kg') {
+      // Update display state
+      setNumericDisplay(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      
+      // Update form data with proper numeric conversion
+      setFormData(prev => {
+        const numericValue = value.trim() === '' ? (name === 'coli' ? 1 : 1) : parseFloat(value);
+        return {
+          ...prev,
+          [name]: isNaN(numericValue) ? (name === 'coli' ? 1 : 1) : Math.max(name === 'coli' ? 1 : 0.1, numericValue)
+        };
+      });
+      return;
+    }
+    
+    // Handle other fields normally
     setFormData(prev => {
       if (name in prev) {
         return {
@@ -448,6 +480,29 @@ export const AWBCreationForm: React.FC = () => {
       return prev;
     });
   }, []);
+
+  // Handle focus events for numeric fields to clear them
+  const handleNumericFocus = useCallback((fieldName: 'coli' | 'berat_kg'): void => {
+    setNumericDisplay(prev => ({
+      ...prev,
+      [fieldName]: ''
+    }));
+  }, []);
+
+  // Handle blur events for numeric fields to restore default if empty
+  const handleNumericBlur = useCallback((fieldName: 'coli' | 'berat_kg'): void => {
+    if (numericDisplay[fieldName].trim() === '') {
+      const defaultValue = fieldName === 'coli' ? '1' : '1';
+      setNumericDisplay(prev => ({
+        ...prev,
+        [fieldName]: defaultValue
+      }));
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: fieldName === 'coli' ? 1 : 1
+      }));
+    }
+  }, [numericDisplay]);
 
   const handleSelectChange = useCallback((name: string, value: string): void => {
     setFormData(prev => {
@@ -653,6 +708,15 @@ export const AWBCreationForm: React.FC = () => {
   useEffect(() => {
     updatePricing();
   }, [updatePricing]);
+
+  // Sync numeric display with form data when form data changes programmatically
+  useEffect(() => {
+    setNumericDisplay(prev => ({
+      ...prev,
+      coli: formData.coli.toString(),
+      berat_kg: formData.berat_kg.toString()
+    }));
+  }, [formData.coli, formData.berat_kg]);
 
   // Auto generate AWB on component mount
   useEffect(() => {
@@ -910,8 +974,10 @@ export const AWBCreationForm: React.FC = () => {
                 name="coli"
                 type="number"
                 min="1"
-                value={formData.coli}
+                value={numericDisplay.coli}
                 onChange={handleInputChange}
+                onFocus={() => handleNumericFocus('coli')}
+                onBlur={() => handleNumericBlur('coli')}
                 required
               />
             </div>
@@ -923,8 +989,10 @@ export const AWBCreationForm: React.FC = () => {
                 type="number"
                 min="0.1"
                 step="0.1"
-                value={formData.berat_kg}
+                value={numericDisplay.berat_kg}
                 onChange={handleInputChange}
+                onFocus={() => handleNumericFocus('berat_kg')}
+                onBlur={() => handleNumericBlur('berat_kg')}
                 required
               />
             </div>

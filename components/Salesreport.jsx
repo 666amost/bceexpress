@@ -272,10 +272,13 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       return;
     }
 
+    // Dynamic header based on branch - use Kecamatan for Bangka branch
+    const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan';
+    
     const headers = [
       'AWB (awb_no)',
       'Tgl AWB',
-      'Tujuan',
+      destinationHeader,
       'Via Pengiriman',
       'Pengirim',
       'Penerima',
@@ -286,19 +289,22 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       'Total'
     ]
 
-    const formattedData = filteredData.map(item => ({
-      'AWB (awb_no)': item.awb_no,
-      'Tgl AWB': item.awb_date,
-      'Tujuan': item.kota_tujuan,
-      'Via Pengiriman': item.kirim_via,
-      'Pengirim': item.nama_pengirim,
-      'Penerima': item.nama_penerima,
-      'Kg': item.berat_kg,
-      'Harga (Ongkir)': item.harga_ongkir,
-      'Admin': item.biaya_admin,
-      'Packaging': item.biaya_packaging,
-      'Total': item.total_fix
-    }))
+    const formattedData = filteredData.map(item => {
+      const destinationValue = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
+      return {
+        'AWB (awb_no)': item.awb_no,
+        'Tgl AWB': item.awb_date,
+        [destinationHeader]: destinationValue,
+        'Via Pengiriman': item.kirim_via,
+        'Pengirim': item.nama_pengirim,
+        'Penerima': item.nama_penerima,
+        'Kg': item.berat_kg,
+        'Harga (Ongkir)': item.harga_ongkir,
+        'Admin': item.biaya_admin,
+        'Packaging': item.biaya_packaging,
+        'Total': item.total_fix
+      }
+    })
 
     const today = new Date().toLocaleDateString('id-ID', { 
       year: 'numeric', 
@@ -344,6 +350,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
       return
     }
+
+    // Dynamic header and field based on branch - use Kecamatan for Bangka branch
+    const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'KECAMATAN' : 'DESTINATION';
     
     printWindow.document.write(`
       <html>
@@ -690,7 +699,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                 <th style="width: 4%;">#</th>
                 <th style="width: 12%;">AWB NUMBER</th>
                 <th style="width: 9%;">DATE</th>
-                <th style="width: 11%;">DESTINATION</th>
+                <th style="width: 11%;">${destinationHeader}</th>
                 <th style="width: 8%;">VIA</th>
                 <th style="width: 15%;">SENDER</th>
                 <th style="width: 15%;">RECIPIENT</th>
@@ -707,7 +716,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                   <td class="text-center font-medium">${index + 1}</td>
                   <td class="awb-number">${item.awb_no}</td>
                   <td class="font-medium">${new Date(item.awb_date).toLocaleDateString('en-GB')}</td>
-                  <td class="font-medium">${item.kota_tujuan}</td>
+                  <td class="font-medium">${(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
                   <td class="text-center font-medium">${item.kirim_via.toUpperCase()}</td>
                   <td>${item.nama_pengirim}</td>
                   <td>${item.nama_penerima}</td>
@@ -825,7 +834,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">No</th>
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">AWB (awb_no)</th>
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Tgl AWB</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Tujuan</th>
+              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">{(isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan'}</th>
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Via Pengiriman</th>
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Pengirim</th>
               <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Penerima</th>
@@ -842,7 +851,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                 <td className="border p-2 dark:border-gray-600">{index + 1}</td>
                 <td className="border p-2 dark:border-gray-600">{item.awb_no}</td>
                 <td className="border p-2 dark:border-gray-600">{item.awb_date}</td>
-                <td className="border p-2 dark:border-gray-600">{item.kota_tujuan}</td>
+                <td className="border p-2 dark:border-gray-600">{(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
                 <td className="border p-2 dark:border-gray-600">{item.kirim_via}</td>
                 <td className="border p-2 dark:border-gray-600">{item.nama_pengirim}</td>
                 <td className="border p-2 dark:border-gray-600">{item.nama_penerima}</td>

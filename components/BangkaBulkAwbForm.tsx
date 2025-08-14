@@ -956,6 +956,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
                   name="berat_kg"
                   value={entry.berat_kg}
                   onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleAwbEntryChange(entry.id, e)}
+                  onFocus={e => { if (e.target.value === "0") e.target.value = ""; }}
                   min={1}
                   step={0.1}
                   required

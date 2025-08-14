@@ -314,24 +314,24 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
     
     // Headers sesuai dengan tabel yang ditampilkan di Payment History
     const headers = [
-      'No Bukti',
-      'Pengirim',
-      'Penerima', 
-      'Agent/Customer',
-      'Original Amount',
-      'Discount',
-      'Final Amount'
+      'NO BUKTI',
+      'PENGIRIM',
+      'PENERIMA', 
+      'AGENT/CUSTOMER',
+      'ORIGINAL AMOUNT',
+      'DISCOUNT',
+      'FINAL AMOUNT'
     ]
 
     // Data mapping sesuai dengan PaymentHistoryType
     const formattedData = items.map(item => ({
-      'No Bukti': item.awb_no || '',
-      'Pengirim': item.nama_pengirim || '',
-      'Penerima': item.nama_penerima || '',
-      'Agent/Customer': item.agent_customer || '',
-      'Original Amount': item.original_amount || 0,
-      'Discount': item.discount || 0,
-      'Final Amount': item.final_amount || 0
+      'NO BUKTI': item.awb_no || '',
+      'PENGIRIM': item.nama_pengirim || '',
+      'PENERIMA': item.nama_penerima || '',
+      'AGENT/CUSTOMER': item.agent_customer || '',
+      'ORIGINAL AMOUNT': item.original_amount || 0,
+      'DISCOUNT': item.discount || 0,
+      'FINAL AMOUNT': item.final_amount || 0
     }))
 
     // Use HTML approach for guaranteed styling with date range
@@ -343,7 +343,8 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       currency: 'Rp',
       currencyColumns: [4, 5, 6], // Original Amount, Discount, Final Amount
       numberColumns: [], // No number columns in this case
-      dateRange: date // Add date range for proper title
+  dateRange: date, // Add date range for proper title
+  hideSummary: true // Do not include RINGKASAN LAPORAN for PelunasanResi exports
     })
   };
 
@@ -446,13 +447,13 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
           <table>
             <thead>
               <tr>
-                <th>No Bukti</th>
-                <th>Pengirim</th>
-                <th>Penerima</th>
-                <th>Agent/Customer</th>
-                <th class="text-right">Original Amount</th>
-                <th class="text-right">Discount</th>
-                <th class="text-right">Final Amount</th>
+                <th>NO BUKTI</th>
+                <th>PENGIRIM</th>
+                <th>PENERIMA</th>
+                <th>AGENT/CUSTOMER</th>
+                <th class="text-right">ORIGINAL AMOUNT</th>
+                <th class="text-right">DISCOUNT</th>
+                <th class="text-right">FINAL AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -563,13 +564,13 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
                         <table className="min-w-full text-sm table-auto divide-y divide-gray-200 dark:divide-gray-700">
                           <thead className="bg-blue-50 dark:bg-blue-900/50">
                             <tr>
-                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">No Bukti</th>
-                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">Pengirim</th>
-                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">Penerima</th>
-                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">Agent/Customer</th>
-                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">Original Amount</th>
-                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">Discount</th>
-                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">Final Amount</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">NO BUKTI</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">PENGIRIM</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">PENERIMA</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">AGENT/CUSTOMER</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">ORIGINAL AMOUNT</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">DISCOUNT</th>
+                              <th className="px-4 py-2 text-right font-semibold text-gray-600 dark:text-gray-300">FINAL AMOUNT</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -678,6 +679,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
                           type="number"
                           value={row.potongan || 0}
                           onChange={(e) => handleRowChange(row.index, "potongan", e.target.value)}
+                          onFocus={e => { if (e.target.value === "0") e.target.value = ""; }}
                           className="border border-gray-300 dark:border-gray-600 rounded px-1 py-1 w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
                         />
                       </td>

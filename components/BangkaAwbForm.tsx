@@ -1379,6 +1379,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               name="berat_kg"
               value={form.berat_kg}
               onChange={handleChange}
+              onFocus={e => { if (e.target.value === "0") e.target.value = ""; }}
               min={1}
               step={0.1}
               required
@@ -1412,6 +1413,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               name="biaya_admin"
               value={form.biaya_admin}
               onChange={handleChange}
+              onFocus={e => { if (e.target.value === "0") e.target.value = ""; }}
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
@@ -1432,6 +1434,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               name="biaya_transit"
               value={form.biaya_transit}
               onChange={handleChange}
+              onFocus={e => { if (e.target.value === "0") e.target.value = ""; }}
               className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
             />
           </div>
