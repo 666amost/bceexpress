@@ -287,7 +287,7 @@ function getPriceByArea(kotaTujuan: string, kecamatan: string): number {
   // Logika harga khusus Jakarta Utara
   if (kotaTujuan === 'JAKARTA UTARA') {
     if ([
-      'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja'
+      'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja', 'Cilincing'
     ].includes(kecamatan)) {
       return 30000;
     } else if ([

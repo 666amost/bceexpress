@@ -282,7 +282,7 @@ function getPriceByArea(wilayah: string): number {
     } else if (wilayah.includes('SELATAN') || wilayah.includes('TIMUR')) {
       price = 29000;
     } else if (wilayah.includes('UTARA')) {
-      if (wilayah.includes('KOJA')) {
+      if (wilayah.includes('KOJA') || wilayah.includes('CILINCING')) {
         price = 30000;
       } else {
         price = 27000;
@@ -294,7 +294,15 @@ function getPriceByArea(wilayah: string): number {
     if (wilayah.includes('SELATAN')) {
       price = 30000;
     } else if (wilayah.includes('KABUPATEN')) {
-      price = 35000;
+      // Special cases for Tangerang Kabupaten with 30000 pricing
+      if (wilayah.includes('KELAPA DUA') || 
+          wilayah.includes('CURUG') || 
+          wilayah.includes('KOSAMBI') ||
+          wilayah.includes('PAGEDANGAN')) {
+        price = 30000;
+      } else {
+        price = 35000;
+      }
     } else {
       // Kecamatan khusus di Tangerang dengan harga 30000
       if (wilayah.includes('NEGLASARI') || 
@@ -461,7 +469,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       // Logika harga khusus Jakarta Utara
       if (kotaTujuan === 'JAKARTA UTARA') {
         if ([
-          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja'
+          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja', 'Cilincing'
         ].includes(kecamatan)) {
           harga = 30000;
         } else if ([
