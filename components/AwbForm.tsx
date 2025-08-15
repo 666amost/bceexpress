@@ -103,10 +103,13 @@ const agentListTanjungPandan = [
 const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"]; // Same as pusat for now
 const kirimViaTanjungPandan = ["udara", "darat"]; // Same as pusat for now
 
-function generateAwbNo() {
+function generateAwbNo(originBranch?: string | null) {
   const timestamp = Date.now().toString()
   const lastSixDigits = timestamp.slice(-6)
-  return "BCE" + lastSixDigits
+  // Normalize originBranch safely (handle null) for case-insensitive comparison
+  const normalized = originBranch ? originBranch.toLowerCase() : undefined
+  const suffix = normalized === 'tanjung_pandan' ? 'TJQ' : ''
+  return "BCE" + lastSixDigits + suffix
 }
 
 export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: AwbFormProps) {
@@ -180,7 +183,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
 
   const handleGenerateAwb = (e: FormEvent) => {
     e.preventDefault()
-    setForm((f) => ({ ...f, awb_no: generateAwbNo() }))
+  setForm((f) => ({ ...f, awb_no: generateAwbNo(branchOrigin) }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -103,10 +103,12 @@ const agentListTanjungPandan = [
 const metodePembayaranTanjungPandan = ["cash", "transfer", "cod"];
 const kirimViaTanjungPandan = ["udara", "darat"];
 
-function generateAwbNo() {
+function generateAwbNo(originBranch?: string | null) {
   const timestamp = Date.now().toString()
   const lastSixDigits = timestamp.slice(-6)
-  return "BCE" + lastSixDigits
+  const normalized = originBranch ? originBranch.toLowerCase() : undefined
+  const suffix = normalized === 'tanjung_pandan' ? 'TJQ' : ''
+  return "BCE" + lastSixDigits + suffix
 }
 
 // Fungsi untuk mendapatkan harga berdasarkan wilayah
@@ -278,7 +280,7 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
 
   const addAwbEntry = () => {
     const newId = Date.now().toString();
-    const newAwbNo = generateAwbNo();
+    const newAwbNo = generateAwbNo(branchOrigin);
     setAwbEntries((prevEntries) => [
       ...prevEntries,
       {
