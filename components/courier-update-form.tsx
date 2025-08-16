@@ -92,7 +92,22 @@ function CourierUpdateFormComponent() {
   const [showShipmentDetails, setShowShipmentDetails] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  // WebView camera handler
+  const handleCameraCapture = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  }
+
+  // Gallery handler  
+  const handleGallerySelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }
 
   useEffect(() => {
     async function getCurrentUser() {
@@ -481,9 +496,8 @@ function CourierUpdateFormComponent() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
-    const cameraInput = document.getElementById('delivery-photo-camera') as HTMLInputElement
-    if (cameraInput) {
-      cameraInput.value = ""
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = ""
     }
     
     toast.info("Foto dihapus", { duration: 1500 })
@@ -1102,7 +1116,18 @@ function CourierUpdateFormComponent() {
                   <CameraIcon className="h-4 w-4 text-gray-400" />
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 camera-gallery-buttons">
+                  {/* Hidden camera input for direct camera capture */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                    id="delivery-photo-camera"
+                  />
+                  {/* Hidden file input for gallery */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1113,8 +1138,8 @@ function CourierUpdateFormComponent() {
                   />
                   <Button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm"
+                    onClick={handleCameraCapture}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm touch-manipulation"
                     disabled={photoLoading}
                   >
                     <CameraIcon className="h-3 w-3 mr-1" />
@@ -1123,8 +1148,8 @@ function CourierUpdateFormComponent() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-9 text-sm border-gray-300 dark:border-gray-600"
+                    onClick={handleGallerySelect}
+                    className="w-full h-9 text-sm border-gray-300 dark:border-gray-600 touch-manipulation"
                     disabled={photoLoading}
                   >
                     <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
