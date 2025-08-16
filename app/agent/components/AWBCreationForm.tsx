@@ -70,7 +70,7 @@ const kotaWilayahJabodetabek: KotaWilayah = {
     kecamatan: [
       "Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", 
       "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", 
-      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"
+      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa", "Mauk"
     ],
     harga: 35000
   },
@@ -142,9 +142,12 @@ function getPriceByArea(wilayah: string): number {
         price = 30000;
       }
     } else if (wilayah.includes('KABUPATEN')) {
+      // Special cases for Tangerang Kabupaten with 27000 pricing
+      if (wilayah.includes('KELAPA DUA')) {
+        price = 27000;
+      }
       // Special cases for Tangerang Kabupaten with 30000 pricing
-      if (wilayah.includes('KELAPA DUA') || 
-          wilayah.includes('CURUG') || 
+      else if (wilayah.includes('CURUG') || 
           wilayah.includes('KOSAMBI') ||
           wilayah.includes('PAGEDANGAN')) {
         price = 30000;
@@ -282,6 +285,7 @@ function getTransitFee(wilayah: string): number {
   if (wilayah.includes('SINDANG JAYA')) return 20000;
   if (wilayah.includes('SOLEAR')) return 100000;
   if (wilayah.includes('TIGARAKSA')) return 75000;
+  if (wilayah.includes('MAUK')) return 75000;
 
   // Bekasi
   if (wilayah.includes('JATISAMPURNA')) return 30000;
@@ -379,7 +383,7 @@ export const AWBCreationForm: React.FC = () => {
   const [formData, setFormData] = useState<FormDataType>({
     awb_no: '',
     awb_date: new Date().toISOString().split('T')[0],
-    kirim_via: 'UDARA', // Default to UDARA
+    kirim_via: 'udara', // Default to udara
     kota_tujuan: '',
     wilayah: '',
     kecamatan: '',
@@ -661,7 +665,7 @@ export const AWBCreationForm: React.FC = () => {
           setFormData({
             awb_no: '',
             awb_date: new Date().toISOString().split('T')[0],
-            kirim_via: 'UDARA', // Default to UDARA
+            kirim_via: 'udara', // Default to udara
             kota_tujuan: '',
             wilayah: '',
             kecamatan: '',
@@ -785,7 +789,7 @@ export const AWBCreationForm: React.FC = () => {
                   setFormData({
                     awb_no: '',
                     awb_date: new Date().toISOString().split('T')[0],
-                    kirim_via: 'UDARA',
+                    kirim_via: 'udara',
                     kota_tujuan: '',
                     wilayah: '',
                     kecamatan: '',
@@ -876,9 +880,8 @@ export const AWBCreationForm: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="DARAT">DARAT</SelectItem>
-                  <SelectItem value="LAUT">LAUT</SelectItem>
-                  <SelectItem value="UDARA">UDARA</SelectItem>
+                  <SelectItem value="darat">DARAT</SelectItem>
+                  <SelectItem value="udara">UDARA</SelectItem>
                 </SelectContent>
               </Select>
             </div>

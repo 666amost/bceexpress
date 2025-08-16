@@ -95,3 +95,6 @@ bce-wrapper/
 
 # Branch wrapper build files
 branch-wrap/
+
+# WebNative BCE-KURIR app
+BCE-KURIR/

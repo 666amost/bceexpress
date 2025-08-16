@@ -86,7 +86,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
         query = query.lte("awb_date", selectedDateTo)
       }
 
-      if (selectedKirimVia) query = query.eq("kirim_via", selectedKirimVia)
+      if (selectedKirimVia) query = query.ilike("kirim_via", selectedKirimVia)
       if (selectedAgentCustomer) {
         // Use enhanced agent matching for emails
         const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer)

@@ -9,7 +9,7 @@ export interface AgentMapping {
 // Hardcoded mapping from gabung.type file
 const AGENT_MAPPINGS: AgentMapping[] = [
   { email: "asiatpgk@bce.com", agentName: "555 in2 PKP" },
-  { email: "ininpgk@bce.com", agentName: "556 in2 PKP" },
+  { email: "ininpgk@bce.com", agentName: "555 in2 PKP" },
   { email: "sltagent01@bce.com", agentName: "SUNGAILIAT AGEN" },
   { email: "sltagent02@bce.com", agentName: "KOLIM SLT" },
   { email: "blyagent01@bce.com", agentName: "BELINYU AGEN" },

@@ -139,7 +139,7 @@ const kotaWilayahJabodetabek = {
     kecamatan: [
       "Kelapa Dua", "Curug", "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", 
       "Teluknaga", "Balaraja", "Cikupa", "Cisauk", "Pakuhaji", "Panongan", 
-      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa"
+      "Rajeg", "Sepatan", "Sepatan Timur", "Sindang Jaya", "Solear", "Tigaraksa", "Mauk"
     ],
     harga: 35000
   },
@@ -294,9 +294,12 @@ function getPriceByArea(wilayah: string): number {
     if (wilayah.includes('SELATAN')) {
       price = 30000;
     } else if (wilayah.includes('KABUPATEN')) {
+      // Special cases for Tangerang Kabupaten with 27000 pricing  
+      if (wilayah.includes('KELAPA DUA')) {
+        price = 27000;
+      }
       // Special cases for Tangerang Kabupaten with 30000 pricing
-      if (wilayah.includes('KELAPA DUA') || 
-          wilayah.includes('CURUG') || 
+      else if (wilayah.includes('CURUG') || 
           wilayah.includes('KOSAMBI') ||
           wilayah.includes('PAGEDANGAN')) {
         price = 30000;
@@ -344,6 +347,7 @@ function getTransitFee(wilayah: string): number {
   if (wilayah.includes('SINDANG JAYA')) return 20000;
   if (wilayah.includes('SOLEAR')) return 100000;
   if (wilayah.includes('TIGARAKSA')) return 75000;
+  if (wilayah.includes('MAUK')) return 75000;
 
   // Bekasi
   if (wilayah.includes('JATISAMPURNA')) return 30000;
@@ -498,7 +502,9 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       }
       // Logika harga khusus Tangerang Kabupaten
       else if (kotaTujuan === 'TANGERANG KABUPATEN') {
-        if (['Kelapa Dua', 'Curug', 'Kosambi', 'Pagedangan'].includes(kecamatan)) {
+        if (kecamatan === 'Kelapa Dua') {
+          harga = 27000;
+        } else if (['Curug', 'Kosambi', 'Pagedangan'].includes(kecamatan)) {
           harga = 30000;
         } else {
           harga = 35000;
