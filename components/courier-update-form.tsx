@@ -90,26 +90,26 @@ function CourierUpdateFormComponent() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
   const [showShipmentDetails, setShowShipmentDetails] = useState(false);
-  // Only need the camera input ref for the simplified approach
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Simplified approach for handling camera
-  // Convert dataUrl/base64 to File if needed
-  const base64DataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
-    const res = await fetch(dataUrl)
-    const blob = await res.blob()
-    // Create a File; provide explicit type inference
-    const file = new File([blob], filename, { type: blob.type })
-    return file
-  }
+  // Simplified handlers
+  const handleCameraCapture = () => cameraInputRef.current?.click()
+  const handleGallerySelect = () => fileInputRef.current?.click()
 
-  // Simplified camera handler that just clicks the input
-  // This works reliably on both web and WebView/Android
-  const handleCameraCapture = () => {
-    if (cameraInputRef.current) {
-      cameraInputRef.current.click()
-    }
+  const resetForm = () => {
+    setSuccess(false)
+    setAwbNumber("")
+    setStatus("")
+    setLocation("")
+    setNotes("")
+    setPhoto(null)
+    setPhotoPreview(null)
+    setError(null)
+    setShipmentDetails(null)
+    setGpsCoords(null)
   }
 
   useEffect(() => {
@@ -134,22 +134,16 @@ function CourierUpdateFormComponent() {
   }, [])
 
   const playBeep = () => {
-    if (!beepTimeoutRef.current) {
-      let audioPath = '/sounds/scan_success.mp3';
-      if (status === 'delivered') {
-        audioPath = '/sounds/scan_delivered.mp3';
-      }
-      const audio = new Audio(audioPath);
-      audio.volume = 1;
-      audio.play()
-        .catch(() => {
-          // Silently handle audio play errors
-        });
-
-      beepTimeoutRef.current = setTimeout(() => {
-        beepTimeoutRef.current = null
-      }, 1000)
-    }
+    if (beepTimeoutRef.current) return
+    
+    const audioPath = status === 'delivered' ? '/sounds/scan_delivered.mp3' : '/sounds/scan_success.mp3'
+    const audio = new Audio(audioPath)
+    audio.volume = 1
+    audio.play().catch(() => {}) // Silently handle errors
+    
+    beepTimeoutRef.current = setTimeout(() => {
+      beepTimeoutRef.current = null
+    }, 1000)
   }
 
   const fetchShipmentDetails = async (awb: string) => {
@@ -494,34 +488,85 @@ function CourierUpdateFormComponent() {
   const removePhoto = () => {
     setPhoto(null)
     setPhotoPreview(null)
-    
-    // Reset input value
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = ""
-    }
-    
-    toast.info("Foto dihapus", { duration: 1500 })
+    if (fileInputRef.current) fileInputRef.current.value = ""
+    if (cameraInputRef.current) cameraInputRef.current.value = ""
+    toast.info("Photo removed", { duration: 1500 })
   }
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      setLocation("Getting location...")
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude
-          const lng = position.coords.longitude
-          setGpsCoords({ lat, lng })
-          setLocation("Current GPS Location")
-        },
-        () => {
-          setLocation("")
-          // Silently handle geolocation errors
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-      )
-    } else {
-      // Geolocation not supported - silently handle
-    }
+    if (!navigator.geolocation) return
+    
+    setLocation("Getting location...")
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude: lat, longitude: lng } = position.coords
+        setGpsCoords({ lat, lng })
+        
+        try {
+          // Use Nominatim (OpenStreetMap) reverse geocoding - free service
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=id&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'CourierApp/1.0'
+              }
+            }
+          )
+          
+          if (response.ok) {
+            const data = await response.json()
+            if (data && data.address) {
+              // Build a readable address from components
+              const addr = data.address
+              const parts = []
+              
+              // Add road/street if available
+              if (addr.road) parts.push(addr.road)
+              else if (addr.pedestrian) parts.push(addr.pedestrian)
+              else if (addr.footway) parts.push(addr.footway)
+              
+              // Add area info
+              if (addr.suburb) parts.push(addr.suburb)
+              else if (addr.neighbourhood) parts.push(addr.neighbourhood)
+              else if (addr.village) parts.push(addr.village)
+              
+              // Add city/town
+              if (addr.city) parts.push(addr.city)
+              else if (addr.town) parts.push(addr.town)
+              else if (addr.county) parts.push(addr.county)
+              
+              const locationName = parts.join(', ')
+              
+              if (locationName) {
+                setLocation(locationName)
+                toast.success("Lokasi berhasil didapat", {
+                  description: locationName,
+                  duration: 3000
+                })
+                return
+              }
+            }
+          }
+        } catch (error) {
+          console.log('Reverse geocoding failed:', error)
+        }
+        
+        // Fallback: Show coordinates with a more user-friendly format
+        setLocation(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+        toast.info("GPS koordinat berhasil didapat", {
+          description: `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
+          duration: 3000
+        })
+      },
+      (error) => {
+        setLocation("")
+        toast.error("Gagal mendapatkan lokasi", {
+          description: "Pastikan GPS aktif dan izin lokasi diberikan",
+          duration: 3000
+        })
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    )
   }
   
   useEffect(() => {
@@ -972,32 +1017,31 @@ function CourierUpdateFormComponent() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-center p-4 sm:p-6">
-        <Card className="w-full max-w-sm md:max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-                <CheckmarkIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Status Updated Successfully!</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm">
-                Shipment <span className="font-semibold">{awbNumber}</span> has been updated to <span className="font-semibold text-green-600">{status.replace(/_/g, " ")}</span>
-              </p>
-              <div className="flex flex-col space-y-3 justify-center">
-                <Button 
-                  onClick={() => router.push(`/track/${awbNumber}`)} 
-                  className="font-bold bg-blue-600 hover:bg-blue-700 text-white h-11 px-6"
-                >
-                  View Tracking
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => router.push("/courier/dashboard")} 
-                  className="border-gray-300 text-gray-700 hover:bg-gray-100 h-11 px-6"
-                >
-                  Back to Dashboard
-                </Button>
-              </div>
+      <div className="min-h-screen bg-gradient-to-br from-green-100 to-white dark:from-green-900 dark:to-gray-900 flex justify-center items-center p-4">
+        <Card className="max-w-sm mx-auto bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-green-200 dark:border-green-700">
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckmarkIcon className="w-8 h-8 text-green-600 dark:text-green-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Success!</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Shipment <span className="font-mono font-medium">{awbNumber}</span> updated to{" "}
+              <span className="font-medium text-green-600">{status.replace(/_/g, " ")}</span>
+            </p>
+            <div className="space-y-3">
+              <Button
+                onClick={resetForm}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11"
+              >
+                Update Another
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => router.push("/courier/dashboard")}
+                className="w-full h-11"
+              >
+                Back to Dashboard
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1006,197 +1050,226 @@ function CourierUpdateFormComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-1 sm:p-4 md:p-6">
-      <div className="w-full max-w-xl">
-        <form onSubmit={handleSubmit} className="space-y-4">
-
-          {/* AWB Number */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-            <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-medium text-sm">AWB Number</Label>
-            <div className="mt-1">
-              <AwbInput awbNumber={awbNumber} setAwbNumber={setAwbNumber} fetchShipmentDetails={fetchShipmentDetails} />
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 p-2 md:p-4">
+      <Card className="max-w-md mx-auto bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+        <CardContent className="p-4">
+          {/* Header - Compact */}
+          <div className="flex items-center justify-between mb-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => router.push("/courier/dashboard")}
+              className="flex items-center gap-1 text-gray-600 hover:text-gray-900 p-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="text-sm">Back</span>
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Update Status</h1>
+            {shipmentDetails && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowShipmentDetails(!showShipmentDetails)}
+                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 p-1"
+              >
+                <InfoIcon className="w-4 h-4" />
+              </Button>
+            )}
           </div>
 
-          {/* Status & Location - Side by side untuk mobile */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Status */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-              <Label htmlFor="shipment-status" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
-                <SelectTrigger className="mt-1 h-10 text-sm bg-white dark:bg-gray-700">
-                  <SelectValue placeholder="Select Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Location */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-              <Label htmlFor="location" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Current Location</Label>
-              <div className="flex gap-1 mt-1">
-                <Input
-                  id="location"
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Enter location or use GPS"
-                  className="h-10 text-sm bg-white dark:bg-gray-700"
-                  required
-                />
-                <Button
-                  type="button"
-                  onClick={getCurrentLocation}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-2 h-10 text-xs shrink-0"
-                >
-                  <FontAwesomeIcon icon={faMapPin} className="h-3 w-3" />
-                </Button>
+          {/* Shipment Details - Collapsible */}
+          {shipmentDetails && showShipmentDetails && (
+            <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+              <div className="space-y-1 text-xs">
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">To:</span> {shipmentDetails.receiver_name}</p>
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">Phone:</span> {shipmentDetails.receiver_phone || "Auto Generated"}</p>
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">Address:</span> {shipmentDetails.receiver_address}</p>
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">Status:</span> {shipmentDetails.current_status?.replace(/_/g, " ") || "out for delivery"}</p>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Photo Upload - Kompak untuk mobile */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-            <Label className="text-gray-700 dark:text-gray-300 font-medium text-sm">Proof of Delivery</Label>
-            
-            {!photoPreview ? (
-              <div className="mt-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center">
-                <div className="w-8 h-8 mx-auto mb-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                  <CameraIcon className="h-4 w-4 text-gray-400" />
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription className="text-sm">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* AWB Number */}
+            <div>
+              <Label htmlFor="courier-awb" className="text-sm font-medium mb-2 block">AWB Number</Label>
+              <AwbInput awbNumber={awbNumber} setAwbNumber={setAwbNumber} fetchShipmentDetails={fetchShipmentDetails} />
+            </div>
+
+            {/* Status & Location - Grid for mobile */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="shipment-status" className="text-sm font-medium mb-2 block">Status</Label>
+                <Select value={status} onValueChange={(value) => setStatus(value as ShipmentStatus)} disabled={initialStatus === 'delivered'}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="out_for_delivery">Out For Delivery</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="location" className="text-sm font-medium mb-2 block">Location</Label>
+                <div className="flex gap-1">
+                  <Input
+                    id="location"
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="Enter location"
+                    className="h-10 text-sm"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    onClick={getCurrentLocation}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-2 h-10 shrink-0"
+                  >
+                    <FontAwesomeIcon icon={faMapPin} className="h-3 w-3" />
+                  </Button>
                 </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
-                <div 
-                  className="camera-buttons"
-                  style={{
-                    position: 'relative',
-                    zIndex: 100,
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  {/* Simplified to only use camera input with capture - best compatibility with WebView */}
+              </div>
+            </div>
+
+            {/* Photo Upload - Mobile optimized */}
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Photo Proof (Optional)</Label>
+              
+              {!photoPreview ? (
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  <div className="text-center mb-3">
+                    <CameraIcon className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">Upload delivery proof</p>
+                  </div>
+                  
+                  {/* Hidden inputs */}
                   <input
                     ref={cameraInputRef}
                     type="file"
                     accept="image/*"
                     capture="environment"
                     onChange={handlePhotoChange}
-                    id="delivery-photo-camera"
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute',
-                      opacity: 0,
-                      width: '1px',
-                      height: '1px',
-                      left: '-9999px',
-                      overflow: 'hidden'
-                    }}
+                    className="hidden"
                   />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <Button
+                      type="button"
+                      onClick={handleCameraCapture}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white h-10 text-sm"
+                      disabled={photoLoading}
+                    >
+                      <CameraIcon className="h-3 w-3 mr-1" />
+                      Camera
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleGallerySelect}
+                      className="w-full h-10 text-sm"
+                      disabled={photoLoading}
+                    >
+                      <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
+                      Gallery
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-center text-xs text-red-600">
+                    <input 
+                      type="checkbox" 
+                      checked={useHighCompression} 
+                      onChange={(e) => setUseHighCompression(e.target.checked)} 
+                      className="mr-2" 
+                    />
+                    <span>High compression</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Suspense fallback={<div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>}>
+                    <PhotoPreview src={photoPreview} />
+                  </Suspense>
                   <Button
                     type="button"
-                    onClick={handleCameraCapture}
-                    className="w-full max-w-[200px] bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm touch-manipulation"
-                    disabled={photoLoading}
-                    style={{
-                      position: 'relative',
-                      zIndex: 10,
-                      pointerEvents: 'auto',
-                      minHeight: '44px',
-                      cursor: 'pointer',
-                      touchAction: 'manipulation',
-                      WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
-                    }}
+                    variant="outline"
+                    size="sm"
+                    onClick={removePhoto}
+                    className="absolute top-2 right-2 bg-red-100 hover:bg-red-200 text-red-700 w-6 h-6 p-0 rounded-full"
                   >
-                    <CameraIcon className="h-3 w-3 mr-1" />
-                    Take Photo
+                    <CloseIcon className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="flex items-center text-xs text-red-600 mt-2">
-                  <input 
-                    type="checkbox" 
-                    checked={useHighCompression} 
-                    onChange={(e) => setUseHighCompression(e.target.checked)} 
-                    className="mr-2" 
-                  />
-                  <span>LOW QUALITY (for slow device/weak network)</span>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2 relative">
-                <Suspense fallback={<div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>}>
-                  <PhotoPreview src={photoPreview} />
-                </Suspense>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={removePhoto}
-                  className="absolute top-1 right-1 bg-red-100 hover:bg-red-200 text-red-700 w-6 h-6 p-0 rounded-full"
-                >
-                  <CloseIcon className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
+              )}
 
-            {photoLoading && (
-              <div className="mt-3 text-center text-xs text-gray-600 dark:text-gray-400">
-                <p className="mb-1">Processing photo... {photoProgress}%</p>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                  <div 
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${photoProgress}%` }}
-                  ></div>
+              {photoLoading && (
+                <div className="mt-3 text-center">
+                  <p className="text-xs text-gray-600 mb-2">Processing... {photoProgress}%</p>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${photoProgress}%` }}
+                    ></div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {gpsCoords && (
-              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                GPS: {gpsCoords.lat.toFixed(6)}, {gpsCoords.lng.toFixed(6)}
+              {gpsCoords && (
+                <p className="mt-2 text-xs text-gray-500">
+                  GPS: {gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}
+                </p>
+              )}
+            </div>
+
+            {/* Notes - Compact */}
+            <div>
+              <Label htmlFor="notes" className="text-sm font-medium mb-2 block">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Additional notes..."
+                rows={2}
+                className="text-sm resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Logged by: {currentUser || "admin"}
               </p>
-            )}
-          </div>
+            </div>
 
-          {/* Notes - Kompak */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-            <Label htmlFor="notes" className="text-gray-700 dark:text-gray-300 font-medium text-sm">Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any additional notes about this update"
-              rows={2}
-              className="mt-1 text-sm resize-none bg-white dark:bg-gray-700"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Your name ({currentUser || "admin"}) will be added to the update notes.
-            </p>
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-1">
+            {/* Submit Button */}
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-sm h-10 rounded-lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold h-12 rounded-lg"
             >
               {isLoading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} spin className="h-3 w-3 mr-2" />
-                  Updating Status...
+                  <FontAwesomeIcon icon={faSpinner} spin className="h-4 w-4 mr-2" />
+                  Updating...
                 </>
               ) : (
                 "Update Status"
               )}
             </Button>
-          </div>
-        </form>
-      </div>
-
-      {/* Camera modal removed - using simple input[capture] approach */}
-
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
