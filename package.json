@@ -1,13 +1,14 @@
 {
   "name": "bce-express",
-  "version": "5.4.5",
+  "version": "5.5.5",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/update-sw-version.js",
+    "prebuild": "node scripts/update-sw-version.js && node scripts/sync-courier-version.js",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync-courier": "node scripts/sync-courier-version.js"
   },
   "dependencies": {
     "@carbon/icons-react": "^11.61.0",

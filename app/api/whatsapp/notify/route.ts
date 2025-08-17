@@ -35,13 +35,24 @@ export async function POST(req: NextRequest) {
 
       const awb = record.awb_number;
       const status = record.status;
+      const location = record.location || '';
       const note = record.notes || '';
 
       const groupId = process.env.WA_GROUP_ID.endsWith('@g.us')
         ? process.env.WA_GROUP_ID
         : process.env.WA_GROUP_ID + '@g.us';
-      // Ubah format pesan tanpa 'Paket Terkirim!'
-      const text = `AWB: ${awb}\nStatus: ${status}\nNote: ${note}`;
+      
+      // Format pesan dengan lokasi dan proper capitalization
+      const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+      let text = `AWB: ${awb}\nStatus: ${formattedStatus}`;
+      
+      if (location) {
+        text += `\nLok: ${location}`;
+      }
+      
+      if (note) {
+        text += `\nNote: ${note}`;
+      }
 
       try {
         await sendMessageSequence(groupId, text);

@@ -95,9 +95,35 @@ function CourierUpdateFormComponent() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Simplified handlers
-  const handleCameraCapture = () => cameraInputRef.current?.click()
-  const handleGallerySelect = () => fileInputRef.current?.click()
+  // Camera handler - Trigger camera input dengan capture attribute
+  const handleCameraCapture = () => {
+    if (cameraInputRef.current) {
+      // Reset value to allow same file selection
+      cameraInputRef.current.value = ''
+      
+      // For WebView/Capacitor apps, ensure camera opens
+      const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : ''
+      if (userAgent.includes('wv') || userAgent.includes('Capacitor')) {
+        // Force camera interface for WebView
+        cameraInputRef.current.setAttribute('capture', 'environment')
+      }
+      
+      cameraInputRef.current.click()
+    }
+  }
+  
+  // Gallery handler - Trigger file input tanpa capture attribute  
+  const handleGallerySelect = () => {
+    if (fileInputRef.current) {
+      // Reset value to allow same file selection
+      fileInputRef.current.value = ''
+      
+      // Ensure no capture attribute for gallery
+      fileInputRef.current.removeAttribute('capture')
+      
+      fileInputRef.current.click()
+    }
+  }
 
   const resetForm = () => {
     setSuccess(false)
@@ -272,7 +298,7 @@ function CourierUpdateFormComponent() {
             }
           }
         } catch (branchError) {
-          console.error('Error fetching from branch:', branchError);
+          // Silent error handling for branch API
         }
         // Jika BE resi tidak ditemukan di web cabang, biarkan auto-generate tanpa toast
       }
@@ -319,10 +345,12 @@ function CourierUpdateFormComponent() {
       // OPTIMIZED: Adaptive compression for low-end devices
       const getCompressionOptions = (fileSize: number) => {
         // Detect low-end device capabilities with safe type casting
-        const navigatorExtended = navigator as Navigator & { deviceMemory?: number };
-        const isLowEndDevice = navigator.hardwareConcurrency <= 2 || 
-                              (navigatorExtended.deviceMemory && navigatorExtended.deviceMemory <= 2) ||
-                              /Android [1-6]|iPhone [1-7]|iPad [1-6]/.test(navigator.userAgent);
+        const navigatorExtended = typeof window !== 'undefined' ? navigator as Navigator & { deviceMemory?: number } : null;
+        const isLowEndDevice = navigatorExtended ? (
+          navigator.hardwareConcurrency <= 2 || 
+          (navigatorExtended.deviceMemory && navigatorExtended.deviceMemory <= 2) ||
+          /Android [1-6]|iPhone [1-7]|iPad [1-6]/.test(navigator.userAgent)
+        ) : false;
         
         // OPTIMIZED: Manual toggle overrides auto-detection
         if (useHighCompression) {
@@ -514,11 +542,25 @@ function CourierUpdateFormComponent() {
           )
           
           if (response.ok) {
-            const data = await response.json()
+            const data = await response.json() as {
+              address?: {
+                road?: string;
+                pedestrian?: string;
+                footway?: string;
+                suburb?: string;
+                neighbourhood?: string;
+                village?: string;
+                city?: string;
+                town?: string;
+                county?: string;
+              };
+              display_name?: string;
+            }
+            
             if (data && data.address) {
               // Build a readable address from components
               const addr = data.address
-              const parts = []
+              const parts: string[] = []
               
               // Add road/street if available
               if (addr.road) parts.push(addr.road)
@@ -537,7 +579,7 @@ function CourierUpdateFormComponent() {
               
               const locationName = parts.join(', ')
               
-              if (locationName) {
+              if (locationName && locationName.length > 0) {
                 setLocation(locationName)
                 toast.success("Lokasi berhasil didapat", {
                   description: locationName,
@@ -546,9 +588,23 @@ function CourierUpdateFormComponent() {
                 return
               }
             }
+            
+            // If no proper address parts found, try display_name as fallback
+            if (data.display_name) {
+              const fallbackAddress = data.display_name.split(',').slice(0, 3).join(', ')
+              if (fallbackAddress) {
+                setLocation(fallbackAddress)
+                toast.success("Lokasi berhasil didapat", {
+                  description: fallbackAddress,
+                  duration: 3000
+                })
+                return
+              }
+            }
           }
         } catch (error) {
-          console.log('Reverse geocoding failed:', error)
+          // Silent error handling - no console.log
+          // Reverse geocoding failed, will use fallback
         }
         
         // Fallback: Show coordinates with a more user-friendly format
@@ -558,7 +614,7 @@ function CourierUpdateFormComponent() {
           duration: 3000
         })
       },
-      (error) => {
+      () => {
         setLocation("")
         toast.error("Gagal mendapatkan lokasi", {
           description: "Pastikan GPS aktif dan izin lokasi diberikan",
@@ -752,7 +808,7 @@ function CourierUpdateFormComponent() {
             }
           }
         } catch (branchError) {
-          console.error('Error fetching from Borneo branch:', branchError);
+          // Silent error handling for Borneo branch API
         }
       }
 
@@ -991,6 +1047,11 @@ function CourierUpdateFormComponent() {
           setSuccess(true)
           playBeep()
 
+          // Auto redirect ke dashboard setelah 2 detik
+          setTimeout(() => {
+            router.push("/courier/dashboard")
+          }, 2000)
+
           // Trigger /api/sync jika resi BE dan status delivered
           if (
             awbNumber.startsWith('BE') &&
@@ -1028,21 +1089,9 @@ function CourierUpdateFormComponent() {
               Shipment <span className="font-mono font-medium">{awbNumber}</span> updated to{" "}
               <span className="font-medium text-green-600">{status.replace(/_/g, " ")}</span>
             </p>
-            <div className="space-y-3">
-              <Button
-                onClick={resetForm}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11"
-              >
-                Update Another
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push("/courier/dashboard")}
-                className="w-full h-11"
-              >
-                Back to Dashboard
-              </Button>
-            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Redirecting to dashboard...
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -1151,7 +1200,7 @@ function CourierUpdateFormComponent() {
                     <p className="text-xs text-gray-500">Upload delivery proof</p>
                   </div>
                   
-                  {/* Hidden inputs */}
+                  {/* Camera input - untuk membuka kamera langsung */}
                   <input
                     ref={cameraInputRef}
                     type="file"
@@ -1159,13 +1208,18 @@ function CourierUpdateFormComponent() {
                     capture="environment"
                     onChange={handlePhotoChange}
                     className="hidden"
+                    id="camera-input"
+                    data-source="camera"
                   />
+                  {/* Gallery input - untuk membuka galeri/file picker */}
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handlePhotoChange}
                     className="hidden"
+                    id="gallery-input"
+                    data-source="gallery"
                   />
                   
                   <div className="grid grid-cols-2 gap-2 mb-3">
@@ -1174,6 +1228,7 @@ function CourierUpdateFormComponent() {
                       onClick={handleCameraCapture}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white h-10 text-sm"
                       disabled={photoLoading}
+                      title="Open camera to take photo"
                     >
                       <CameraIcon className="h-3 w-3 mr-1" />
                       Camera
@@ -1184,6 +1239,7 @@ function CourierUpdateFormComponent() {
                       onClick={handleGallerySelect}
                       className="w-full h-10 text-sm"
                       disabled={photoLoading}
+                      title="Select photo from gallery"
                     >
                       <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
                       Gallery
