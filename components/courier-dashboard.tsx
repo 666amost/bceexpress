@@ -37,30 +37,12 @@ import { ContinuousScanModal } from "./continuous-scan-modal"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-
-// Function to format phone number for WhatsApp
-const formatPhoneForWhatsApp = (phoneNumber: string): string => {
-  if (!phoneNumber) return "";
-  
-  // Remove all non-digit characters
-  const cleanNumber = phoneNumber.replace(/\D/g, "");
-  
-  // If number starts with 0, replace with 62
-  if (cleanNumber.startsWith("0")) {
-    return "62" + cleanNumber.slice(1);
-  }
-  
-  // If number already starts with 62, keep it
-  if (cleanNumber.startsWith("62")) {
-    return cleanNumber;
-  }
-  
-  // For any other format, assume it's Indonesian and add 62
-  return "62" + cleanNumber;
-}
+import { useExternalLinks } from "@/hooks/use-external-links"
 
 // Component for WhatsApp button
 const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumber: string; recipientName: string; courierName: string }) => {
+  const { openWhatsApp } = useExternalLinks();
+  
   // Don't show if:
   // 1. Phone number is empty, N/A, or Auto Generated
   // 2. Phone number has less than 10 digits after cleaning
@@ -76,16 +58,18 @@ const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumb
     return null;
   }
   
-  const formattedNumber = formatPhoneForWhatsApp(phoneNumber);
-  const message = encodeURIComponent(`Halo pak ${recipientName}, saya ${courierName} kurir bce express. Yg akan mengirimkan paket bapak. Apakah alamat sudah sesuai di alamat pak? Atau boleh di kirimkan share lokasi nya?`);
-  const whatsappUrl = `https://wa.me/${formattedNumber}?text=${message}`;
+  const message = `Halo pak ${recipientName}, saya ${courierName} kurir bce express. Yg akan mengirimkan paket bapak. Apakah alamat sudah sesuai di alamat pak? Atau boleh di kirimkan share lokasi nya?`;
+  
+  const handleWhatsAppClick = async () => {
+    await openWhatsApp(phoneNumber, message);
+  };
   
   return (
     <Button
       variant="outline"
       size="sm"
       className="ml-2 h-6 px-2 text-xs bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
-      onClick={() => window.open(whatsappUrl, "_blank")}
+      onClick={handleWhatsAppClick}
     >
       <FontAwesomeIcon icon={faComment} className="h-3 w-3 mr-1" />
       WA
@@ -95,6 +79,8 @@ const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumb
 
 // Component for Maps button
 const MapsButton = ({ address }: { address: string }) => {
+  const { openMaps } = useExternalLinks();
+  
   // Don't show if:
   // 1. Address is empty, N/A, or Auto Generated
   // 2. Address is too short (less than 10 characters to ensure it's properly filled)
@@ -106,14 +92,16 @@ const MapsButton = ({ address }: { address: string }) => {
     return null;
   }
   
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const handleMapsClick = async () => {
+    await openMaps(address);
+  };
   
   return (
     <Button
       variant="outline"
       size="sm"
       className="ml-2 h-6 px-2 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-      onClick={() => window.open(mapsUrl, "_blank")}
+      onClick={handleMapsClick}
     >
       <FontAwesomeIcon icon={faMapMarkerAlt} className="h-3 w-3 mr-1" />
       Maps

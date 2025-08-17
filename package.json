@@ -11,6 +11,8 @@
     "sync-courier": "node scripts/sync-courier-version.js"
   },
   "dependencies": {
+    "@capacitor/core": "^7.4.2",
+    "@capacitor/inappbrowser": "^2.2.1",
     "@carbon/icons-react": "^11.61.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
