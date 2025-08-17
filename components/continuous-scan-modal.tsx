@@ -395,6 +395,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                     onClose={handleStopCamera}
                     hideCloseButton
                     disableAutoUpdate
+                    qrboxSize={{ widthPercent: 0.95, heightPercent: 0.75 }}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">

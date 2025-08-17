@@ -796,6 +796,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                         onClose={handleStopCamera}
                         hideCloseButton
                         disableAutoUpdate
+                        squarePercent={0.95}
                       />
                     )}
                     <Button

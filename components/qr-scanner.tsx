@@ -12,6 +12,17 @@ interface QRScannerProps {
   onClose: () => void
   hideCloseButton?: boolean
   disableAutoUpdate?: boolean
+  /**
+   * Optional sizing (percentage of container) for the white scan frame.
+   * widthPercent / heightPercent should be between 0.1 - 1.0.
+   * If omitted, fallback logic (square ~70% of min dimension) is used.
+   */
+  qrboxSize?: { widthPercent?: number; heightPercent?: number }
+  /**
+   * Provide a single percentage (0.1 - 1.0) of the smaller container dimension
+   * to force a square (1:1) scan box. Takes precedence over qrboxSize.
+   */
+  squarePercent?: number
 }
 
 interface ManifestData {
@@ -25,7 +36,7 @@ interface TorchFeature {
   apply: (value: boolean) => Promise<void>
 }
 
-export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAutoUpdate = false }: QRScannerProps) {
+export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAutoUpdate = false, qrboxSize, squarePercent }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const lastScannedRef = useRef<string>("")
@@ -231,15 +242,34 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       const containerWidth = container?.clientWidth || 300
       const containerHeight = container?.clientHeight || 200
       
-      // Calculate optimal qrbox size (70% of smaller dimension for better fit)
-      const minDimension = Math.min(containerWidth, containerHeight)
-      const qrboxSize = Math.floor(minDimension * 0.7)
+      // Calculate qrbox size
+      let qrboxWidth: number
+      let qrboxHeight: number
+      // squarePercent has highest priority
+      if (typeof squarePercent === 'number' && !isNaN(squarePercent)) {
+        const minDimension = Math.min(containerWidth, containerHeight)
+        const pct = Math.min(Math.max(squarePercent, 0.1), 1)
+        const side = Math.floor(minDimension * pct)
+        qrboxWidth = side
+        qrboxHeight = side
+      } else if (qrboxSize && (qrboxSize.widthPercent || qrboxSize.heightPercent)) {
+        const widthPercent: number = Math.min(Math.max(qrboxSize.widthPercent ?? 0.9, 0.1), 1)
+        const heightPercent: number = Math.min(Math.max(qrboxSize.heightPercent ?? 0.8, 0.1), 1)
+        qrboxWidth = Math.floor(containerWidth * widthPercent)
+        qrboxHeight = Math.floor(containerHeight * heightPercent)
+      } else {
+        // Fallback: square box 70% of smaller dimension
+        const minDimension = Math.min(containerWidth, containerHeight)
+        const square = Math.floor(minDimension * 0.7)
+        qrboxWidth = square
+        qrboxHeight = square
+      }
       
       await scannerRef.current.start(
         deviceId,
         {
           fps: 10,
-          qrbox: { width: qrboxSize, height: qrboxSize },
+          qrbox: { width: qrboxWidth, height: qrboxHeight },
           aspectRatio: containerWidth / containerHeight,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {

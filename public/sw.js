@@ -177,8 +177,8 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Initial update check
-checkForUpdates();
+// Initial update check dinonaktifkan (Opsi A) agar tidak rutin memanggil /api/version saat SW aktif pertama kali
+// checkForUpdates();
 
 // Performance monitoring
 let performanceMetrics = {
