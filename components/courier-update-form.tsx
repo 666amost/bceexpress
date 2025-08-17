@@ -90,22 +90,154 @@ function CourierUpdateFormComponent() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
   const [showShipmentDetails, setShowShipmentDetails] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const router = useRouter()
 
-  // WebView camera handler
-  const handleCameraCapture = () => {
-    if (cameraInputRef.current) {
-      cameraInputRef.current.click();
+  // WebView / Capacitor detection helper
+  // Narrow types: avoid `any` to comply with eslint/type-safety
+  type CapacitorPlugins = {
+    Camera?: unknown
+    [key: string]: unknown
+  }
+  type CapacitorWindow = Window & { Capacitor?: { isNative?: boolean; Plugins?: CapacitorPlugins; platform?: string } }
+
+  const isRunningInCapacitor = () => {
+    try {
+      const w = window as CapacitorWindow
+      return Boolean(w.Capacitor && (w.Capacitor.isNative || (w.Capacitor.platform && w.Capacitor.platform !== 'web')))
+    } catch {
+      return false
     }
   }
 
-  // Gallery handler  
+  // Type guard for Camera plugin shape
+  const isCameraPlugin = (p: unknown): p is { getPhoto: (opts: { resultType: string; quality?: number; allowEditing?: boolean; saveToGallery?: boolean }) => Promise<{ dataUrl?: string; webPath?: string }> } => {
+    if (!p || typeof p !== 'object') return false
+    const maybe = p as Record<string, unknown>
+    return typeof maybe.getPhoto === 'function'
+  }
+
+  // Convert dataUrl/base64 to File
+  const base64DataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
+    const res = await fetch(dataUrl)
+    const blob = await res.blob()
+    // Create a File; provide explicit type inference
+    const file = new File([blob], filename, { type: blob.type })
+    return file
+  }
+
+  const startWebCamera = async () => {
+    try {
+      // Prefer back camera
+      const constraints: MediaStreamConstraints = {
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+      setShowCameraModal(true)
+    } catch (err) {
+      console.warn('Failed to start web camera', err)
+      toast.error('Gagal membuka kamera. Pastikan permission kamera telah diberikan.')
+    }
+  }
+
+  const stopWebCamera = async () => {
+    try {
+      if (videoRef.current) {
+        videoRef.current.pause()
+        videoRef.current.srcObject = null
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+    } catch (err) {
+      // ignore
+    } finally {
+      setShowCameraModal(false)
+    }
+  }
+
+  const captureFromWebCamera = async () => {
+    try {
+      if (!videoRef.current) return
+      const video = videoRef.current
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth || 1280
+      canvas.height = video.videoHeight || 720
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas not supported')
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+      const file = await base64DataUrlToFile(dataUrl, `camera-${Date.now()}.jpg`)
+      setPhoto(file)
+      setPhotoPreview(URL.createObjectURL(file))
+      toast.success('Foto berhasil diambil')
+    } catch (err) {
+      console.error('Capture error', err)
+      toast.error('Gagal mengambil foto')
+    } finally {
+      await stopWebCamera()
+    }
+  }
+
+  // Use Capacitor Camera plugin when available, otherwise fallback to web camera modal or input capture
+  const handleCameraCapture = async () => {
+    const useCapacitor = isRunningInCapacitor()
+
+    if (useCapacitor) {
+      try {
+        const w = window as CapacitorWindow
+        const CameraPlugin = w.Capacitor?.Plugins?.Camera
+        if (CameraPlugin && isCameraPlugin(CameraPlugin)) {
+          try {
+            const result = await CameraPlugin.getPhoto({ resultType: 'dataUrl', quality: 80, allowEditing: false, saveToGallery: false })
+            if (result && result.dataUrl) {
+              const filename = `camera-${Date.now()}.jpg`
+              const file = await base64DataUrlToFile(result.dataUrl as string, filename)
+              setPhoto(file)
+              setPhotoPreview(URL.createObjectURL(file))
+              setPhotoLoading(false)
+              setPhotoProgress(100)
+              toast.success('Foto berhasil diambil (native)')
+              return
+            }
+          } catch (capErr) {
+            console.warn('Capacitor getPhoto failed, falling back to web camera/modal', capErr)
+            // fallthrough to web camera modal below
+          }
+        }
+      } catch (err) {
+        console.warn('Capacitor camera failed, falling back to web camera/modal:', err)
+      }
+    }
+
+    // If navigator.mediaDevices is available, open inline web camera modal (works inside WebView similar to QRScanner)
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+      await startWebCamera()
+      return
+    }
+
+    // Final fallback: trigger hidden input with capture attribute (web)
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click()
+    }
+  }
+
+  // Always open gallery file picker separately
   const handleGallerySelect = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.click();
+      fileInputRef.current.click()
     }
   }
 
@@ -1007,57 +1139,9 @@ function CourierUpdateFormComponent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-white dark:from-black dark:to-gray-900 flex justify-center items-start p-1 sm:p-4 md:p-6">
-      <Card className="w-full max-w-lg md:max-w-2xl bg-white dark:bg-gray-900 rounded-lg sm:rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <CardContent className="p-3 sm:p-6">
-          {/* Header - Kompak untuk mobile */}
-          <div className="mb-3 sm:mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => router.push("/courier/dashboard")}
-                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 p-1"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span className="text-sm">Back</span>
-              </Button>
-              <h1 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Update Status</h1>
-              
-              {/* Toggle Shipment Details */}
-              {shipmentDetails && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowShipmentDetails(!showShipmentDetails)}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 p-1"
-                >
-                  <InfoIcon className="w-4 h-4" />
-                  <span className="text-xs">Details</span>
-                </Button>
-              )}
-            </div>
-          </div>
+      <div className="w-full max-w-xl">
+        <form onSubmit={handleSubmit} className="space-y-4">
 
-        {/* Shipment Details - Collapsible */}
-        {shipmentDetails && showShipmentDetails && (
-          <div className="mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-            <h3 className="font-medium mb-2 text-gray-900 dark:text-white text-sm">Shipment Details</h3>
-            <div className="space-y-1 text-xs">
-              <p><span className="text-gray-500 dark:text-gray-400">Receiver:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_name}</span></p>
-              <p><span className="text-gray-500 dark:text-gray-400">Phone:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_phone || "Auto Generated"}</span></p>
-              <p><span className="text-gray-500 dark:text-gray-400">Address:</span> <span className="font-medium text-gray-900 dark:text-white">{shipmentDetails.receiver_address}</span></p>
-              <p><span className="text-gray-500 dark:text-gray-400">Status:</span> <span className="font-medium text-blue-600 dark:text-blue-400">{shipmentDetails.current_status?.replace(/_/g, " ") || "out for delivery"}</span></p>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <Alert variant="destructive" className="mb-3">
-            <AlertDescription className="text-sm">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3">
           {/* AWB Number */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
             <Label htmlFor="courier-awb" className="text-gray-700 dark:text-gray-300 font-medium text-sm">AWB Number</Label>
@@ -1277,8 +1361,23 @@ function CourierUpdateFormComponent() {
             </Button>
           </div>
         </form>
-        </CardContent>
-      </Card>
+      </div>
+
+      {/* Camera modal for web/getUserMedia fallback */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg w-[95vw] max-w-md p-3">
+            <div className="relative">
+              <video ref={videoRef} className="w-full h-auto rounded-md bg-black" playsInline muted />
+              <div className="flex justify-between mt-3">
+                <button onClick={captureFromWebCamera} className="btn btn-primary">Capture</button>
+                <button onClick={stopWebCamera} className="btn btn-outline">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
