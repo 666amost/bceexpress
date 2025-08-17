@@ -1124,37 +1124,39 @@ function CourierUpdateFormComponent() {
                     pointerEvents: 'auto'
                   }}
                 >
-                  {/* Hidden camera input for direct camera capture */}
+                  {/* Hidden camera input for direct camera capture. Kept in DOM (not display:none) so programmatic click() opens picker. */}
                   <input
                     ref={cameraInputRef}
                     type="file"
                     accept="image/*"
                     capture="environment"
                     onChange={handlePhotoChange}
-                    className="hidden"
                     id="delivery-photo-camera"
+                    aria-hidden="true"
                     style={{
                       position: 'absolute',
                       opacity: 0,
-                      width: 0,
-                      height: 0,
-                      pointerEvents: 'none'
+                      width: '1px',
+                      height: '1px',
+                      left: '-9999px',
+                      overflow: 'hidden'
                     }}
                   />
-                  {/* Hidden file input for gallery */}
+                  {/* Hidden file input for gallery. Keep in DOM and offscreen so .click() works in WebView */}
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handlePhotoChange}
-                    className="hidden"
                     id="delivery-photo-file"
+                    aria-hidden="true"
                     style={{
                       position: 'absolute',
                       opacity: 0,
-                      width: 0,
-                      height: 0,
-                      pointerEvents: 'none'
+                      width: '1px',
+                      height: '1px',
+                      left: '-9999px',
+                      overflow: 'hidden'
                     }}
                   />
                   <Button
