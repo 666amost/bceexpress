@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMapPin, faSpinner, faUpload } from '@fortawesome/free-solid-svg-icons'
+import { faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import {
   ChevronLeft,
   Close as CloseIcon,
@@ -92,7 +92,6 @@ function CourierUpdateFormComponent() {
   const [showShipmentDetails, setShowShipmentDetails] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -229,16 +228,16 @@ function CourierUpdateFormComponent() {
     }
 
     // Final fallback: trigger hidden input with capture attribute (web)
+    // This will show browser's photo picker with camera option
     if (cameraInputRef.current) {
       cameraInputRef.current.click()
     }
   }
 
-  // Always open gallery file picker separately
-  const handleGallerySelect = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click()
-    }
+  // Camera button will auto-select from camera or allow gallery as fallback
+  const handleCameraClick = async () => {
+    // First try native camera approach (Capacitor/getUserMedia)
+    await handleCameraCapture()
   }
 
   useEffect(() => {
@@ -625,9 +624,6 @@ function CourierUpdateFormComponent() {
     setPhotoPreview(null)
     
     // Reset both input values
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
     if (cameraInputRef.current) {
       cameraInputRef.current.value = ""
     }
@@ -1201,14 +1197,14 @@ function CourierUpdateFormComponent() {
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
                 <div 
-                  className="grid grid-cols-2 gap-2 camera-gallery-buttons"
+                  className="mt-2 camera-button-container"
                   style={{
                     position: 'relative',
                     zIndex: 100,
                     pointerEvents: 'auto'
                   }}
                 >
-                  {/* Hidden camera input for direct camera capture. Kept in DOM (not display:none) so programmatic click() opens picker. */}
+                  {/* Hidden camera input - will show camera/photo picker */}
                   <input
                     ref={cameraInputRef}
                     type="file"
@@ -1226,59 +1222,24 @@ function CourierUpdateFormComponent() {
                       overflow: 'hidden'
                     }}
                   />
-                  {/* Hidden file input for gallery. Keep in DOM and offscreen so .click() works in WebView */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    id="delivery-photo-file"
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute',
-                      opacity: 0,
-                      width: '1px',
-                      height: '1px',
-                      left: '-9999px',
-                      overflow: 'hidden'
-                    }}
-                  />
+                  {/* Single Camera button that handles both camera and photo selection */}
                   <Button
                     type="button"
-                    onClick={handleCameraCapture}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm touch-manipulation"
+                    onClick={handleCameraClick}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base font-medium touch-manipulation"
                     disabled={photoLoading}
                     style={{
                       position: 'relative',
                       zIndex: 10,
                       pointerEvents: 'auto',
-                      minHeight: '44px',
+                      minHeight: '48px',
                       cursor: 'pointer',
                       touchAction: 'manipulation',
                       WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
                     }}
                   >
-                    <CameraIcon className="h-3 w-3 mr-1" />
-                    Camera
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleGallerySelect}
-                    className="w-full h-9 text-sm border-gray-300 dark:border-gray-600 touch-manipulation"
-                    disabled={photoLoading}
-                    style={{
-                      position: 'relative',
-                      zIndex: 10,
-                      pointerEvents: 'auto',
-                      minHeight: '44px',
-                      cursor: 'pointer',
-                      touchAction: 'manipulation',
-                      WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
-                    Gallery
+                    <CameraIcon className="h-5 w-5 mr-2" />
+                    Take Photo
                   </Button>
                 </div>
                 <div className="flex items-center text-xs text-red-600 mt-2">
@@ -1363,15 +1324,35 @@ function CourierUpdateFormComponent() {
         </form>
       </div>
 
-      {/* Camera modal for web/getUserMedia fallback */}
+      {/* Camera modal for web/getUserMedia fallback - improved styling */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg w-[95vw] max-w-md p-3">
-            <div className="relative">
-              <video ref={videoRef} className="w-full h-auto rounded-md bg-black" playsInline muted />
-              <div className="flex justify-between mt-3">
-                <button onClick={captureFromWebCamera} className="btn btn-primary">Capture</button>
-                <button onClick={stopWebCamera} className="btn btn-outline">Cancel</button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-900 rounded-xl w-[90vw] max-w-lg mx-4 shadow-2xl">
+            <div className="p-4">
+              <div className="relative mb-4">
+                <video 
+                  ref={videoRef} 
+                  className="w-full h-auto rounded-lg bg-black shadow-inner" 
+                  playsInline 
+                  muted 
+                  style={{ minHeight: '200px', maxHeight: '400px', objectFit: 'cover' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  onClick={captureFromWebCamera} 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-12 text-base font-medium"
+                >
+                  <CameraIcon className="h-5 w-5 mr-2" />
+                  Capture
+                </Button>
+                <Button 
+                  onClick={stopWebCamera} 
+                  variant="outline"
+                  className="flex-1 h-12 text-base font-medium border-gray-300 hover:bg-gray-100"
+                >
+                  Cancel
+                </Button>
               </div>
             </div>
           </div>
