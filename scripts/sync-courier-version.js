@@ -1,56 +1,44 @@
-// File: scripts/sync-courier-version.ts
+// File: scripts/sync-courier-version.js
 
-import fs from 'fs';
-import path from 'path';
-
-interface PackageJson {
-  name: string;
-  version: string;
-  [key: string]: unknown;
-}
-
-interface SyncResult {
-  success: boolean;
-  version: string;
-  error?: string;
-}
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Synchronizes BCE-KURIR version with main app version
  */
-function syncCourierVersion(): SyncResult {
+function syncCourierVersion() {
   try {
     // Get version from main package.json
-    const mainPkgPath: string = path.join(__dirname, '../package.json');
-    const mainPkg: PackageJson = JSON.parse(fs.readFileSync(mainPkgPath, 'utf8'));
-    const mainVersion: string = mainPkg.version;
+    const mainPkgPath = path.join(__dirname, '../package.json');
+    const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, 'utf8'));
+    const mainVersion = mainPkg.version;
 
     if (!mainVersion || typeof mainVersion !== 'string') {
       throw new Error('Invalid version in main package.json');
     }
 
     // Update BCE-KURIR package.json
-    const courierPkgPath: string = path.join(__dirname, '../BCE-KURIR/package.json');
+    const courierPkgPath = path.join(__dirname, '../BCE-KURIR/package.json');
     
     if (!fs.existsSync(courierPkgPath)) {
       throw new Error(`BCE-KURIR package.json not found at: ${courierPkgPath}`);
     }
 
-    const courierPkg: PackageJson = JSON.parse(fs.readFileSync(courierPkgPath, 'utf8'));
+    const courierPkg = JSON.parse(fs.readFileSync(courierPkgPath, 'utf8'));
     courierPkg.version = mainVersion;
     fs.writeFileSync(courierPkgPath, JSON.stringify(courierPkg, null, 2), 'utf8');
 
     // Update BCE-KURIR sw.js
-    const courierSwPath: string = path.join(__dirname, '../BCE-KURIR/sw.js');
+    const courierSwPath = path.join(__dirname, '../BCE-KURIR/sw.js');
     
     if (!fs.existsSync(courierSwPath)) {
       throw new Error(`BCE-KURIR sw.js not found at: ${courierSwPath}`);
     }
 
-    let courierSwCode: string = fs.readFileSync(courierSwPath, 'utf8');
+    let courierSwCode = fs.readFileSync(courierSwPath, 'utf8');
 
     // Update cache names with new version
-    const cacheUpdates: Array<[RegExp, string]> = [
+    const cacheUpdates = [
       [/const CACHE_NAME = '.*?';/, `const CACHE_NAME = 'bce-kurir-v${mainVersion}';`],
       [/const CRITICAL_CACHE = '.*?';/, `const CRITICAL_CACHE = 'bce-kurir-critical-v${mainVersion}';`],
       [/const API_CACHE = '.*?';/, `const API_CACHE = 'bce-kurir-api-v${mainVersion}';`],
@@ -68,18 +56,17 @@ function syncCourierVersion(): SyncResult {
       version: mainVersion
     };
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+  } catch (error) {
     return {
       success: false,
       version: '',
-      error: errorMessage
+      error: error.message || 'Unknown error occurred'
     };
   }
 }
 
 // Execute the sync operation
-const result: SyncResult = syncCourierVersion();
+const result = syncCourierVersion();
 
 if (result.success) {
   process.stdout.write(`✔ BCE-KURIR synced with main app version: ${result.version}\n`);
