@@ -37,47 +37,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Register service worker
+  // Service Worker sementara dinonaktifkan untuk debug 408 asset _next
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      // Check version immediately when app opens
-      fetch('/api/version', {
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      }).then(response => response.json())
-      .then(data => {
-        // Force update check
-        navigator.serviceWorker.getRegistration().then(registration => {
-          if (registration) {
-            registration.update();
-          }
-        });
-      });
-
-      navigator.serviceWorker.register('/sw.js').then(registration => {
-        // ServiceWorker registration successful
-        
-        // Check for updates every 24 hours
-        setInterval(() => {
-          registration.update();
-        }, 24 * 60 * 60 * 1000); // 24 jam = 1 hari
-        
-        // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          newWorker?.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version available
-              if (confirm('Update tersedia! Klik OK untuk memperbarui aplikasi.')) {
-                window.location.reload();
-              }
-            }
-          });
-        });
-      }).catch(err => {
-        console.error('ServiceWorker registration failed:', err);
-      });
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
+    // Bersihkan cache custom agar fetch langsung ke network
+    caches.keys().then(keys => {
+      keys.filter(k => k.startsWith('bce-')).forEach(k => caches.delete(k));
     });
   }
 

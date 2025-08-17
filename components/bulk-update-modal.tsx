@@ -13,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faCamera, faSpinner, faBarcode } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient, getPooledClient, getAuthenticatedClient, withRetry } from "@/lib/auth"
 import { toast } from "sonner"
 import { QRScanner } from './qr-scanner'
@@ -57,6 +57,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
   const [modalKey, setModalKey] = useState<string>(Date.now().toString())
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [isLoadingCamera, setIsLoadingCamera] = useState(false)
   const [recapModal, setRecapModal] = useState<{ successCount: number, deliveredAwbs: string[] } | null>(null)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -107,6 +108,18 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
   const handleQRScannerError = (error: string) => {
     toast.error("QR Scanner Error", { description: error });
     setShowScanner(false);
+  };
+  // Camera controls for QR Scanner
+  const handleStartCamera = () => {
+    setIsLoadingCamera(true);
+    setTimeout(() => {
+      setIsLoadingCamera(false);
+      setShowScanner(true);
+    }, 300);
+  };
+  const handleStopCamera = () => {
+    setShowScanner(false);
+    setIsLoadingCamera(false);
   };
 
   // Handle mobile keyboard detection
@@ -771,33 +784,63 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                   <Label htmlFor="awb-numbers" className="text-sm sm:text-base text-gray-700 dark:text-gray-300 font-semibold">AWB Numbers</Label>
                 </div>
                 {showScanner ? (
-                  <div className="p-4">
-                    <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
-                    <Button onClick={() => setShowScanner(false)} className="mt-4 w-full">
-                      Back to Manual Entry
+                  <div className="relative w-full h-[280px] sm:h-[320px] bg-black rounded-lg overflow-hidden border border-gray-300 flex-shrink-0">
+                    {isLoadingCamera ? (
+                      <div className="flex flex-col items-center justify-center h-full text-white">
+                        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin mb-2" />
+                        <span className="text-sm">Starting camera...</span>
+                      </div>
+                    ) : (
+                      <QRScanner
+                        onScan={handleQRScan}
+                        onClose={handleStopCamera}
+                        hideCloseButton
+                        disableAutoUpdate
+                      />
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute bottom-3 left-1/2 transform -translate-x-1/2 z-10"
+                      onClick={handleStopCamera}
+                    >
+                      Stop
                     </Button>
                   </div>
                 ) : (
-                  <Textarea
-                    id="awb-numbers"
-                    placeholder="Masukkan nomor resi di sini..."
-                    rows={isKeyboardOpen ? 3 : 5}
-                    value={awbNumbers}
-                    onChange={(e) => setAwbNumbers(e.target.value)}
-                    className="text-sm sm:text-base font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] resize-none w-full"
-                    ref={textareaRef}
-                    onFocus={() => {
-                      // Small delay to ensure keyboard is open before scrolling
-                      setTimeout(() => {
-                        if (isKeyboardOpen) {
-                          submitButtonRef.current?.scrollIntoView({ 
-                            behavior: 'smooth', 
-                            block: 'nearest' 
-                          });
-                        }
-                      }, 500);
-                    }}
-                  />
+                  <>
+                    {isLoadingCamera ? (
+                      <div className="p-4 flex items-center justify-center">
+                        <div className="flex flex-col items-center text-gray-600">
+                          <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin mb-2" />
+                          <span className="text-sm">Starting camera...</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <Textarea
+                          id="awb-numbers"
+                          placeholder="Masukkan nomor resi di sini..."
+                          rows={isKeyboardOpen ? 3 : 5}
+                          value={awbNumbers}
+                          onChange={(e) => setAwbNumbers(e.target.value)}
+                          className="text-sm sm:text-base font-mono bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] resize-none w-full"
+                          ref={textareaRef}
+                          onFocus={() => {
+                            // Small delay to ensure keyboard is open before scrolling
+                            setTimeout(() => {
+                              if (isKeyboardOpen) {
+                                submitButtonRef.current?.scrollIntoView({ 
+                                  behavior: 'smooth', 
+                                  block: 'nearest' 
+                                });
+                              }
+                            }, 500);
+                          }}
+                        />
+                      </>
+                    )}
+                  </>
                 )}
                 <p className="text-xs text-muted-foreground px-1 break-words">
                   contoh: BCE556786, 556744, Hanya untuk resi manual
@@ -850,7 +893,7 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
                       // If loading but no abort controller, just close
                       onClose()
                     } else {
-                      setShowScanner(true)
+                      handleStartCamera()
                     }
                   }} 
                   className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/50 text-sm sm:text-base py-2 sm:py-3 min-w-0 order-2 sm:order-1"

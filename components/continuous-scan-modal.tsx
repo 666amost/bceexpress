@@ -1,37 +1,19 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { X } from "lucide-react"
+// ScrollArea removed - unused import
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCamera } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
-// Type guard for BranchManifestData (Borneo manifest)
-function isBranchManifestData(data: unknown): data is import("@/types").BranchManifestData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'pengirim' in data &&
-    'penerima' in data &&
-    typeof (data as { pengirim?: unknown }).pengirim === 'object' &&
-    typeof (data as { penerima?: unknown }).penerima === 'object'
-  );
-}
-
+// Type guard removed - unused function
 interface ContinuousScanModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -51,6 +33,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [isLoadingCamera, setIsLoadingCamera] = useState(false);
   const processedAwbsRef = useRef<string[]>([]);
   const { toast } = useToast();
   const router = useRouter();
@@ -90,9 +73,18 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   useEffect(() => {
     if (isOpen) {
       setScannedItems([]);
-      setShowScanner(true);
+      setShowScanner(false);
+      setIsLoadingCamera(false);
+      
+      // Auto-start camera with delay to ensure modal is fully loaded
+      setTimeout(() => {
+        if (isOpen) { // Check if modal is still open
+          handleStartCamera();
+        }
+      }, 500);
     } else {
       setShowScanner(false);
+      setIsLoadingCamera(false);
     }
   }, [isOpen]);
 
@@ -258,7 +250,6 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
         status = 'duplicate';
         message = 'Already scanned in this session';
       } else {
-        const existingItemIndex = scannedItems.findIndex(item => item.awb === awb);
         const { data: session } = await supabaseClient.auth.getSession();
         const courierId = session?.session?.user?.id;
         const courierName = currentUser?.name || session?.session?.user?.email?.split("@")[0] || "courier";
@@ -352,8 +343,23 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
     }
   };
 
+  const handleStartCamera = async () => {
+    setIsLoadingCamera(true);
+    // Small delay to show loading state
+    setTimeout(() => {
+      setShowScanner(true);
+      setIsLoadingCamera(false);
+    }, 300);
+  };
+
+  const handleStopCamera = () => {
+    setShowScanner(false);
+    setIsLoadingCamera(false);
+  };
+
   const handleClose = () => {
     setShowScanner(false);
+    setIsLoadingCamera(false);
     onClose();
     if (scannedItems.some(item => item.status === 'success')) {
       onSuccess();
@@ -366,112 +372,109 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faCamera} className="h-5 w-5" />
-            {prefillStatus === 'delivered' ? 'Delivered AWB Scanner' : 'Continuous AWB Scanner'}
-          </DialogTitle>
-          <DialogDescription>
-            {prefillStatus === 'delivered'
-              ? 'Scan resi untuk langsung update status ke Delivered. Resi akan diarahkan ke form update dengan status Delivered yang sudah terisi.'
-              : 'Scan Resi Otomatis. Resi akan diproses dan ditambahkan ke daftar hari ini. ( jangan lupa STOP CAMERA untuk menghentikan proses)'}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="space-y-4">
-            {showScanner && (
-              <div className="border rounded-lg overflow-hidden">
-                <QRScanner
-                  onScan={handleQRScan}
-                  onClose={() => setShowScanner(false)}
-                  hideCloseButton={true}
-                  disableAutoUpdate={true}
-                />
-              </div>
-            )}
-            {!showScanner && (
-              <div className="border rounded-lg p-8 text-center">
-                <FontAwesomeIcon icon={faCamera} className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-4">Scanner is paused</p>
-                <Button onClick={() => setShowScanner(true)}>
-                  Resume Scanning
+  <DialogContent showCloseButton={false} className="w-[95vw] max-w-md mx-auto p-0 border-0">
+        <DialogTitle className="sr-only">Continuous AWB Scanner</DialogTitle>
+        <Card className="h-[90vh] flex flex-col overflow-hidden bg-gray-50 border border-gray-200 shadow-lg">
+            <CardHeader className="bg-white border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">Continuous AWB Scanner</CardTitle>
+                <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0">
+                  <FontAwesomeIcon icon={faTimes} className="h-4 w-4" />
                 </Button>
               </div>
-            )}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-green-200 dark:bg-green-900 p-2 rounded">
-                <div className="text-lg font-bold text-green-800 dark:text-green-400">{successCount}</div>
-                <div className="text-xs text-green-800 dark:text-green-400">Success</div>
-              </div>
-              <div className="bg-red-200 dark:bg-red-900 p-2 rounded">
-                <div className="text-lg font-bold text-red-800 dark:text-red-400">{errorCount}</div>
-                <div className="text-xs text-red-800 dark:text-red-400">Error</div>
-              </div>
-              <div className="bg-yellow-200 dark:bg-yellow-900 p-2 rounded">
-                <div className="text-lg font-bold text-yellow-800 dark:text-yellow-400">{duplicateCount}</div>
-                <div className="text-xs text-yellow-800 dark:text-yellow-400">Duplicate</div>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Scan Results</h3>
-              <Button variant="outline" size="sm" onClick={handleClose}>
-                <X className="h-4 w-4 mr-1" />
-                Close
-              </Button>
-            </div>
-            <ScrollArea className="h-[400px] border rounded-lg p-2">
-              {scannedItems.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  No items scanned yet
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {scannedItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 border rounded text-sm">
-                      {item.status === 'success' && (
-                        <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">
-                          ✓
-                        </div>
-                      )}
-                      {item.status === 'error' && (
-                        <div className="h-4 w-4 rounded-full bg-red-500 flex items-center justify-center text-white text-xs">
-                          !
-                        </div>
-                      )}
-                      {item.status === 'duplicate' && (
-                        <div className="h-4 w-4 rounded-full bg-yellow-500 flex items-center justify-center text-white text-xs">
-                          !
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <div className="font-mono font-medium">{item.awb}</div>
-                        <div className="text-xs text-muted-foreground">{item.message}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.timestamp.toLocaleTimeString()}
-                        </div>
+              <CardDescription className="text-gray-600">
+                Scan otomatis resi, hentikan kamera sebelum menutup.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 p-4 flex flex-col bg-white">
+              {/* Camera */}
+              <div className="relative w-full h-[280px] sm:h-[320px] bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
+                {showScanner ? (
+                  <QRScanner
+                    onScan={handleQRScan}
+                    onClose={handleStopCamera}
+                    hideCloseButton
+                    disableAutoUpdate
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    {isLoadingCamera ? (
+                      <div className="flex flex-col items-center text-white">
+                        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin mb-2" />
+                        <span className="text-sm">Starting camera...</span>
                       </div>
-                      <Badge
-                        variant={item.status === 'success' ? 'default' :
-                                item.status === 'error' ? 'destructive' : 'secondary'}
-                      >
-                        {item.status}
-                      </Badge>
-                    </div>
-                  ))}
+                    ) : (
+                      <Button onClick={handleStartCamera} size="lg">
+                        <FontAwesomeIcon icon={faCamera} className="mr-2 h-4 w-4" />
+                        Start Camera
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {showScanner && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute bottom-3 left-1/2 transform -translate-x-1/2 z-10"
+                    onClick={handleStopCamera}
+                  >
+                    Stop
+                  </Button>
+                )}
+              </div>
+              {/* Stats */}
+              <div className="flex gap-2 mb-4 px-2">
+                {/* Success */}
+                  <div className="flex-1 flex flex-col items-center border border-gray-200 rounded-lg p-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-green-600">{successCount}</span>
+                  <span className="mt-1 text-xs sm:text-sm uppercase text-gray-700">Success</span>
+                  <div className="w-6 sm:w-8 h-1 bg-green-600 rounded mt-1"></div>
                 </div>
-              )}
-            </ScrollArea>
-          </div>
-        </div>
-        {isProcessing && (
-          <div className="text-center text-sm text-blue-600 dark:text-blue-400">
-            Processing AWB...
-          </div>
-        )}
-      </DialogContent>
+                {/* Error */}
+                  <div className="flex-1 flex flex-col items-center border border-gray-200 rounded-lg p-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-red-600">{errorCount}</span>
+                  <span className="mt-1 text-xs sm:text-sm uppercase text-gray-700">Error</span>
+                  <div className="w-6 sm:w-8 h-1 bg-red-600 rounded mt-1"></div>
+                </div>
+                {/* Duplicate */}
+                  <div className="flex-1 flex flex-col items-center border border-gray-200 rounded-lg p-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-yellow-600">{duplicateCount}</span>
+                  <span className="mt-1 text-xs sm:text-sm uppercase text-gray-700">Duplicate</span>
+                  <div className="w-6 sm:w-8 h-1 bg-yellow-600 rounded mt-1"></div>
+                </div>
+              </div>
+              {/* Results */}
+              <div className="flex-1 overflow-auto bg-gray-50 rounded-lg border border-gray-200 p-3">
+                {scannedItems.length === 0 ? (
+                  <div className="text-center text-muted-foreground mt-8">No items scanned yet</div>
+                ) : (
+                  <div className="space-y-2">
+                    {scannedItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 bg-white rounded-md border border-gray-100 shadow-sm"
+                      >
+                        <div className="font-mono text-sm truncate">{item.awb}</div>
+                        <Badge
+                          className="capitalize"
+                          variant={
+                            item.status === 'success'
+                              ? 'default'
+                              : item.status === 'error'
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                        >
+                          {item.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </DialogContent>
     </Dialog>
   );
 }

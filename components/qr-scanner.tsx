@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode, Html5QrcodeResult } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Camera } from "lucide-react"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
 import { supabaseClient } from "@/lib/auth"
@@ -219,17 +217,30 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
 
   const startScanning = async () => {
     try {
+      // Small delay to ensure container is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const devices = await Html5Qrcode.getCameras()
       const backCamera = devices.find(device => device.label.toLowerCase().includes('back'))
       const deviceId = backCamera ? backCamera.id : devices[0].id
 
       scannerRef.current = new Html5Qrcode("qr-reader")
       
+      // Get container dimensions for responsive sizing
+      const container = document.getElementById("qr-reader")
+      const containerWidth = container?.clientWidth || 300
+      const containerHeight = container?.clientHeight || 200
+      
+      // Calculate optimal qrbox size (70% of smaller dimension for better fit)
+      const minDimension = Math.min(containerWidth, containerHeight)
+      const qrboxSize = Math.floor(minDimension * 0.7)
+      
       await scannerRef.current.start(
         deviceId,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: { width: qrboxSize, height: qrboxSize },
+          aspectRatio: containerWidth / containerHeight,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
           // Prevent duplicate scans of the same code
@@ -354,35 +365,15 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Card className="p-4">
-      <div className="space-y-4">
-        <div id="qr-reader" className="w-full max-w-sm mx-auto" />
-        {/* Scanning status */}
-        {isScanning && (
-          <div className="flex items-center gap-2 justify-center text-white text-base font-medium pb-2">
-            {/* Minimalist search icon */}
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2"/><path d="M15 15L19 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            <span>Scanning... Arahkan ke QR Code atau Barcode</span>
-          </div>
-        )}
-        <div className="flex justify-center space-x-2">
-          {!isScanning ? (
-            <Button onClick={startScanning} className="flex items-center gap-2">
-              <Camera className="w-4 h-4" />
-              Start Camera
-            </Button>
-          ) : (
-            <Button onClick={stopScanning} variant="destructive">
-              Stop Camera
-            </Button>
-          )}
-          {!hideCloseButton && (
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          )}
+    <div className="w-full h-full flex flex-col">
+      <div id="qr-reader" className="w-full h-full flex-1" />
+      {!hideCloseButton && (
+        <div className="absolute top-2 right-2">
+          <Button variant="outline" onClick={onClose} size="sm">
+            Close
+          </Button>
         </div>
-      </div>
-    </Card>
+      )}
+    </div>
   )
 }

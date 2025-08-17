@@ -16,7 +16,20 @@ export default function RootLayout({ children }) {
           src="/js/version-checker.js" 
           strategy="afterInteractive"
         />
+        {/* Optional: force SW update jika versi cache berubah */}
+        <Script id="force-sw-update" strategy="afterInteractive">{`
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => {
+              regs.forEach(reg => {
+                if (reg.active) {
+                  // Trigger update check
+                  reg.update();
+                }
+              });
+            });
+          }
+        `}</Script>
       </body>
     </html>
   )
-} 
+}
