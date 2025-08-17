@@ -1116,7 +1116,14 @@ function CourierUpdateFormComponent() {
                   <CameraIcon className="h-4 w-4 text-gray-400" />
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
-                <div className="grid grid-cols-2 gap-2 camera-gallery-buttons">
+                <div 
+                  className="grid grid-cols-2 gap-2 camera-gallery-buttons"
+                  style={{
+                    position: 'relative',
+                    zIndex: 100,
+                    pointerEvents: 'auto'
+                  }}
+                >
                   {/* Hidden camera input for direct camera capture */}
                   <input
                     ref={cameraInputRef}
@@ -1126,6 +1133,13 @@ function CourierUpdateFormComponent() {
                     onChange={handlePhotoChange}
                     className="hidden"
                     id="delivery-photo-camera"
+                    style={{
+                      position: 'absolute',
+                      opacity: 0,
+                      width: 0,
+                      height: 0,
+                      pointerEvents: 'none'
+                    }}
                   />
                   {/* Hidden file input for gallery */}
                   <input
@@ -1135,12 +1149,28 @@ function CourierUpdateFormComponent() {
                     onChange={handlePhotoChange}
                     className="hidden"
                     id="delivery-photo-file"
+                    style={{
+                      position: 'absolute',
+                      opacity: 0,
+                      width: 0,
+                      height: 0,
+                      pointerEvents: 'none'
+                    }}
                   />
                   <Button
                     type="button"
                     onClick={handleCameraCapture}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm touch-manipulation"
                     disabled={photoLoading}
+                    style={{
+                      position: 'relative',
+                      zIndex: 10,
+                      pointerEvents: 'auto',
+                      minHeight: '44px',
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
+                    }}
                   >
                     <CameraIcon className="h-3 w-3 mr-1" />
                     Camera
@@ -1151,6 +1181,15 @@ function CourierUpdateFormComponent() {
                     onClick={handleGallerySelect}
                     className="w-full h-9 text-sm border-gray-300 dark:border-gray-600 touch-manipulation"
                     disabled={photoLoading}
+                    style={{
+                      position: 'relative',
+                      zIndex: 10,
+                      pointerEvents: 'auto',
+                      minHeight: '44px',
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
+                    }}
                   >
                     <FontAwesomeIcon icon={faUpload} className="h-3 w-3 mr-1" />
                     Gallery
