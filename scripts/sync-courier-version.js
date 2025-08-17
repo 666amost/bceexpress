@@ -8,6 +8,16 @@ const path = require('path');
  */
 function syncCourierVersion() {
   try {
+    // If the BCE-KURIR package is not present in the repo (it's often gitignored),
+    // skip the sync step instead of failing the build.
+    const courierDir = path.join(__dirname, '../BCE-KURIR');
+    if (!fs.existsSync(courierDir)) {
+      process.stdout.write('ℹ BCE-KURIR not present in repository; skipping courier version sync.\n');
+      return {
+        success: true,
+        version: ''
+      };
+    }
     // Get version from main package.json
     const mainPkgPath = path.join(__dirname, '../package.json');
     const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, 'utf8'));
@@ -21,7 +31,12 @@ function syncCourierVersion() {
     const courierPkgPath = path.join(__dirname, '../BCE-KURIR/package.json');
     
     if (!fs.existsSync(courierPkgPath)) {
-      throw new Error(`BCE-KURIR package.json not found at: ${courierPkgPath}`);
+      // If package.json is missing inside the BCE-KURIR folder, skip rather than failing.
+      process.stdout.write(`ℹ BCE-KURIR package.json not found at: ${courierPkgPath}; skipping courier sync.\n`);
+      return {
+        success: true,
+        version: ''
+      };
     }
 
     const courierPkg = JSON.parse(fs.readFileSync(courierPkgPath, 'utf8'));
@@ -32,7 +47,12 @@ function syncCourierVersion() {
     const courierSwPath = path.join(__dirname, '../BCE-KURIR/sw.js');
     
     if (!fs.existsSync(courierSwPath)) {
-      throw new Error(`BCE-KURIR sw.js not found at: ${courierSwPath}`);
+      // If the service worker is missing, update package.json but skip sw updates.
+      process.stdout.write(`ℹ BCE-KURIR sw.js not found at: ${courierSwPath}; updated package.json only.\n`);
+      return {
+        success: true,
+        version: mainVersion
+      };
     }
 
     let courierSwCode = fs.readFileSync(courierSwPath, 'utf8');
