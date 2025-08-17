@@ -25,6 +25,7 @@ import imageCompression from "browser-image-compression"
 import browserBeep from "browser-beep"
 import { toast } from "sonner"
 import debounce from "lodash/debounce"
+import { ensureRGBJPEG } from "@/utils/ensureRGBJPEG"
 
 // Type definitions
 interface ShipmentDetails {
@@ -642,32 +643,37 @@ function CourierUpdateFormComponent() {
 
   const uploadImage = async (file: File, awbNumber: string): Promise<string | null> => {
     try {
-      const fileExt = file.name.split(".").pop()
+      // Step 1: Re-encode foto ke RGB JPEG untuk kompatibilitas WebView Android
+      const safeFile = await ensureRGBJPEG(file, 0.82);
+      
+      const fileExt = safeFile.name.split(".").pop()
       const fileName = `${awbNumber}-${Date.now()}.${fileExt}`
       const filePath = `proof-of-delivery/${fileName}`
-      const arrayBuffer = await file.arrayBuffer()
-      const buffer = new Uint8Array(arrayBuffer)
 
       // OPTIMIZED: Timeout yang disesuaikan untuk low-end devices dan koneksi lemah
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Upload timeout')), 30000) // Increased from 15s to 30s
       );
 
+      // Step 2: Upload langsung File/Blob (BUKAN Uint8Array!)
       const uploadPromise = supabaseClient.storage
         .from("shipment-photos")
-        .upload(filePath, buffer, {
-          contentType: file.type,
+        .upload(filePath, safeFile, {
+          contentType: safeFile.type,
+          cacheControl: '3600',
         });
 
       const { error } = await Promise.race([uploadPromise, timeoutPromise]) as DatabaseResponse<unknown>;
 
       if (error) {
+        console.error('[uploadImage] Supabase upload error:', error);
         return null;
       }
 
       const { data } = supabaseClient.storage.from("shipment-photos").getPublicUrl(filePath)
       return data.publicUrl
     } catch (error) {
+      console.error('[uploadImage] Upload failed:', error);
       return null
     }
   }
@@ -1204,7 +1210,7 @@ function CourierUpdateFormComponent() {
                   <input
                     ref={cameraInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png"
                     capture="environment"
                     onChange={handlePhotoChange}
                     className="hidden"
@@ -1215,7 +1221,7 @@ function CourierUpdateFormComponent() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png"
                     onChange={handlePhotoChange}
                     className="hidden"
                     id="gallery-input"
