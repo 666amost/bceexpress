@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMapPin, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faMapPin, faSpinner, faUpload } from '@fortawesome/free-solid-svg-icons'
 import {
   ChevronLeft,
   Close as CloseIcon,
@@ -90,38 +90,12 @@ function CourierUpdateFormComponent() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
   const [showShipmentDetails, setShowShipmentDetails] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false)
-
+  // Only need the camera input ref for the simplified approach
   const cameraInputRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
   const router = useRouter()
 
-  // WebView / Capacitor detection helper
-  // Narrow types: avoid `any` to comply with eslint/type-safety
-  type CapacitorPlugins = {
-    Camera?: unknown
-    [key: string]: unknown
-  }
-  type CapacitorWindow = Window & { Capacitor?: { isNative?: boolean; Plugins?: CapacitorPlugins; platform?: string } }
-
-  const isRunningInCapacitor = () => {
-    try {
-      const w = window as CapacitorWindow
-      return Boolean(w.Capacitor && (w.Capacitor.isNative || (w.Capacitor.platform && w.Capacitor.platform !== 'web')))
-    } catch {
-      return false
-    }
-  }
-
-  // Type guard for Camera plugin shape
-  const isCameraPlugin = (p: unknown): p is { getPhoto: (opts: { resultType: string; quality?: number; allowEditing?: boolean; saveToGallery?: boolean }) => Promise<{ dataUrl?: string; webPath?: string }> } => {
-    if (!p || typeof p !== 'object') return false
-    const maybe = p as Record<string, unknown>
-    return typeof maybe.getPhoto === 'function'
-  }
-
-  // Convert dataUrl/base64 to File
+  // Simplified approach for handling camera
+  // Convert dataUrl/base64 to File if needed
   const base64DataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
     const res = await fetch(dataUrl)
     const blob = await res.blob()
@@ -130,114 +104,12 @@ function CourierUpdateFormComponent() {
     return file
   }
 
-  const startWebCamera = async () => {
-    try {
-      // Prefer back camera
-      const constraints: MediaStreamConstraints = {
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false
-      }
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      setShowCameraModal(true)
-    } catch (err) {
-      console.warn('Failed to start web camera', err)
-      toast.error('Gagal membuka kamera. Pastikan permission kamera telah diberikan.')
-    }
-  }
-
-  const stopWebCamera = async () => {
-    try {
-      if (videoRef.current) {
-        videoRef.current.pause()
-        videoRef.current.srcObject = null
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
-        streamRef.current = null
-      }
-    } catch (err) {
-      // ignore
-    } finally {
-      setShowCameraModal(false)
-    }
-  }
-
-  const captureFromWebCamera = async () => {
-    try {
-      if (!videoRef.current) return
-      const video = videoRef.current
-      const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth || 1280
-      canvas.height = video.videoHeight || 720
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas not supported')
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
-      const file = await base64DataUrlToFile(dataUrl, `camera-${Date.now()}.jpg`)
-      setPhoto(file)
-      setPhotoPreview(URL.createObjectURL(file))
-      toast.success('Foto berhasil diambil')
-    } catch (err) {
-      console.error('Capture error', err)
-      toast.error('Gagal mengambil foto')
-    } finally {
-      await stopWebCamera()
-    }
-  }
-
-  // Use Capacitor Camera plugin when available, otherwise fallback to web camera modal or input capture
-  const handleCameraCapture = async () => {
-    const useCapacitor = isRunningInCapacitor()
-
-    if (useCapacitor) {
-      try {
-        const w = window as CapacitorWindow
-        const CameraPlugin = w.Capacitor?.Plugins?.Camera
-        if (CameraPlugin && isCameraPlugin(CameraPlugin)) {
-          try {
-            const result = await CameraPlugin.getPhoto({ resultType: 'dataUrl', quality: 80, allowEditing: false, saveToGallery: false })
-            if (result && result.dataUrl) {
-              const filename = `camera-${Date.now()}.jpg`
-              const file = await base64DataUrlToFile(result.dataUrl as string, filename)
-              setPhoto(file)
-              setPhotoPreview(URL.createObjectURL(file))
-              setPhotoLoading(false)
-              setPhotoProgress(100)
-              toast.success('Foto berhasil diambil (native)')
-              return
-            }
-          } catch (capErr) {
-            console.warn('Capacitor getPhoto failed, falling back to web camera/modal', capErr)
-            // fallthrough to web camera modal below
-          }
-        }
-      } catch (err) {
-        console.warn('Capacitor camera failed, falling back to web camera/modal:', err)
-      }
-    }
-
-    // If navigator.mediaDevices is available, open inline web camera modal (works inside WebView similar to QRScanner)
-    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-      await startWebCamera()
-      return
-    }
-
-    // Final fallback: trigger hidden input with capture attribute (web)
-    // This will show browser's photo picker with camera option
+  // Simplified camera handler that just clicks the input
+  // This works reliably on both web and WebView/Android
+  const handleCameraCapture = () => {
     if (cameraInputRef.current) {
       cameraInputRef.current.click()
     }
-  }
-
-  // Camera button will auto-select from camera or allow gallery as fallback
-  const handleCameraClick = async () => {
-    // First try native camera approach (Capacitor/getUserMedia)
-    await handleCameraCapture()
   }
 
   useEffect(() => {
@@ -623,7 +495,7 @@ function CourierUpdateFormComponent() {
     setPhoto(null)
     setPhotoPreview(null)
     
-    // Reset both input values
+    // Reset input value
     if (cameraInputRef.current) {
       cameraInputRef.current.value = ""
     }
@@ -1197,14 +1069,14 @@ function CourierUpdateFormComponent() {
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 mb-3 text-xs">Upload photo proof of delivery (Optional)</p>
                 <div 
-                  className="mt-2 camera-button-container"
+                  className="camera-buttons"
                   style={{
                     position: 'relative',
                     zIndex: 100,
                     pointerEvents: 'auto'
                   }}
                 >
-                  {/* Hidden camera input - will show camera/photo picker */}
+                  {/* Simplified to only use camera input with capture - best compatibility with WebView */}
                   <input
                     ref={cameraInputRef}
                     type="file"
@@ -1222,23 +1094,22 @@ function CourierUpdateFormComponent() {
                       overflow: 'hidden'
                     }}
                   />
-                  {/* Single Camera button that handles both camera and photo selection */}
                   <Button
                     type="button"
-                    onClick={handleCameraClick}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base font-medium touch-manipulation"
+                    onClick={handleCameraCapture}
+                    className="w-full max-w-[200px] bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm touch-manipulation"
                     disabled={photoLoading}
                     style={{
                       position: 'relative',
                       zIndex: 10,
                       pointerEvents: 'auto',
-                      minHeight: '48px',
+                      minHeight: '44px',
                       cursor: 'pointer',
                       touchAction: 'manipulation',
                       WebkitTapHighlightColor: 'rgba(59, 130, 246, 0.3)'
                     }}
                   >
-                    <CameraIcon className="h-5 w-5 mr-2" />
+                    <CameraIcon className="h-3 w-3 mr-1" />
                     Take Photo
                   </Button>
                 </div>
@@ -1324,40 +1195,7 @@ function CourierUpdateFormComponent() {
         </form>
       </div>
 
-      {/* Camera modal for web/getUserMedia fallback - improved styling */}
-      {showCameraModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-xl w-[90vw] max-w-lg mx-4 shadow-2xl">
-            <div className="p-4">
-              <div className="relative mb-4">
-                <video 
-                  ref={videoRef} 
-                  className="w-full h-auto rounded-lg bg-black shadow-inner" 
-                  playsInline 
-                  muted 
-                  style={{ minHeight: '200px', maxHeight: '400px', objectFit: 'cover' }}
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button 
-                  onClick={captureFromWebCamera} 
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-12 text-base font-medium"
-                >
-                  <CameraIcon className="h-5 w-5 mr-2" />
-                  Capture
-                </Button>
-                <Button 
-                  onClick={stopWebCamera} 
-                  variant="outline"
-                  className="flex-1 h-12 text-base font-medium border-gray-300 hover:bg-gray-100"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Camera modal removed - using simple input[capture] approach */}
 
     </div>
   )
