@@ -388,14 +388,15 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
             </CardHeader>
             <CardContent className="flex-1 p-4 flex flex-col bg-white">
               {/* Camera */}
-              <div className="relative w-full h-[280px] sm:h-[320px] bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
+      <div className="relative w-full h-[360px] sm:h-[420px] bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
                 {showScanner ? (
                   <QRScanner
                     onScan={handleQRScan}
                     onClose={handleStopCamera}
                     hideCloseButton
                     disableAutoUpdate
-                    qrboxSize={{ widthPercent: 0.95, heightPercent: 0.75 }}
+        // Use square scan box (1:1) sized to 95% of the smaller dimension
+        squarePercent={0.95}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
