@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 // ScrollArea removed - unused import
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faTimes, faCamera, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faCamera } from '@fortawesome/free-solid-svg-icons'
 import { supabaseClient } from "@/lib/auth"
 import { QRScanner } from "./qr-scanner"
 import { useToast } from "@/hooks/use-toast"
@@ -33,7 +33,6 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [isLoadingCamera, setIsLoadingCamera] = useState(false);
   const processedAwbsRef = useRef<string[]>([]);
   const { toast } = useToast();
   const router = useRouter();
@@ -73,18 +72,9 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   useEffect(() => {
     if (isOpen) {
       setScannedItems([]);
-      setShowScanner(false);
-      setIsLoadingCamera(false);
-      
-      // Auto-start camera with delay to ensure modal is fully loaded
-      setTimeout(() => {
-        if (isOpen) { // Check if modal is still open
-          handleStartCamera();
-        }
-      }, 500);
+      setShowScanner(true);
     } else {
       setShowScanner(false);
-      setIsLoadingCamera(false);
     }
   }, [isOpen]);
 
@@ -344,22 +334,15 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   };
 
   const handleStartCamera = async () => {
-    setIsLoadingCamera(true);
-    // Small delay to show loading state
-    setTimeout(() => {
-      setShowScanner(true);
-      setIsLoadingCamera(false);
-    }, 300);
+    setShowScanner(true);
   };
 
   const handleStopCamera = () => {
     setShowScanner(false);
-    setIsLoadingCamera(false);
   };
 
   const handleClose = () => {
     setShowScanner(false);
-    setIsLoadingCamera(false);
     onClose();
     if (scannedItems.some(item => item.status === 'success')) {
       onSuccess();
@@ -395,22 +378,13 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                     onClose={handleStopCamera}
                     hideCloseButton
                     disableAutoUpdate
-        // Use square scan box (1:1) sized to 95% of the smaller dimension
-        squarePercent={0.95}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
-                    {isLoadingCamera ? (
-                      <div className="flex flex-col items-center text-white">
-                        <FontAwesomeIcon icon={faSpinner} className="h-8 w-8 animate-spin mb-2" />
-                        <span className="text-sm">Starting camera...</span>
-                      </div>
-                    ) : (
                       <Button onClick={handleStartCamera} size="lg">
                         <FontAwesomeIcon icon={faCamera} className="mr-2 h-4 w-4" />
                         Start Camera
                       </Button>
-                    )}
                   </div>
                 )}
                 {showScanner && (

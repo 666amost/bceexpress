@@ -228,49 +228,17 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
 
   const startScanning = async () => {
     try {
-      // Small delay to ensure container is fully rendered
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
       const devices = await Html5Qrcode.getCameras()
       const backCamera = devices.find(device => device.label.toLowerCase().includes('back'))
       const deviceId = backCamera ? backCamera.id : devices[0].id
 
       scannerRef.current = new Html5Qrcode("qr-reader")
       
-      // Get container dimensions for responsive sizing
-      const container = document.getElementById("qr-reader")
-      const containerWidth = container?.clientWidth || 300
-      const containerHeight = container?.clientHeight || 200
-      
-      // Calculate qrbox size
-      let qrboxWidth: number
-      let qrboxHeight: number
-      // squarePercent has highest priority
-      if (typeof squarePercent === 'number' && !isNaN(squarePercent)) {
-        const minDimension = Math.min(containerWidth, containerHeight)
-        const pct = Math.min(Math.max(squarePercent, 0.1), 1)
-        const side = Math.floor(minDimension * pct)
-        qrboxWidth = side
-        qrboxHeight = side
-      } else if (qrboxSize && (qrboxSize.widthPercent || qrboxSize.heightPercent)) {
-        const widthPercent: number = Math.min(Math.max(qrboxSize.widthPercent ?? 0.9, 0.1), 1)
-        const heightPercent: number = Math.min(Math.max(qrboxSize.heightPercent ?? 0.8, 0.1), 1)
-        qrboxWidth = Math.floor(containerWidth * widthPercent)
-        qrboxHeight = Math.floor(containerHeight * heightPercent)
-      } else {
-        // Fallback: square box 70% of smaller dimension
-        const minDimension = Math.min(containerWidth, containerHeight)
-        const square = Math.floor(minDimension * 0.7)
-        qrboxWidth = square
-        qrboxHeight = square
-      }
-      
       await scannerRef.current.start(
         deviceId,
         {
           fps: 10,
-          qrbox: { width: qrboxWidth, height: qrboxHeight },
-          aspectRatio: containerWidth / containerHeight,
+          qrbox: { width: 250, height: 250 },
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
           // Prevent duplicate scans of the same code
