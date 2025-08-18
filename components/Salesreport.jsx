@@ -92,6 +92,15 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     "COD LAUT"
   ];
 
+  // Add new Bangka agents
+  baseAgentListBangka.push(
+    "YENNY",
+    "TATA",
+    "PHING BCE",
+    "AJIN",
+    "NINA SARJU"
+  );
+
   const baseAgentListTanjungPandan = [
     "COD",
     "TRANSFER",

@@ -189,6 +189,13 @@ export default function DailyReport({ userRole, branchOrigin }) {
     "THEW FU CAU PAULUS",
     "COD UDARA",
     "COD LAUT"
+  ,
+  // Added new Bangka agents
+  "YENNY",
+  "TATA",
+  "PHING BCE",
+  "AJIN",
+  "NINA SARJU"
   ];
 
   const baseAgentListTanjungPandan = ["COD", "TRANSFER", "CASH", "Wijaya Crab"];

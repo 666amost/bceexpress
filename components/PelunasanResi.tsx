@@ -162,11 +162,19 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       const { data, error } = await query
       if (error) {
         // Silent error - agents are not critical
+        setAgentList([])
       } else {
-        const distinctAgents = Array.from(new Set(data.map((item: { agent_customer: string }) => item.agent_customer).filter(Boolean))) as string[]
-        // Enhance agent list with email mappings
-        const enhancedAgents = getEnhancedAgentList(distinctAgents)
-        setAgentList(enhancedAgents)
+  const distinctAgents = Array.from(new Set((data || []).map((item: { agent_customer: string }) => item.agent_customer).filter(Boolean))) as string[];
+
+  // If branch is bangka, ensure the new agents are present even if DB is missing them
+  const localBangkaAdditions = ["YENNY", "TATA", "PHING BCE", "AJIN", "NINA SARJU"];
+
+  const additions = branchOrigin === 'bangka' ? localBangkaAdditions : [];
+  const merged = Array.from(new Set([...distinctAgents, ...additions]));
+
+  // Enhance agent list with email mappings
+  const enhancedAgents = getEnhancedAgentList(merged);
+  setAgentList(enhancedAgents);
       }
     } catch (err) {
       // Silent error - agents are not critical

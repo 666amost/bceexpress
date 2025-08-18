@@ -74,6 +74,13 @@ const baseAgentListBangka = [
   "THEW FU CAU PAULUS",
   "COD UDARA",
   "COD LAUT"
+  ,
+  // Added new Bangka agents
+  "YENNY",
+  "TATA",
+  "PHING BCE",
+  "AJIN",
+  "NINA SARJU"
 ];
 
 const baseAgentListTanjungPandan = [
