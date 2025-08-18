@@ -43,33 +43,8 @@ function syncCourierVersion() {
     courierPkg.version = mainVersion;
     fs.writeFileSync(courierPkgPath, JSON.stringify(courierPkg, null, 2), 'utf8');
 
-    // Update BCE-KURIR sw.js
-    const courierSwPath = path.join(__dirname, '../BCE-KURIR/sw.js');
-    
-    if (!fs.existsSync(courierSwPath)) {
-      // If the service worker is missing, update package.json but skip sw updates.
-      process.stdout.write(`ℹ BCE-KURIR sw.js not found at: ${courierSwPath}; updated package.json only.\n`);
-      return {
-        success: true,
-        version: mainVersion
-      };
-    }
-
-    let courierSwCode = fs.readFileSync(courierSwPath, 'utf8');
-
-    // Update cache names with new version
-    const cacheUpdates = [
-      [/const CACHE_NAME = '.*?';/, `const CACHE_NAME = 'bce-kurir-v${mainVersion}';`],
-      [/const CRITICAL_CACHE = '.*?';/, `const CRITICAL_CACHE = 'bce-kurir-critical-v${mainVersion}';`],
-      [/const API_CACHE = '.*?';/, `const API_CACHE = 'bce-kurir-api-v${mainVersion}';`],
-      [/const IMAGE_CACHE = '.*?';/, `const IMAGE_CACHE = 'bce-kurir-images-v${mainVersion}';`]
-    ];
-
-    for (const [pattern, replacement] of cacheUpdates) {
-      courierSwCode = courierSwCode.replace(pattern, replacement);
-    }
-
-    fs.writeFileSync(courierSwPath, courierSwCode, 'utf8');
+    // Service worker disabled - skip sw.js updates
+    process.stdout.write(`ℹ Service worker disabled - package.json updated only.\n`);
 
     return {
       success: true,

@@ -3,7 +3,7 @@
   "version": "5.5.6",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/update-sw-version.js && node scripts/sync-courier-version.js",
+    "prebuild": "node scripts/sync-courier-version.js",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

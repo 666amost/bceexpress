@@ -1,5 +1,5 @@
 // Simple API endpoint for version checking
-// Used by service worker for basic app version checking
+// Note: Service worker disabled - this endpoint may not be actively used
 
 import { NextRequest, NextResponse } from 'next/server';
 
