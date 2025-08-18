@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { supabaseClient } from "@/lib/auth"
 // Import ikon yang dibutuhkan dari lucide-react
 import { Loader2, Eye, EyeOff } from "lucide-react"
+import { isInCapacitor, handleCapacitorLoginSuccess } from "@/lib/capacitor-utils"
 
 export function CourierAuth() {
   const [isLoading, setIsLoading] = useState(false)
@@ -76,11 +77,16 @@ export function CourierAuth() {
       }
 
       // Redirect to dashboard
-      // Menggunakan window.location.href akan melakukan full page reload
-      // Jika Anda menggunakan Next.js App Router, disarankan menggunakan router.push() dari next/navigation
-      // const router = useRouter(); // Import useRouter di bagian atas
-      // router.push("/courier/dashboard");
-       window.location.href = "/courier/dashboard"
+      if (isInCapacitor()) {
+        console.warn('CourierAuth: Using Capacitor login success flow');
+        handleCapacitorLoginSuccess();
+        setIsLoading(false);
+        return; // Don't redirect in Capacitor
+      }
+
+      // Normal web redirect
+      console.warn('CourierAuth: Using web browser redirect flow');
+      window.location.href = "/courier/dashboard"
 
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")

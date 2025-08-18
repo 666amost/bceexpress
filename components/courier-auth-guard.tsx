@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getCurrentUser, type UserSession } from "@/lib/auth"
 import { Loader2 } from "lucide-react"
+import { isInCapacitor, sendMessageToCapacitor } from "@/lib/capacitor-utils"
 
 export function CourierAuthGuard({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
@@ -17,11 +18,21 @@ export function CourierAuthGuard({ children }: { children: React.ReactNode }) {
       const currentUser = await getCurrentUser()
 
       if (!currentUser) {
+        if (isInCapacitor()) {
+          console.warn('CourierAuthGuard: User not found, sending logout message to Capacitor');
+          sendMessageToCapacitor('COURIER_LOGOUT', { reason: 'auth_guard_no_user' });
+          return;
+        }
         router.push("/courier")
         return
       }
 
       if (currentUser.role !== "courier" && currentUser.role !== "admin") {
+        if (isInCapacitor()) {
+          console.warn('CourierAuthGuard: Invalid role, sending logout message to Capacitor');
+          sendMessageToCapacitor('COURIER_LOGOUT', { reason: 'auth_guard_invalid_role' });
+          return;
+        }
         router.push("/courier")
         return
       }

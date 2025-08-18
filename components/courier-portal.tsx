@@ -14,6 +14,7 @@ import { Camera, MapPin, Upload, X, LogOut } from "lucide-react"
 import { type ShipmentStatus, addShipmentHistory, uploadImage } from "@/lib/db"
 import { getCurrentUser, signOut } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
+import { isInCapacitor, handleCapacitorLogout } from "@/lib/capacitor-utils"
 
 export function CourierPortal() {
   const [awbNumber, setAwbNumber] = useState("")
@@ -193,6 +194,23 @@ export function CourierPortal() {
   }
 
   const handleLogout = async () => {
+    // Check if running in Capacitor iframe context
+    if (isInCapacitor()) {
+      console.warn('CourierPortal: Using Capacitor logout flow');
+      
+      await handleCapacitorLogout(async () => {
+        const result = await signOut();
+        if (result.error) throw new Error(result.error);
+      });
+      
+      // Don't use router.push in Capacitor context
+      // Parent container will handle navigation
+      return;
+    }
+
+    // Normal web browser logout flow
+    console.warn('CourierPortal: Using web browser logout flow');
+    
     const { error } = await signOut()
     if (error) {
       toast({

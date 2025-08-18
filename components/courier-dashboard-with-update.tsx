@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { isInCapacitor, handleCapacitorLogout } from "@/lib/capacitor-utils"
 
 interface User {
   id: string;
@@ -165,6 +166,22 @@ export function CourierDashboardWithUpdate() {
   }
 
   const handleLogout = async () => {
+    // Check if running in Capacitor iframe context
+    if (isInCapacitor()) {
+      console.warn('CourierDashboardWithUpdate: Using Capacitor logout flow');
+      
+      await handleCapacitorLogout(async () => {
+        await supabaseClient.auth.signOut()
+      });
+      
+      // Don't use router.push in Capacitor context
+      // Parent container will handle navigation
+      return;
+    }
+
+    // Normal web browser logout flow
+    console.warn('CourierDashboardWithUpdate: Using web browser logout flow');
+    
     try {
       await supabaseClient.auth.signOut()
       router.push("/courier")

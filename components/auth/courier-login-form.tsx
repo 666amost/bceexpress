@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { supabaseClient } from "@/lib/auth"
 import { toast } from "sonner"
+import { isInCapacitor, handleCapacitorLoginSuccess } from "@/lib/capacitor-utils"
 
 export function CourierLoginForm() {
   const [email, setEmail] = useState("")
@@ -75,6 +76,16 @@ export function CourierLoginForm() {
         description: "Selamat datang kembali!",
       })
 
+      // Handle login success based on context
+      if (isInCapacitor()) {
+        console.warn('CourierLoginForm: Using Capacitor login success flow');
+        handleCapacitorLoginSuccess();
+        setIsLoading(false);
+        return; // Don't redirect in Capacitor
+      }
+
+      // Normal web redirect
+      console.warn('CourierLoginForm: Using web browser redirect flow');
       router.push("/courier/dashboard")
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")

@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { useExternalLinks } from "@/hooks/use-external-links"
+import { isInCapacitor, handleCapacitorLogout } from "@/lib/capacitor-utils"
 
 // Component for WhatsApp button
 const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumber: string; recipientName: string; courierName: string }) => {
@@ -503,6 +504,22 @@ export function CourierDashboard() {
   }, [hasCompletedFirstDelivery, updateCourierLocation]);
 
   const handleLogout = async () => {
+    // Check if running in Capacitor iframe context
+    if (isInCapacitor()) {
+      console.warn('CourierDashboard: Using Capacitor logout flow');
+      
+      await handleCapacitorLogout(async () => {
+        await supabaseClient.auth.signOut()
+      });
+      
+      // Don't use router.push in Capacitor context
+      // Parent container will handle navigation
+      return;
+    }
+
+    // Normal web browser logout flow
+    console.warn('CourierDashboard: Using web browser logout flow');
+    
     try {
       await supabaseClient.auth.signOut()
       router.push("/courier")
