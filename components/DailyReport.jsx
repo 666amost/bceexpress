@@ -363,9 +363,9 @@ export default function DailyReport({ userRole, branchOrigin }) {
       'Admin Fee': item.biaya_admin || item.admin || 0,
       'Packaging': item.biaya_packaging || 0,
       'Transit': item.biaya_transit || 0,
-      'Cash': item.metode_pembayaran === 'cash' ? (item.total || 0) : 0,
-      'Transfer': item.metode_pembayaran === 'transfer' ? (item.total || 0) : 0,
-      'COD': item.metode_pembayaran === 'cod' ? (item.total || 0) : 0,
+      'Cash': (item.metode_pembayaran || '').toLowerCase() === 'cash' ? (item.total || 0) : 0,
+      'Transfer': (item.metode_pembayaran || '').toLowerCase() === 'transfer' ? (item.total || 0) : 0,
+      'COD': (item.metode_pembayaran || '').toLowerCase() === 'cod' ? (item.total || 0) : 0,
       'Wilayah': item.wilayah
     }));
 
@@ -408,9 +408,9 @@ export default function DailyReport({ userRole, branchOrigin }) {
     const totalKg = data.reduce((sum, item) => sum + (item.berat_kg || 0), 0)
     const totalAdmin = data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0)
     const totalTransit = data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0)
-    const totalCash = data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0)
-    const totalTransfer = data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0)
-    const totalCOD = data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0)
+    const totalCash = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash').reduce((sum, item) => sum + (item.total || 0), 0)
+    const totalTransfer = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0)
+    const totalCOD = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod').reduce((sum, item) => sum + (item.total || 0), 0)
     const grandTotal = data.reduce((sum, item) => sum + (item.total || 0), 0)
 
     let dateRangeText = ''
@@ -539,9 +539,9 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   <td class="text-right currency">${(item.biaya_admin || item.admin || 0).toLocaleString('id-ID')}</td>
                   <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
                   <td class="text-right currency">${(item.biaya_transit || 0).toLocaleString('id-ID')}</td>
-                  <td class="text-right total-currency">${item.metode_pembayaran === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
-                  <td class="text-right total-currency">${item.metode_pembayaran === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
-                  <td class="text-right total-currency">${item.metode_pembayaran === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
+                  <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
+                  <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
+                  <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
                   <td class="font-medium">${item.wilayah}</td>
                 </tr>
               `).join('')}
@@ -670,9 +670,9 @@ export default function DailyReport({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_admin || item.admin || 0}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_packaging || 0}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.biaya_transit || 0}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{item.metode_pembayaran === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.wilayah}</td>
                   </tr>
                 ))}
@@ -685,9 +685,9 @@ export default function DailyReport({ userRole, branchOrigin }) {
               <p className="text-gray-800 dark:text-gray-200">Total Kg: {data.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Admin: Rp. {data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Transit: Rp. {data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.filter(item => item.metode_pembayaran === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.filter(item => item.metode_pembayaran === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.filter(item => item.metode_pembayaran === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Semua: Rp. {data.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
             </div>
           )}
