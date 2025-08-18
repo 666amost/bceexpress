@@ -113,10 +113,18 @@ function generateAwbNo(originBranch?: string | null) {
 }
 
 export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, userRole, branchOrigin }: AwbFormProps) {
+  // Helper to get local date string in Asia/Jakarta timezone
+  function getLocalDateString(): string {
+    const now = new Date();
+    // Convert to Asia/Jakarta (WIB, GMT+7)
+    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
+    return jakartaDate.toISOString().slice(0, 10);
+  }
+
   const [form, setForm] = useState<AwbFormData>(
     {
       awb_no: "",
-      awb_date: new Date().toISOString().slice(0, 10),
+      awb_date: getLocalDateString(),
       kirim_via: "",
       kota_tujuan: "",
       wilayah: "",

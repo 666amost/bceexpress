@@ -429,8 +429,16 @@ function getTransitFee(kotaTujuan: string, kecamatan: string): number {
 }
 
 export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin, initialData = null, isEditing = false }: BangkaBulkAwbFormProps) {
+  // Helper to get local date string in Asia/Jakarta timezone
+  function getLocalDateString(): string {
+    const now = new Date();
+    // Convert to Asia/Jakarta (WIB, GMT+7)
+    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
+    return jakartaDate.toISOString().slice(0, 10);
+  }
+
   const [template, setTemplate] = useState<Template>({
-    awb_date: new Date().toISOString().slice(0, 10),
+    awb_date: getLocalDateString(),
     kirim_via: "",
     kota_tujuan: "",
     kecamatan: "",
@@ -603,7 +611,7 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
       setSuccess("Data berhasil disimpan!")
       setAwbEntries([])
       setTemplate({
-        awb_date: new Date().toISOString().slice(0, 10),
+        awb_date: getLocalDateString(),
         kirim_via: "",
         kota_tujuan: "",
         kecamatan: "",

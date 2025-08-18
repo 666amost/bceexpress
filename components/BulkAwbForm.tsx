@@ -216,12 +216,20 @@ function getTransitFee(wilayah: string): number {
 export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin }: BulkAwbFormProps) {
   const { toast } = useToast();
 
+  // Helper to get local date string in Asia/Jakarta timezone
+  function getLocalDateString(): string {
+    const now = new Date();
+    // Convert to Asia/Jakarta (WIB, GMT+7)
+    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
+    return jakartaDate.toISOString().slice(0, 10);
+  }
+
   const [templateForm, setTemplateForm] = useState({
     nama_pengirim: "BCE Express",
     nomor_pengirim: "0",
     kirim_via: "udara",
     agent_customer: "",
-    awb_date: new Date().toISOString().slice(0, 10),
+    awb_date: getLocalDateString(),
     metode_pembayaran: "",
   })
 
