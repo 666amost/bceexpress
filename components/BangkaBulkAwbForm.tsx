@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import { getEnhancedAgentList } from "../lib/agent-mapping"
+import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
 
 // Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
@@ -195,85 +196,8 @@ const kotaWilayahJabodetabek = {
   }
 }
 
-const baseAgentListJabodetabek = [
-  "555 in2 PKP",
-  "BELINYU AGEN",
-  "KOLIM SLT",
-  "SUNGAILIAT AGEN",
-  "TOBOALI (ABING)",
-  "KOBA (ABING)",
-  "JEBUS (MARETTA)",
-  "JEBUS (ROBI SAFARI)",
-  "MENTOK (LILY)",
-  "ACHUANG KOBA",
-  "BCE TONI WEN",
-  "7FUN SLT",
-  "ASIONG SAUCU",
-  "AFUK BOM2 SAUCU",
-  "TONI SAUCU",
-  "AFO SAUCU",
-  "KEN KEN SAUCU",
-  "ADI BOB SAUCU",
-  "AFEN SAUCU",
-  "AHEN SAUCU",
-  "AKIUNG SAUCU",
-  "ALIM SAUCU",
-  "ALIONG SAUCU",
-  "APHING SAUCU",
-  "ATER SAUCU",
-  "BULL BULL SAUCU",
-  "CHANDRA SAUCU",
-  "DANIEL SAUCU",
-  "DEDI PEN SAUCU",
-  "EDO SAUCU",
-  "HENDRA ABOY SAUCU",
-  "NYUNNYUN SAUCU",
-  "RIO SAUCU",
-  "YOPY SAUCU",
-  "ACN SNACK",
-  "ACS SNACK",
-  "ADOK RUMAH MAKAN",
-  "JI FUN MESU",
-  "BE YOU",
-  "BEST DURIAN",
-  "BOM BOM BUAH",
-  "TOKO AGUNG",
-  "AINY OTAK OTAK",
-  "APO SPX SLT",
-  "AFUI SPX P3",
-  "ASUN OTAK OTAK",
-  "BANGKA CITRA SNACK",
-  "BANGKA BULIONG SNACK",
-  "BILLY JNE",
-  "TOKO BINTANG 5",
-  "CENTRAL FOOD",
-  "CENTRAL NURSERY BANGKA",
-  "CHIKA",
-  "GLORIA MOTOR",
-  "HELDA ASIAT",
-  "HANS KOKO DURIAN",
-  "KIM NYUN AGEN",
-  "AFAT SUBUR",
-  "MR ADOX",
-  "PEMPEK KOKO LINGGAU",
-  "PEMPEK SUMBER RASA",
-  "PEMPEK WONG KITO",
-  "RAJAWALI (AKHIONG)",
-  "THEW FU CAU AWEN",
-  "THEW FU CAU PAULUS",
-  "COD UDARA",
-  "COD LAUT"
-  ,
-  // Added new Bangka agents
-  "YENNY",
-  "TATA",
-  "PHING BCE",
-  "AJIN",
-  "NINA SARJU"
-]
-
-// Enhanced agent list with email mappings
-const agentListJabodetabek = getEnhancedAgentList(baseAgentListJabodetabek)
+// Enhanced agent list with email mappings (use centralized Bangka list)
+const agentListJabodetabek = getEnhancedAgentList(baseAgentListBangka)
 
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
@@ -429,12 +353,9 @@ function getTransitFee(kotaTujuan: string, kecamatan: string): number {
 }
 
 export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin, initialData = null, isEditing = false }: BangkaBulkAwbFormProps) {
-  // Helper to get local date string in Asia/Jakarta timezone
+  // Helper to get local date string in Asia/Jakarta timezone using Intl
   function getLocalDateString(): string {
-    const now = new Date();
-    // Convert to Asia/Jakarta (WIB, GMT+7)
-    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-    return jakartaDate.toISOString().slice(0, 10);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   }
 
   const [template, setTemplate] = useState<Template>({

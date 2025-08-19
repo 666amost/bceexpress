@@ -7,6 +7,7 @@ import { createStyledExcelWithHTML } from "../lib/excel-utils"
 import { Calendar } from "./ui/calendar"
 import { format } from "date-fns"
 import { getEnhancedAgentList, doesAgentMatch } from "../lib/agent-mapping"
+import { baseAgentListBangka } from "../lib/agents"
 
 interface PaymentHistoryType {
   id?: string;
@@ -166,10 +167,8 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
       } else {
   const distinctAgents = Array.from(new Set((data || []).map((item: { agent_customer: string }) => item.agent_customer).filter(Boolean))) as string[];
 
-  // If branch is bangka, ensure the new agents are present even if DB is missing them
-  const localBangkaAdditions = ["YENNY", "TATA", "PHING BCE", "AJIN", "NINA SARJU"];
-
-  const additions = branchOrigin === 'bangka' ? localBangkaAdditions : [];
+  // If branch is bangka, merge with centralized Bangka list so new agents are guaranteed
+  const additions = branchOrigin === 'bangka' ? baseAgentListBangka : [];
   const merged = Array.from(new Set([...distinctAgents, ...additions]));
 
   // Enhance agent list with email mappings

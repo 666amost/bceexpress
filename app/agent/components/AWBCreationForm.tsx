@@ -380,12 +380,10 @@ export const AWBCreationForm: React.FC = () => {
     berat_kg: '1'
   });
 
-  // Helper to get local date string in Asia/Jakarta timezone
+  // Helper to get local date string in Asia/Jakarta timezone using Intl
   function getLocalDateString(): string {
-    const now = new Date();
-    // Convert to Asia/Jakarta (WIB, GMT+7)
-    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-    return jakartaDate.toISOString().slice(0, 10);
+    // Use en-CA to get YYYY-MM-DD format
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   }
 
   const [formData, setFormData] = useState<FormDataType>({

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from "../lib/agent-mapping"
+import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
@@ -44,6 +45,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
       "Setiabudi", "Tebet", "Cakung", "Cipayung", "Ciracas", "Duren sawit", 
       "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung", 
       "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", 
+  "Sunter Jaya", "Sunter Agung",
       "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", 
       "Jatiasih", "Jatisampurna", "Medan Satria", "pondokgede", 
       "pondokmelati", "Rawalumbu", "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", 
@@ -88,9 +90,22 @@ export default function DailyReport({ userRole, branchOrigin }) {
 
       if (selectedKirimVia) query = query.ilike("kirim_via", selectedKirimVia)
       if (selectedAgentCustomer) {
-        // Use enhanced agent matching for emails
-        const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer)
-        query = query.in("agent_customer", agentIdentifiers)
+        // Allow typing: match agent name text (ilike) OR any mapped emails (in)
+        const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer || "")
+
+        // Build OR conditions: agent_customer.ilike.%<text>% OR agent_customer.in.("email1","email2")
+        const orClauses = [];
+        // match free-text agent names (partial)
+        orClauses.push(`agent_customer.ilike.%${selectedAgentCustomer}%`);
+        // include mapped emails if available
+        if (agentIdentifiers.length > 0) {
+          const emailsOnly = agentIdentifiers.filter(id => id.includes('@'));
+          if (emailsOnly.length > 0) {
+            const inList = emailsOnly.map(e => `\"${e}\"`).join(',');
+            orClauses.push(`agent_customer.in.(${inList})`);
+          }
+        }
+        query = query.or(orClauses.join(','));
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
@@ -120,128 +135,12 @@ export default function DailyReport({ userRole, branchOrigin }) {
     }
   }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode]);
 
-  // Now declare agentList and other variables below
-  const baseAgentListBangka = [
-    "555 in2 PKP",
-    "BELINYU AGEN",
-    "KOLIM SLT",
-    "SUNGAILIAT AGEN",
-    "TOBOALI (ABING)",
-    "KOBA (ABING)",
-    "JEBUS (MARETTA)",
-    "JEBUS (ROBI SAFARI)",
-    "MENTOK (LILY)",
-    "ACHUANG KOBA",
-    "BCE TONI WEN",
-    "7FUN SLT",
-    "ASIONG SAUCU",
-    "AFUK BOM2 SAUCU",
-    "TONI SAUCU",
-    "AFO SAUCU",
-    "KEN KEN SAUCU",
-    "ADI BOB SAUCU",
-    "AFEN SAUCU",
-    "AHEN SAUCU",
-    "AKIUNG SAUCU",
-    "ALIM SAUCU",
-    "ALIONG SAUCU",
-    "APHING SAUCU",
-    "ATER SAUCU",
-    "BULL BULL SAUCU",
-    "CHANDRA SAUCU",
-    "DANIEL SAUCU",
-    "DEDI PEN SAUCU",
-    "EDO SAUCU",
-    "HENDRA ABOY SAUCU",
-    "NYUNNYUN SAUCU",
-    "RIO SAUCU",
-    "YOPY SAUCU",
-    "ACN SNACK",
-    "ACS SNACK",
-    "ADOK RUMAH MAKAN",
-    "JI FUN MESU",
-    "BE YOU",
-    "BEST DURIAN",
-    "BOM BOM BUAH",
-    "TOKO AGUNG",
-    "AINY OTAK OTAK",
-    "APO SPX SLT",
-    "AFUI SPX P3",
-    "ASUN OTAK OTAK",
-    "BANGKA CITRA SNACK",
-    "BANGKA BULIONG SNACK",
-    "BILLY JNE",
-    "TOKO BINTANG 5",
-    "CENTRAL FOOD",
-    "CENTRAL NURSERY BANGKA",
-    "CHIKA",
-    "GLORIA MOTOR",
-    "HELDA ASIAT",
-    "HANS KOKO DURIAN",
-    "KIM NYUN AGEN",
-    "AFAT SUBUR",
-    "MR ADOX",
-    "PEMPEK KOKO LINGGAU",
-    "PEMPEK SUMBER RASA",
-    "PEMPEK WONG KITO",
-    "RAJAWALI (AKHIONG)",
-    "THEW FU CAU AWEN",
-    "THEW FU CAU PAULUS",
-    "COD UDARA",
-    "COD LAUT"
-  ,
-  // Added new Bangka agents
-  "YENNY",
-  "TATA",
-  "PHING BCE",
-  "AJIN",
-  "NINA SARJU"
-  ];
-
-  const baseAgentListTanjungPandan = ["COD", "TRANSFER", "CASH", "Wijaya Crab"];
-
-  const baseAgentListCentral = [
-    "GLC COD UDR",
-    "GLC COD DRT",
-    "OTTY OFFICIAL",
-    "UDR CASH",
-    "SEA CASH",
-    "GLC UDR TRF",
-    "GLC SEA TRF",
-    "COD UDR",
-    "COD SEA",
-    "KMY UDR TRF",
-    "KMY SEA TRF",
-    "KARTINI KIKI",
-    "DUTA GARDEN FRENITA",
-    "FELLISIA PORIS EX 3",
-    "CITRA 3 RENY",
-    "HENDI",
-    "PRALITA",
-    "SALIM",
-    "ISKANDAR",
-    "IMAM",
-    "DONI",
-    "HERFAN",
-    "EZZA",
-    "YANDRI",
-    "DIKY",
-    "YOS",
-    "INDAH SUSHI TIME",
-    "CENTRAL NURSERY BANGKA",
-    "MAMAPIA",
-    "AMELIA PEDINDANG",
-    "HENDRY LIMIA",
-    "JESS DOT",
-    "SEPIRING RASA BASO",
-    "CHRISTINE PADEMANGAN"
-  ];
-
+  // Use centralized agent lists
   const agentList = isBranchMode
     ? (branchOrigin === 'bangka'
         ? getEnhancedAgentList(baseAgentListBangka)
         : getEnhancedAgentList(baseAgentListTanjungPandan))
-    : getEnhancedAgentList(baseAgentListCentral);
+  : getEnhancedAgentList(baseAgentListCentral);
 
   const kotaTujuan = isBranchMode
     ? (branchOrigin === 'bangka'
@@ -598,10 +497,11 @@ export default function DailyReport({ userRole, branchOrigin }) {
           <option value="darat">Darat</option>
         </select>
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Agent/Customer:</label>
-        <select value={selectedAgentCustomer} onChange={(e) => setSelectedAgentCustomer(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400">
+        <input list="agent-options" value={selectedAgentCustomer} onChange={(e) => setSelectedAgentCustomer(e.target.value)} placeholder="Ketik untuk mencari agent" className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400" />
+        <datalist id="agent-options">
           <option value="">Semua</option>
           {agentList.map(agent => (<option key={agent} value={agent}>{agent}</option>))}
-        </select>
+        </datalist>
         {/* Area Code filter hanya untuk branch mode (manifest_cabang) */}
         {isBranchMode && (
           <>

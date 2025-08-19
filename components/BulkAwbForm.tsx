@@ -216,12 +216,9 @@ function getTransitFee(wilayah: string): number {
 export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigin }: BulkAwbFormProps) {
   const { toast } = useToast();
 
-  // Helper to get local date string in Asia/Jakarta timezone
+  // Helper to get local date string in Asia/Jakarta timezone using Intl
   function getLocalDateString(): string {
-    const now = new Date();
-    // Convert to Asia/Jakarta (WIB, GMT+7)
-    const jakartaDate = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-    return jakartaDate.toISOString().slice(0, 10);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   }
 
   const [templateForm, setTemplateForm] = useState({
@@ -771,8 +768,8 @@ export default function BulkAwbForm({ onSuccess, onCancel, userRole, branchOrigi
           }
         }
 
-        // Save PDF
-        pdf.save(`Bulk_AWB_${new Date().toISOString().slice(0, 10)}.pdf`);
+  // Save PDF
+  pdf.save(`Bulk_AWB_${getLocalDateString()}.pdf`);
 
         toast({
           title: "PDF Berhasil Dibuat!",
