@@ -92,20 +92,28 @@ export default function DailyReport({ userRole, branchOrigin }) {
       if (selectedAgentCustomer) {
         // Allow typing: match agent name text (ilike) OR any mapped emails (in)
         const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer || "")
+  // debug logs removed
 
         // Build OR conditions: agent_customer.ilike.%<text>% OR agent_customer.in.("email1","email2")
         const orClauses = [];
-        // match free-text agent names (partial)
-        orClauses.push(`agent_customer.ilike.%${selectedAgentCustomer}%`);
-        // include mapped emails if available
-        if (agentIdentifiers.length > 0) {
+        
+        // Include mapped emails if available (this is the primary match for mapped agents)
+        if (agentIdentifiers.length > 1) { // More than just the agent name itself
           const emailsOnly = agentIdentifiers.filter(id => id.includes('@'));
           if (emailsOnly.length > 0) {
             const inList = emailsOnly.map(e => `\"${e}\"`).join(',');
             orClauses.push(`agent_customer.in.(${inList})`);
           }
         }
-        query = query.or(orClauses.join(','));
+        
+        // Also match free-text agent names (partial) - for both display names and direct agent_customer entries
+        orClauses.push(`agent_customer.ilike.%${selectedAgentCustomer}%`);
+        
+  // debug logs removed
+        
+        if (orClauses.length > 0) {
+          query = query.or(orClauses.join(','));
+        }
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) {
