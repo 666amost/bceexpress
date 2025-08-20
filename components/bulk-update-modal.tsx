@@ -675,19 +675,29 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
       {/* Mobile viewport fix for keyboard handling */}
       <style jsx global>{`
         @media (max-width: 640px) {
-          .mobile-keyboard-open {
+          /* Target the dialog content element when it has the mobile-keyboard-open class.
+             Use left:50% + translateX to ensure it's centered even when position becomes fixed. */
+          .bulk-update-modal .dialog-content.mobile-keyboard-open,
+          .dialog-content.mobile-keyboard-open {
             position: fixed !important;
             top: 10px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            right: auto !important;
             bottom: auto !important;
             max-height: 60vh !important;
-            transform: none !important;
+            width: 95vw !important;
+            overflow: visible !important;
+            z-index: 10000 !important;
           }
-          
-          .mobile-keyboard-open .dialog-content {
+
+          /* Ensure the inner content becomes scrollable if it overflows */
+          .bulk-update-modal .dialog-content.mobile-keyboard-open .dialog-content,
+          .dialog-content.mobile-keyboard-open .dialog-content {
             max-height: 60vh !important;
             overflow-y: auto !important;
           }
-          
+
           .mobile-keyboard-footer {
             position: sticky !important;
             bottom: 0 !important;
@@ -696,22 +706,22 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
             margin-top: auto !important;
             z-index: 10 !important;
           }
-          
+
           .dark .mobile-keyboard-footer {
             background: #111827 !important;
             border-top-color: #374151 !important;
           }
         }
-        
+
         /* Hide default dialog close button ONLY for bulk update modal */
         .bulk-update-modal [data-radix-collection-item] button[aria-label="Close"] {
           display: none !important;
         }
-        
+
         .bulk-update-modal button[data-state] > svg {
           display: none !important;
         }
-        
+
         .bulk-update-modal .dialog-content button[type="button"]:has(svg) {
           display: none !important;
         }
