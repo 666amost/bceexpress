@@ -82,6 +82,9 @@ export const baseAgentListBangka: string[] = [
   "AF BAKWAN",
   "NOVI / IN IN",
   "VICHA FOOD"
+  ,
+  "WW Snack",
+  "PC 46 / Elly"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [
