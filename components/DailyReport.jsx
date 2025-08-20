@@ -108,7 +108,15 @@ export default function DailyReport({ userRole, branchOrigin }) {
         query = query.or(orClauses.join(','));
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
-      if (selectedWilayah) query = query.eq("wilayah", selectedWilayah)
+      if (selectedWilayah) {
+        // For branch mode (manifest_cabang) the area is stored in `kecamatan`.
+        // Use `kecamatan` when in branch mode, otherwise use `wilayah`.
+        if (isBranchMode) {
+          query = query.eq("kecamatan", selectedWilayah)
+        } else {
+          query = query.eq("wilayah", selectedWilayah)
+        }
+      }
       if (selectedAreaCode && isBranchMode) {
         // Area code filter HANYA untuk branch mode (manifest_cabang)
         const areaWilayahList = areaCodeData[selectedAreaCode] || []
@@ -265,7 +273,8 @@ export default function DailyReport({ userRole, branchOrigin }) {
       'Cash': (item.metode_pembayaran || '').toLowerCase() === 'cash' ? (item.total || 0) : 0,
       'Transfer': (item.metode_pembayaran || '').toLowerCase() === 'transfer' ? (item.total || 0) : 0,
       'COD': (item.metode_pembayaran || '').toLowerCase() === 'cod' ? (item.total || 0) : 0,
-      'Wilayah': item.wilayah
+  // prefer kecamatan (branch mode) but fall back to wilayah
+  'Wilayah': item.kecamatan || item.wilayah
     }));
 
     let dateRangeText = '';
@@ -441,7 +450,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
                   <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
                   <td class="text-right total-currency">${(item.metode_pembayaran || '').toLowerCase() === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('id-ID')}` : '-'}</td>
-                  <td class="font-medium">${item.wilayah}</td>
+                  <td class="font-medium">${item.kecamatan || item.wilayah}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -573,7 +582,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'cash' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'transfer' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.wilayah}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.kecamatan || item.wilayah}</td>
                   </tr>
                 ))}
               </tbody>
