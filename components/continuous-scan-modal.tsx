@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 // ScrollArea removed - unused import
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -356,7 +356,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
   <DialogContent showCloseButton={false} className="w-[95vw] max-w-md mx-auto p-0 border-0">
-        <DialogTitle className="sr-only">Continuous AWB Scanner</DialogTitle>
+  <DialogTitle className="sr-only">Continuous AWB Scanner</DialogTitle>
         <Card className="h-[90vh] flex flex-col overflow-hidden bg-gray-50 border border-gray-200 shadow-lg">
             <CardHeader className="bg-white border-b border-gray-200">
               <div className="flex justify-between items-center">
@@ -365,19 +365,20 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                   <FontAwesomeIcon icon={faTimes} className="h-4 w-4" />
                 </Button>
               </div>
-              <CardDescription className="text-gray-600">
+              <DialogDescription className="text-gray-600">
                 Scan otomatis resi, hentikan kamera sebelum menutup.
-              </CardDescription>
+              </DialogDescription>
             </CardHeader>
             <CardContent className="flex-1 p-4 flex flex-col bg-white">
               {/* Camera */}
-      <div className="relative w-full h-[360px] sm:h-[420px] bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
+      <div className="relative w-full aspect-square sm:aspect-square bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
                 {showScanner ? (
                   <QRScanner
                     onScan={handleQRScan}
                     onClose={handleStopCamera}
                     hideCloseButton
                     disableAutoUpdate
+                    squarePercent={0.9}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">

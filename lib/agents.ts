@@ -84,7 +84,14 @@ export const baseAgentListBangka: string[] = [
   "VICHA FOOD"
   ,
   "WW Snack",
-  "PC 46 / Elly"
+  "PC 46 / Elly",
+  "Devi Snack",
+  "Bbs Snack",
+  "Jajanan Khas Bangka",
+  "Pempek Wongkito",
+  "Cece Rambat",
+  "Sofyan Bakpaw",
+  "Bom2 Buah"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [

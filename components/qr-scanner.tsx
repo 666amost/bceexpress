@@ -45,6 +45,8 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
   const [isTorchAvailable, setIsTorchAvailable] = useState(false)
   const [isTorchOn, setIsTorchOn] = useState(false)
   const torchFeatureRef = useRef<TorchFeature | null>(null)
+  const deviceIdRef = useRef<string | null>(null)
+  const resizeTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     // Get current user
@@ -231,14 +233,42 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
       const devices = await Html5Qrcode.getCameras()
       const backCamera = devices.find(device => device.label.toLowerCase().includes('back'))
       const deviceId = backCamera ? backCamera.id : devices[0].id
+      deviceIdRef.current = deviceId
 
       scannerRef.current = new Html5Qrcode("qr-reader")
-      
+      // Compute qrbox dynamically based on the container size and props.
+      const computeQrbox = (): number | { width: number; height: number } => {
+        try {
+          const el = document.getElementById("qr-reader")
+          if (!el) return 250
+          const rect = el.getBoundingClientRect()
+          const minDim = Math.min(rect.width, rect.height)
+
+          if (typeof squarePercent === "number") {
+            const p = Math.max(0.1, Math.min(1, squarePercent))
+            return Math.floor(minDim * p)
+          }
+
+          if (qrboxSize && (qrboxSize.widthPercent || qrboxSize.heightPercent)) {
+            const wp = Math.max(0.1, Math.min(1, qrboxSize.widthPercent ?? 0.7))
+            const hp = Math.max(0.1, Math.min(1, qrboxSize.heightPercent ?? wp))
+            return { width: Math.floor(rect.width * wp), height: Math.floor(rect.height * hp) }
+          }
+
+          // Default: square 90% of the smaller dimension
+          return Math.floor(minDim * 0.9)
+        } catch (err) {
+          return 250
+        }
+      }
+
+      const qrboxOption = computeQrbox()
+
       await scannerRef.current.start(
         deviceId,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: qrboxOption,
         },
         async (decodedText: string, result: Html5QrcodeResult) => {
           // Prevent duplicate scans of the same code
@@ -339,15 +369,43 @@ export function QRScanner({ onScan, onClose, hideCloseButton = false, disableAut
     // Auto-start scanning when component mounts
     startScanning()
 
-    return () => {
-      // Cleanup function to stop scanning when component unmounts
-      const cleanup = async () => {
+    // Restart scanner on window resize to recompute qrbox for different device ratios
+    const handleResize = () => {
+      // Debounce rapid resize events
+      if (resizeTimeoutRef.current) {
+        window.clearTimeout(resizeTimeoutRef.current)
+      }
+      resizeTimeoutRef.current = window.setTimeout(async () => {
         try {
           if (scannerRef.current?.isScanning) {
-            // Turn torch off before stopping scanner
+            await scannerRef.current.stop()
+            // small delay to allow camera to release
+            setTimeout(() => {
+              // restart scanning using current settings
+              startScanning()
+            }, 300)
+          }
+        } catch (err) {
+          // ignore
+        }
+      }, 250)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      // Cleanup function to stop scanning and remove listeners when component unmounts
+      const cleanup = async () => {
+        try {
+          window.removeEventListener('resize', handleResize)
+          if (resizeTimeoutRef.current) {
+            window.clearTimeout(resizeTimeoutRef.current)
+            resizeTimeoutRef.current = null
+          }
+          if (scannerRef.current?.isScanning) {
             if (isTorchOn && torchFeatureRef.current) {
               try {
-                await torchFeatureRef.current.apply(false);
+                await torchFeatureRef.current.apply(false)
               } catch (err) {
                 // Silently handle torch turn off errors
               }
