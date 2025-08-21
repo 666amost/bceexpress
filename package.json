@@ -3,12 +3,10 @@
   "version": "5.5.6",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/sync-courier-version.js",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "sync-courier": "node scripts/sync-courier-version.js"
+    "lint": "next lint"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.2",
