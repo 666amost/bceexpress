@@ -91,7 +91,13 @@ export const baseAgentListBangka: string[] = [
   "Pempek Wongkito",
   "Cece Rambat",
   "Sofyan Bakpaw",
-  "Bom2 Buah"
+  "Bom2 Buah",
+  "Dedi/achong",
+  "SHM AGEN",
+  "CE MEI NI",
+  "AFun Mesu",
+  "Toko Amin Snack",
+  "Fong2 Snack"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [
