@@ -468,10 +468,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                           <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white" />
                           <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white" />
                         </div>
-                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center">
-                          <p className="text-white text-sm font-medium">🚀 Native Scanner Active</p>
-                          <p className="text-white text-xs opacity-75">CameraX + ZXing</p>
-                        </div>
+                        {/* cleaned: removed visible native scanner text to keep overlay minimal */}
                       </div>
                       
                       {/* Bottom: Recent scans list (compact) */}
@@ -519,7 +516,7 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
                       </Button>
                   </div>
                 )}
-                {showScanner && (
+                {showScanner && !isNativeScannerAvailable() && (
                   <Button
                     variant="destructive"
                     size="sm"
