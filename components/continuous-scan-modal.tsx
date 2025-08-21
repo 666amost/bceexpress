@@ -333,16 +333,76 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
     }
   };
 
+  // Helper: detect native scanner availability in a type-safe way
+  const isNativeScannerAvailable = (): boolean => {
+    try {
+      return typeof window !== 'undefined' && !!window.AndroidNativeScanner && typeof window.AndroidNativeScanner.scan === 'function';
+    } catch (err) {
+      return false;
+    }
+  };
+
   const handleStartCamera = async () => {
-    setShowScanner(true);
+    if (isNativeScannerAvailable()) {
+      // Setup native callback that delegates to existing handler
+      window.onScanResult = (awb: string) => {
+        try {
+          // reuse existing handler for dedupe/processing
+          handleQRScan(awb);
+        } catch (err) {
+          // swallow errors; user-visible feedback via toast where appropriate
+        }
+      };
+
+      try {
+        // Enable continuous mode if supported
+        window.AndroidNativeScanner?.setContinuous?.(true);
+        window.AndroidNativeScanner?.scan();
+        setShowScanner(true);
+      } catch (err) {
+        toast({ title: 'Gagal memulai native scanner', description: 'Silakan coba mode web', variant: 'destructive' });
+        // fallback to web scanner
+        setShowScanner(true);
+      }
+    } else {
+      // Web fallback
+      setShowScanner(true);
+    }
   };
 
   const handleStopCamera = () => {
+    if (isNativeScannerAvailable()) {
+      try {
+        window.AndroidNativeScanner?.stop();
+      } catch (err) {
+        // swallow
+      }
+      // cleanup callback
+      try {
+        window.onScanResult = undefined;
+      } catch (err) {
+        // swallow
+      }
+    }
     setShowScanner(false);
   };
 
   const handleClose = () => {
-    setShowScanner(false);
+    // Ensure native scanner is stopped and callback cleared
+    if (isNativeScannerAvailable()) {
+      try {
+        window.AndroidNativeScanner?.stop();
+      } catch (err) {
+        // swallow
+      }
+      try {
+        window.onScanResult = undefined;
+      } catch (err) {
+        // swallow
+      }
+    } else {
+      setShowScanner(false);
+    }
     onClose();
     if (scannedItems.some(item => item.status === 'success')) {
       onSuccess();
@@ -373,13 +433,27 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
               {/* Camera */}
       <div className="relative w-full aspect-square sm:aspect-square bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
                 {showScanner ? (
-                  <QRScanner
-                    onScan={handleQRScan}
-                    onClose={handleStopCamera}
-                    hideCloseButton
-                    disableAutoUpdate
-                    squarePercent={0.9}
-                  />
+                  isNativeScannerAvailable() ? (
+                    // Native scanner overlay (visual only). Actual scanning handled by APK.
+                    <div className="flex flex-col items-center justify-center h-full text-white bg-black bg-opacity-50">
+                      <div className="border-2 border-white rounded-lg w-3/4 h-3/4 relative">
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white" />
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white" />
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white" />
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white" />
+                      </div>
+                      <p className="mt-4 text-sm">🚀 Native Scanner Active</p>
+                      <p className="text-xs opacity-75">CameraX + ZXing</p>
+                    </div>
+                  ) : (
+                    <QRScanner
+                      onScan={handleQRScan}
+                      onClose={handleStopCamera}
+                      hideCloseButton
+                      disableAutoUpdate
+                      squarePercent={0.9}
+                    />
+                  )
                 ) : (
                   <div className="flex items-center justify-center h-full">
                       <Button onClick={handleStartCamera} size="lg">
