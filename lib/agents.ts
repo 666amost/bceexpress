@@ -97,7 +97,8 @@ export const baseAgentListBangka: string[] = [
   "CE MEI NI",
   "AFun Mesu",
   "Toko Amin Snack",
-  "Fong2 Snack"
+  "Fong2 Snack",
+  "Ahap Walet"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [
