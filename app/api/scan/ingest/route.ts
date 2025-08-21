@@ -18,7 +18,7 @@
 // failures.  This file targets Next.js 15's App Router.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, PostgrestError } from '@supabase/supabase-js'
 
 // Utility: create a Supabase client using service role credentials.  The
 // service role key must never be exposed to the browser.  Define
@@ -118,7 +118,7 @@ async function getManifestData(awb: string): Promise<ManifestResult | null> {
 }
 
 /** Create a new shipment record based on the AWB and optional manifest data. */
-async function createShipment(awb: string, manifestData: any, courierId: string | null, status: string = 'out_for_delivery') {
+async function createShipment(awb: string, manifestData: ManifestResult | null, courierId: string | null, status: string = 'out_for_delivery') {
   const now = new Date().toISOString()
   const shipment = {
     awb_number: awb,
@@ -183,15 +183,16 @@ async function addHistory(awb: string, courierName: string, status: string = 'ou
   if (courierId) {
     history['courier_id'] = courierId
   }
-  const { error } = await supabase.from('shipment_history').insert([history])
+  const res = await supabase.from('shipment_history').insert([history])
+  const error = res.error as PostgrestError | null
   if (error) {
     // Treat unique-constraint duplicate history as idempotent success
-    const msg = (error as any)?.message || String(error)
-    const code = (error as any)?.code || (error as any)?.status
-    if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
+    const msg = error.message ?? String(error)
+  const code = error.code as string | undefined
+  if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
       return { success: true, message: 'duplicate history ignored' }
     }
-    if (code === '23505' || code === 23505) {
+  if (code === '23505') {
       return { success: true, message: 'duplicate history ignored' }
     }
     return { success: false, message: 'Failed to add history: ' + msg }
