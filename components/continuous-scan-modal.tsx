@@ -73,10 +73,34 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
     if (isOpen) {
       setScannedItems([]);
       setShowScanner(true);
+      
+      // Auto-start native scanner if available
+      const timer = setTimeout(() => {
+        const isNative = typeof window !== 'undefined' && !!window.AndroidNativeScanner && typeof window.AndroidNativeScanner.scan === 'function';
+        if (isNative) {
+          try {
+            window.onScanResult = (awb: string) => {
+              // Directly call processAwb instead of handleQRScan to avoid dependency
+              if (!isProcessing) {
+                const cleanAwb = awb.trim().toUpperCase();
+                setTimeout(() => {
+                  processAwb(cleanAwb);
+                }, 300);
+              }
+            };
+            window.AndroidNativeScanner?.setContinuous?.(true);
+            window.AndroidNativeScanner?.scan();
+          } catch (err) {
+            // fallback to web scanner
+          }
+        }
+      }, 200);
+      
+      return () => clearTimeout(timer);
     } else {
       setShowScanner(false);
     }
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const validateAwb = (awb: string): boolean => {
     const cleanAwb = awb.trim().toUpperCase();
@@ -434,16 +458,49 @@ export function ContinuousScanModal({ isOpen, onClose, onSuccess, prefillStatus 
       <div className="relative w-full aspect-square sm:aspect-square bg-black rounded-lg overflow-hidden mb-4 border border-gray-300 flex-shrink-0">
                 {showScanner ? (
                   isNativeScannerAvailable() ? (
-                    // Native scanner overlay (visual only). Actual scanning handled by APK.
-                    <div className="flex flex-col items-center justify-center h-full text-white bg-black bg-opacity-50">
-                      <div className="border-2 border-white rounded-lg w-3/4 h-3/4 relative">
-                        <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white" />
-                        <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white" />
-                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white" />
-                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white" />
+                    // Native scanner overlay with scan results
+                    <div className="flex flex-col h-full">
+                      {/* Top: Camera preview area with overlay */}
+                      <div className="flex-1 relative bg-black bg-opacity-50 flex items-center justify-center">
+                        <div className="border-2 border-white rounded-lg w-3/4 h-3/4 relative">
+                          <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white" />
+                          <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white" />
+                          <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white" />
+                          <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white" />
+                        </div>
+                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center">
+                          <p className="text-white text-sm font-medium">🚀 Native Scanner Active</p>
+                          <p className="text-white text-xs opacity-75">CameraX + ZXing</p>
+                        </div>
                       </div>
-                      <p className="mt-4 text-sm">🚀 Native Scanner Active</p>
-                      <p className="text-xs opacity-75">CameraX + ZXing</p>
+                      
+                      {/* Bottom: Recent scans list (compact) */}
+                      {scannedItems.length > 0 && (
+                        <div className="bg-black bg-opacity-80 text-white p-3 max-h-32 overflow-y-auto">
+                          <div className="text-xs font-medium mb-2 flex justify-between">
+                            <span>Recent Scans</span>
+                            <span>{successCount}✓ {errorCount}✗ {duplicateCount}⚠</span>
+                          </div>
+                          <div className="space-y-1">
+                            {scannedItems.slice(0, 3).map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="font-mono truncate">{item.awb}</span>
+                                <span className={`ml-2 ${
+                                  item.status === 'success' ? 'text-green-400' : 
+                                  item.status === 'error' ? 'text-red-400' : 'text-yellow-400'
+                                }`}>
+                                  {item.status === 'success' ? '✓' : item.status === 'error' ? '✗' : '⚠'}
+                                </span>
+                              </div>
+                            ))}
+                            {scannedItems.length > 3 && (
+                              <div className="text-xs text-gray-400 text-center">
+                                +{scannedItems.length - 3} more...
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <QRScanner
