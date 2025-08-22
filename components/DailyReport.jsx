@@ -45,7 +45,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
       "Setiabudi", "Tebet", "Cakung", "Cipayung", "Ciracas", "Duren sawit", 
       "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung", 
       "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", 
-  "Sunter Jaya", "Sunter Agung",
+  "Sunter Jaya", "Sunter Agung", "Warakas", "Kebon Bawang", "Papanggo", "Sungai Bambu",
       "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", 
       "Jatiasih", "Jatisampurna", "Medan Satria", "pondokgede", 
       "pondokmelati", "Rawalumbu", "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", 
