@@ -106,12 +106,14 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
           .select("awb_no, awb_date, nama_pengirim, nama_penerima, total, buktimembayar, potongan, agent_customer")
           .eq("buktimembayar", false)
           .eq('origin_branch', branchOrigin)
+          .order('awb_date', { ascending: true })
       } else {
         // Central users or branch with empty origin use central table
         query = supabaseClient
           .from("manifest")
           .select("awb_no, awb_date, nama_pengirim, nama_penerima, total, buktimembayar, potongan, agent_customer")
           .eq("buktimembayar", false)
+          .order('awb_date', { ascending: true })
       }
 
       const { data: fetchedData, error } = await query
@@ -120,7 +122,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
         setError(`Error fetching unpaid data: ${error.message}`)
       } else {
         // Calculate discounted total for each row
-        const processedData = fetchedData.map((row, index) => {
+        const processedData = (fetchedData || []).map((row, index) => {
           const potongan = Number(row.potongan || 0)
           const originalTotal = Number(row.total || 0)
           const discountedTotal = originalTotal - potongan
@@ -133,6 +135,13 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
             index,
             selected: false,
           }
+        })
+
+        // Ensure chronological order by awb_date as a fallback (in case DB ordering isn't available or dates are inconsistent)
+        processedData.sort((a, b) => {
+          const aDate = a && a.awb_date ? new Date(a.awb_date) : new Date(0)
+          const bDate = b && b.awb_date ? new Date(b.awb_date) : new Date(0)
+          return aDate.getTime() - bDate.getTime()
         })
 
         setUnpaidData(processedData)
@@ -403,15 +412,22 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   };
 
   // Filter unpaid data based on search and selected agent
-  const filteredUnpaidData = unpaidData.filter(
-    (row) =>
-      (selectedAgent ? doesAgentMatch(row.agent_customer, selectedAgent) : true) &&
-      (search
-        ? row.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
-          row.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
-          row.nama_penerima?.toLowerCase().includes(search.toLowerCase())
-        : true),
-  )
+  const filteredUnpaidData = unpaidData
+    .filter(
+      (row) =>
+        (selectedAgent ? doesAgentMatch(row.agent_customer, selectedAgent) : true) &&
+        (search
+          ? row.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
+            row.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
+            row.nama_penerima?.toLowerCase().includes(search.toLowerCase())
+          : true),
+    )
+    .slice()
+    .sort((a, b) => {
+      const aDate = a && a.awb_date ? new Date(a.awb_date) : new Date(0)
+      const bDate = b && b.awb_date ? new Date(b.awb_date) : new Date(0)
+      return aDate.getTime() - bDate.getTime()
+    })
 
   // Filter payment history based on search
   const filteredPaymentHistory = paymentHistory.filter(
