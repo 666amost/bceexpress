@@ -235,9 +235,12 @@ const areaCodes: Record<string, string> = {
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
   'Penjaringan': 'GLC',
-  // Jakarta Pusat - GLC group
-  'TANAH ABANG': 'GLC',
-  'Tanah abang': 'GLC',
+  // Jakarta Pusat mappings
+  // Plain 'TANAH ABANG' maps to KMY, while the Gelora variant maps to GLC
+  'TANAH ABANG': 'KMY',
+  'Tanah abang': 'KMY',
+  'TANAH ABANG (GELORA)': 'GLC',
+  'Tanah abang (gelora)': 'GLC',
   // Bogor - GLC group
   'GUNUNG SINDUR': 'GLC',
   'Gunung Sindur': 'GLC',
@@ -269,8 +272,7 @@ const areaCodes: Record<string, string> = {
   'TANJUNG PRIOK': 'KMY',
   'Tanjung priok': 'KMY',
   // Jakarta Pusat - KMY group (special cases)
-  'TANAH ABANG (gelora)': 'KMY',
-  'Tanah abang (gelora)': 'KMY'
+  // (Gelora variant should map to GLC; plain TANAH ABANG maps to KMY)
 };
 
 // Fungsi untuk mendapatkan biaya transit berdasarkan wilayah (sama seperti di BangkaAwbForm)
@@ -629,14 +631,26 @@ export const AWBCreationForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Use addAWB from AgentContext (already implements direct database insert)
-      const result = await addAWB({
+      // Normalize textual fields to avoid DB mismatches (trim + unify casing)
+      const normalizedKota = (formData.kota_tujuan || '').toString().trim();
+      const normalizedKecamatan = (formData.kecamatan || '').toString().trim();
+
+      // Build wilayah for storage — prefer existing formData.wilayah if branch uses kecamatan directly
+      let normalizedWilayah = (formData.wilayah || '').toString().trim();
+      // If wilayah is empty or for non-branch display format, try to compute from airport + area
+      if (!normalizedWilayah) {
+        const airport = airportCodes[normalizedKota] || '';
+        const area = areaCodes[normalizedKecamatan] || '';
+        normalizedWilayah = area ? `${airport}/${area}` : airport;
+      }
+
+      const payload = {
         awb_no: formData.awb_no,
         awb_date: formData.awb_date,
         kirim_via: formData.kirim_via || 'DARAT',
-        kota_tujuan: formData.kota_tujuan,
-        wilayah: formData.wilayah,
-        kecamatan: formData.kecamatan,
+        kota_tujuan: normalizedKota.toUpperCase(),
+        wilayah: normalizedWilayah,
+        kecamatan: normalizedKecamatan, // keep original casing but trimmed
         metode_pembayaran: formData.metode_pembayaran,
         agent_customer: currentAgent.email,
         nama_pengirim: formData.nama_pengirim,
@@ -654,7 +668,9 @@ export const AWBCreationForm: React.FC = () => {
         total: formData.total || 0,
         isi_barang: formData.isi_barang,
         catatan: formData.catatan
-      });
+      };
+
+      const result = await addAWB(payload);
 
       if (result) {
         setSubmittedAWB(formData.awb_no);

@@ -37,7 +37,10 @@ const areaCodes: Record<string, string> = {
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
   // Jakarta Pusat - GLC group
-  'TANAH ABANG': 'GLC',
+  // NOTE: plain "TANAH ABANG" should map to KMY (Kreko). Gelora variant maps to GLC.
+  'TANAH ABANG': 'KMY',
+  'TANAH ABANG (GELORA)': 'GLC',
+  'TANAH ABANG (gelora)': 'GLC',
   // Bogor - GLC group
   'GUNUNG SINDUR': 'GLC',
 
@@ -58,7 +61,16 @@ const areaCodes: Record<string, string> = {
   'PADEMANGAN': 'KMY',
   'TANJUNG PRIOK': 'KMY',
   // Jakarta Pusat - KMY group (special cases)
-  'TANAH ABANG (gelora)': 'KMY'
+  // keep any exceptional mappings here; general Tanah Abang mapping moved above
+  // Add Jakarta Utara aliases that should route to KMY
+  'WARAKAS': 'KMY',
+  'Warakas': 'KMY',
+  'KEBON BAWANG': 'KMY',
+  'Kebon Bawang': 'KMY',
+  'PAPANGGO': 'KMY',
+  'Papanggo': 'KMY',
+  'SUNGAI BAMBU': 'KMY',
+  'Sungai Bambu': 'KMY'
 };
 
 interface ManifestBookingData {

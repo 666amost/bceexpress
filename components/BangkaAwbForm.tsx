@@ -30,7 +30,9 @@ const areaCodeMapping: Record<string, string> = {
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
   // Jakarta Pusat - GLC group
-  'TANAH ABANG': 'GLC',
+  // NOTE: plain 'TANAH ABANG' should map to KMY; the Gelora variant maps to GLC
+  'TANAH ABANG': 'KMY',
+  'TANAH ABANG (GELORA)': 'GLC',
   // Bogor - GLC group
   'GUNUNG SINDUR': 'GLC',
 

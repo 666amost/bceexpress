@@ -79,7 +79,10 @@ export default function PrintLayout({ data }) {
   // Jakarta Utara - GLC group
   "PENJARINGAN": "GLC",
   // Jakarta Pusat - GLC group
-  "TANAH ABANG": "GLC",
+  // Plain 'TANAH ABANG' should map to KMY; Gelora variant maps to GLC
+  "TANAH ABANG": "KMY",
+  // Gelora variant maps to GLC
+  "TANAH ABANG (GELORA)": "GLC",
   // Bogor - GLC group
   "GUNUNG SINDUR": "GLC",
   // Kreko (KMY) variants and Jakarta group
@@ -99,7 +102,15 @@ export default function PrintLayout({ data }) {
   "PADEMANGAN": "KMY",
   "TANJUNG PRIOK": "KMY",
   // Jakarta Pusat - KMY group (special cases)
-  "TANAH ABANG (GELORA)": "KMY"
+  // Ensure Gelora variant is mapped to GLC above; add Jakarta Utara aliases for KMY
+  "WARAKAS": "KMY",
+  "Warakas": "KMY",
+  "KEBON BAWANG": "KMY",
+  "Kebon Bawang": "KMY",
+  "PAPANGGO": "KMY",
+  "Papanggo": "KMY",
+  "SUNGAI BAMBU": "KMY",
+  "Sungai Bambu": "KMY"
   };
 
   // Get the area code based on kota_tujuan or kecamatan

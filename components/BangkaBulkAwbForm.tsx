@@ -29,8 +29,10 @@ const areaCodeMapping: Record<string, string> = {
   'PESANGGRAHAN': 'GLC',
   // Jakarta Utara - GLC group
   'PENJARINGAN': 'GLC',
-  // Jakarta Pusat - GLC group
-  'TANAH ABANG': 'GLC',
+  // Jakarta Pusat mappings
+  // Plain 'TANAH ABANG' maps to KMY, while the Gelora variant maps to GLC
+  'TANAH ABANG': 'KMY',
+  'TANAH ABANG (GELORA)': 'GLC',
   // Bogor - GLC group
   'GUNUNG SINDUR': 'GLC',
 
