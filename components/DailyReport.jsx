@@ -5,6 +5,7 @@ import { supabaseClient } from "../lib/auth"
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
+import { areaCodeData } from '@/lib/area-codes';
 
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
@@ -26,37 +27,6 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [error, setError] = useState("")
 
   // ================== LISTS ==================
-  // Area code data from GLC-KMY.type file (matching BangkaAwbForm structure)
-  const areaCodeData = {
-    "BCE GLC": [
-      "Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", 
-      "Cilandak", "Jagakarsa", "Kebayoran baru", "Kebayoran lama", "Mampang prapatan", 
-      "Pasar minggu", "Pesanggrahan", "Penjaringan", "Batuceper", "Benda", "Cibodas", 
-      "Ciledug", "Cipondoh", "Jatiuwung", "Karangtengah", "Karawaci", "Larangan", 
-      "Neglasari", "Periuk", "Pinang", "Tangerang", "Ciputat", "Ciputat Timur", 
-      "Pamulang", "Pondok Aren", "Serpong", "Serpong Utara", "Kelapa Dua", "Curug", 
-      "Kosambi", "Legok", "Pagedangan", "Pasar Kemis", "Teluknaga", "Balaraja", 
-      "Cikupa", "Cisauk", "Pakuhaji", "Panongan", "Rajeg", "Sepatan", "Sepatan Timur", 
-      "Sindang Jaya", "Solear", "Tigaraksa", "Gunung Sindur"
-    ],
-    "BCE KMY": [
-      "Taman sari", "Tambora", "Cempaka putih", "Gambir", "Johar baru", 
-      "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang", "Pancoran", 
-      "Setiabudi", "Tebet", "Cakung", "Cipayung", "Ciracas", "Duren sawit", 
-      "Jatinegara", "Kramat jati", "Makasar", "Matraman", "Pasar rebo", "Pulo gadung", 
-      "Cilincing", "Kelapa gading", "Koja", "Pademangan", "Tanjung priok", 
-  "Sunter Jaya", "Sunter Agung", "Warakas", "Kebon Bawang", "Papanggo", "Sungai Bambu",
-      "Bantargebang", "Bekasi Barat", "Bekasi Selatan", "Bekasi Timur", "Bekasi Utara", 
-      "Jatiasih", "Jatisampurna", "Medan Satria", "pondokgede", 
-      "pondokmelati", "Rawalumbu", "Tarumajaya", "Babelan", "Cibarusah", "Cibitung", "Cikarang Barat", 
-      "Cikarang Pusat", "Cikarang Selatan", "Cikarang Timur", "Cikarang Utara", 
-      "Karangbahagia", "Kedungwaringin", "Serang Baru", "Setu", "Tambun Selatan", 
-      "Tambun Utara", "Beji", "Bojongsari", "Cilodong", "Cimanggis", "Cinere", "Limo", 
-      "Pancoran Mas", "Sawangan", "Sukmajaya", "Tapos", "Bogor Barat", 
-      "Bogor Selatan", "Bogor Tengah", "Bogor Timur", "Bogor Utara", "Tanah Sereal", 
-      "Babakan Madang", "Bojonggede", "Cibinong", "Cileungsi", "Gunung Putri"
-    ]
-  };
 
   // ...existing code...
 

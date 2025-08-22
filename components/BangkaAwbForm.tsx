@@ -6,55 +6,7 @@ import { getEnhancedAgentList } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
 
-// Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
-const areaCodeMapping: Record<string, string> = {
-  // Heading mappings
-  'GREEN LAKE CITY': 'GLC',
-  'GRENLAKE CITY': 'GLC',
-  'GRENLAKE CITY / BARAT': 'GLC',
-  // Jakarta Barat - GLC group
-  'CENGKARENG': 'GLC',
-  'GROGOL': 'GLC',
-  'KEBON JERUK': 'GLC',
-  'KALI DERES': 'GLC',
-  'PAL MERAH': 'GLC',
-  'KEMBANGAN': 'GLC',
-  // Jakarta Selatan - GLC group
-  'CILANDAK': 'GLC',
-  'JAGAKARSA': 'GLC',
-  'KEBAYORAN BARU': 'GLC',
-  'KEBAYORAN LAMA': 'GLC',
-  'MAMPANG PRAPATAN': 'GLC',
-  'PASAR MINGGU': 'GLC',
-  'PESANGGRAHAN': 'GLC',
-  // Jakarta Utara - GLC group
-  'PENJARINGAN': 'GLC',
-  // Jakarta Pusat - GLC group
-  // NOTE: plain 'TANAH ABANG' should map to KMY; the Gelora variant maps to GLC
-  'TANAH ABANG': 'KMY',
-  'TANAH ABANG (GELORA)': 'GLC',
-  // Bogor - GLC group
-  'GUNUNG SINDUR': 'GLC',
-
-  // Kreko mappings
-  'KREKOT': 'KMY',
-  'KREKOT / PUSAT': 'KMY',
-  // Jakarta Barat - KMY group
-  'TAMAN SARI': 'KMY',
-  'TAMBORA': 'KMY',
-  // Jakarta Selatan - KMY group
-  'PANCORAN': 'KMY',
-  'SETIABUDI': 'KMY',
-  'TEBET': 'KMY',
-  // Jakarta Utara - KMY group
-  'CILINCING': 'KMY',
-  'KELAPA GADING': 'KMY',
-  'KOJA': 'KMY',
-  'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY',
-  // Jakarta Pusat - KMY group (special cases)
-  'TANAH ABANG (gelora)': 'KMY'
-};
+import { areaCodeMapping } from '@/lib/area-codes';
 
 interface BangkaAwbFormProps {
   onSuccess: () => void;
@@ -71,6 +23,7 @@ interface FormData {
   kirim_via: string;
   kota_tujuan: string;
   kecamatan: string;
+  wilayah?: string;
   metode_pembayaran: string;
   agent_customer: string;
   nama_pengirim: string;
@@ -1128,7 +1081,8 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     <>
       <div className="hidden">
         <div ref={printFrameRef}>
-          <PrintLayout data={form} />
+          {/* Ensure wilayah is set (fallback to kota_tujuan) so PrintLayout can compute airport/area codes */}
+          <PrintLayout data={{ ...form, wilayah: form.wilayah || form.kota_tujuan }} />
         </div>
       </div>
 

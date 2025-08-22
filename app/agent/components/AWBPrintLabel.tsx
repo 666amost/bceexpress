@@ -1,77 +1,13 @@
 "use client"
 
 import React, { useRef } from 'react';
+import { areaCodes, airportCodes } from '@/lib/area-codes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { FaPrint, FaTimes, FaBoxOpen, FaMapMarkerAlt, FaUser, FaPhone, FaCalendarAlt } from 'react-icons/fa';
 
-// Tambahkan mapping kode bandara dan kode area
-const airportCodes: Record<string, string> = {
-  'JAKARTA BARAT': 'JKB',
-  'JAKARTA PUSAT': 'JKP',
-  'JAKARTA TIMUR': 'JKT',
-  'JAKARTA SELATAN': 'JKS',
-  'JAKARTA UTARA': 'JKU',
-};
-const areaCodes: Record<string, string> = {
-  // Heading mappings
-  'GREEN LAKE CITY': 'GLC',
-  'GRENLAKE CITY': 'GLC',
-  'GRENLAKE CITY / BARAT': 'GLC',
-  // Jakarta Barat - GLC group
-  'CENGKARENG': 'GLC',
-  'GROGOL PETAMBURAN': 'GLC',
-  'KALIDERES': 'GLC',
-  'KEBON JERUK': 'GLC',
-  'KEMBANGAN': 'GLC',
-  'PALMERAH': 'GLC',
-  // Jakarta Selatan - GLC group
-  'CILANDAK': 'GLC',
-  'JAGAKARSA': 'GLC',
-  'KEBAYORAN BARU': 'GLC',
-  'KEBAYORAN LAMA': 'GLC',
-  'MAMPANG PRAPATAN': 'GLC',
-  'PASAR MINGGU': 'GLC',
-  'PESANGGRAHAN': 'GLC',
-  // Jakarta Utara - GLC group
-  'PENJARINGAN': 'GLC',
-  // Jakarta Pusat - GLC group
-  // NOTE: plain "TANAH ABANG" should map to KMY (Kreko). Gelora variant maps to GLC.
-  'TANAH ABANG': 'KMY',
-  'TANAH ABANG (GELORA)': 'GLC',
-  'TANAH ABANG (gelora)': 'GLC',
-  // Bogor - GLC group
-  'GUNUNG SINDUR': 'GLC',
-
-  // Kreko mappings
-  'KREKOT': 'KMY',
-  'KREKOT / PUSAT': 'KMY',
-  // Jakarta Barat - KMY group
-  'TAMAN SARI': 'KMY',
-  'TAMBORA': 'KMY',
-  // Jakarta Selatan - KMY group
-  'PANCORAN': 'KMY',
-  'SETIABUDI': 'KMY',
-  'TEBET': 'KMY',
-  // Jakarta Utara - KMY group
-  'CILINCING': 'KMY',
-  'KELAPA GADING': 'KMY',
-  'KOJA': 'KMY',
-  'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY',
-  // Jakarta Pusat - KMY group (special cases)
-  // keep any exceptional mappings here; general Tanah Abang mapping moved above
-  // Add Jakarta Utara aliases that should route to KMY
-  'WARAKAS': 'KMY',
-  'Warakas': 'KMY',
-  'KEBON BAWANG': 'KMY',
-  'Kebon Bawang': 'KMY',
-  'PAPANGGO': 'KMY',
-  'Papanggo': 'KMY',
-  'SUNGAI BAMBU': 'KMY',
-  'Sungai Bambu': 'KMY'
-};
+// using centralized areaCodes & airportCodes from lib
 
 interface ManifestBookingData {
   id?: string;

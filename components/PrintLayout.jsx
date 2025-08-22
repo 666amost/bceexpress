@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useLayoutEffect } from "react"
 import JsBarcode from "jsbarcode"
 import QRCode from "qrcode" // Menggunakan library qrcode
 import { Phone } from 'lucide-react' // Import ikon Phone
+import { areaCodes as areaCodesLib, airportCodes as airportCodesLib } from '@/lib/area-codes';
 
 export default function PrintLayout({ data }) {
   const barcodeRef = useRef(null)
@@ -16,102 +17,31 @@ export default function PrintLayout({ data }) {
   const receiverNameRef = useRef(null);
   const receiverPhoneRef = useRef(null);
 
-  // Add a mapping for wilayah to airport codes
-  const airportCodes = {
-    "Pangkal Pinang": "PGK",  // Example as per your query
-    "Sungailiat": "SLT",      // Example; you can add more based on your needs
-    "Belinyu": "BLY",         // Example
-    "Jebus": "JBS",           // Example
-    "Koba": "KBA",            // Example
-    "Toboali": "TBL",         // Example
-    "Mentok": "MNT",          // Example
-    "Pontianak": "PNK",       // Added new entry
-    "Singkawang": "SKW",       // Added new entry
+  // Local airport codes specific to this layout; merge with centralized mappings
+  const localAirportCodes = {
+    "Pangkal Pinang": "PGK",
+    "Sungailiat": "SLT",
+    "Belinyu": "BLY",
+    "Jebus": "JBS",
+    "Koba": "KBA",
+    "Toboali": "TBL",
+    "Mentok": "MNT",
+    "Pontianak": "PNK",
+    "Singkawang": "SKW",
     "Sungai Pinyuh": "SPY",
     "Tj Pandan": "TJQ",
     "Denpasar": "DPS",
-    // Tambahan untuk cabang tanjung pandan ke JKT dan sekitarnya
     JKT: "JKT",
     TGT: "TGR",
     BKS: "BKS",
     DPK: "DPK",
-    BGR: "BGR",
-    // Tambahan untuk cabang Bangka ke Jabodetabek
-    "JAKARTA BARAT": "JKB",
-    "JAKARTA PUSAT": "JKP", 
-    "JAKARTA SELATAN": "JKS",
-    "JAKARTA TIMUR": "JKT",
-    "JAKARTA UTARA": "JKU",
-    "TANGERANG": "TGR",
-    "TANGERANG SELATAN": "TGS",
-    "TANGERANG KABUPATEN": "TGK",
-    "BEKASI KOTA": "BKK",
-    "BEKASI KABUPATEN": "BKB",
-    "DEPOK": "DPK",
-    "BOGOR KOTA": "BGR",
-    "BOGOR KABUPATEN": "BGB",
+    BGR: "BGR"
   };
 
-  // Mapping kecamatan or kota to special area codes
-  const areaCodes = {
-  // Green Lake City (GLC) variants and Jakarta group
-  "GREEN LAKE CITY": "GLC",
-  "GRENLAKE CITY": "GLC",
-  "GRENLAKE CITY / BARAT": "GLC",
-  // Jakarta Barat - GLC group
-  "CENGKARENG": "GLC",
-  "GROGOL": "GLC",
-  "GROGOL PETAMBURAN": "GLC", 
-  "KEBON JERUK": "GLC",
-  "KALI DERES": "GLC",
-  "KALIDERES": "GLC",
-  "PAL MERAH": "GLC",
-  "PALMERAH": "GLC",
-  "KEMBANGAN": "GLC",
-  // Jakarta Selatan - GLC group
-  "CILANDAK": "GLC",
-  "JAGAKARSA": "GLC",
-  "KEBAYORAN BARU": "GLC",
-  "KEBAYORAN LAMA": "GLC",
-  "MAMPANG PRAPATAN": "GLC",
-  "PASAR MINGGU": "GLC",
-  "PESANGGRAHAN": "GLC",
-  // Jakarta Utara - GLC group
-  "PENJARINGAN": "GLC",
-  // Jakarta Pusat - GLC group
-  // Plain 'TANAH ABANG' should map to KMY; Gelora variant maps to GLC
-  "TANAH ABANG": "KMY",
-  // Gelora variant maps to GLC
-  "TANAH ABANG (GELORA)": "GLC",
-  // Bogor - GLC group
-  "GUNUNG SINDUR": "GLC",
-  // Kreko (KMY) variants and Jakarta group
-  "KREKOT": "KMY",
-  "KREKOT / PUSAT": "KMY",
-  // Jakarta Barat - KMY group
-  "TAMAN SARI": "KMY",
-  "TAMBORA": "KMY",
-  // Jakarta Selatan - KMY group
-  "PANCORAN": "KMY",
-  "SETIABUDI": "KMY",
-  "TEBET": "KMY",
-  // Jakarta Utara - KMY group
-  "CILINCING": "KMY",
-  "KELAPA GADING": "KMY",
-  "KOJA": "KMY",
-  "PADEMANGAN": "KMY",
-  "TANJUNG PRIOK": "KMY",
-  // Jakarta Pusat - KMY group (special cases)
-  // Ensure Gelora variant is mapped to GLC above; add Jakarta Utara aliases for KMY
-  "WARAKAS": "KMY",
-  "Warakas": "KMY",
-  "KEBON BAWANG": "KMY",
-  "Kebon Bawang": "KMY",
-  "PAPANGGO": "KMY",
-  "Papanggo": "KMY",
-  "SUNGAI BAMBU": "KMY",
-  "Sungai Bambu": "KMY"
-  };
+  const airportCodes = { ...airportCodesLib, ...localAirportCodes };
+  const areaCodes = areaCodesLib;
+
+  // Mapping kecamatan or kota to special area codes (from centralized lib)
 
   // Get the area code based on kota_tujuan or kecamatan
   const getAreaCode = (kota, kec) => {
@@ -379,9 +309,13 @@ export default function PrintLayout({ data }) {
           <div className="top-header-right">
             <div className="airport-code">
                {(() => {
-                 const ac = data.wilayah ? getAirportCode(data.wilayah) : (data.kota_tujuan ? getAirportCode(data.kota_tujuan) : "");
                  const ar = getAreaCode(data.kota_tujuan, data.kecamatan);
-                 return ar ? `${ac}/${ar}` : ac;
+                 // Prefer showing kecamatan name when available (e.g. "Penjaringan/KMY")
+                 const leftLabel = (data.kecamatan && String(data.kecamatan).trim()) || (data.wilayah && String(data.wilayah).trim()) || (data.kota_tujuan && String(data.kota_tujuan).trim()) || "";
+                 if (ar && leftLabel) return `${leftLabel}/${ar}`;
+                 // Fallback to airport code (e.g. JKT) or whatever leftLabel is available
+                 const ac = data.wilayah ? getAirportCode(data.wilayah) : (data.kota_tujuan ? getAirportCode(data.kota_tujuan) : "");
+                 return ac || leftLabel || "";
                })()}
             </div>
           </div>

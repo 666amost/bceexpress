@@ -377,16 +377,23 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Agent branch information missing. Please contact support.');
       }
 
+      // Normalize kecamatan to canonical form before insert
+      // (centralized helper in lib/area-codes.ts)
+      // Import dynamically to avoid circular import issues in some runtimes
+      const { normalizeKecamatan } = await import('../../../lib/area-codes');
+      const normalizedKecamatan = normalizeKecamatan(awbData.kecamatan);
+
       // PERUBAHAN: Langsung insert ke manifest_cabang, bukan manifest_booking
       const insertData = {
         awb_no: awbData.awb_no,
         awb_date: awbData.awb_date,
         kirim_via: awbData.kirim_via,
         kota_tujuan: awbData.kota_tujuan,
-        wilayah: currentAgent.branchOrigin?.toLowerCase().includes('bangka') 
-          ? awbData.kecamatan 
+        // For Bangka agents, store wilayah as the kecamatan value (normalized)
+        wilayah: currentAgent.branchOrigin?.toLowerCase().includes('bangka')
+          ? normalizedKecamatan
           : (awbData.wilayah || ""),
-        kecamatan: awbData.kecamatan,
+        kecamatan: normalizedKecamatan,
         metode_pembayaran: awbData.metode_pembayaran,
         agent_customer: currentAgent.email, // Nama agent untuk filter di DailyReport
         nama_pengirim: awbData.nama_pengirim,

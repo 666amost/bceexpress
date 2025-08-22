@@ -6,55 +6,7 @@ import { getEnhancedAgentList } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
 
-// Mapping kode wilayah khusus untuk print (sesuai headings di jakarta.type)
-const areaCodeMapping: Record<string, string> = {
-  // Heading mappings
-  'GREEN LAKE CITY': 'GLC',
-  'GRENLAKE CITY': 'GLC',
-  'GRENLAKE CITY / BARAT': 'GLC',
-  // Jakarta Barat - GLC group
-  'CENGKARENG': 'GLC',
-  'GROGOL': 'GLC',
-  'KEBON JERUK': 'GLC',
-  'KALI DERES': 'GLC',
-  'PAL MERAH': 'GLC',
-  'KEMBANGAN': 'GLC',
-  // Jakarta Selatan - GLC group
-  'CILANDAK': 'GLC',
-  'JAGAKARSA': 'GLC',
-  'KEBAYORAN BARU': 'GLC',
-  'KEBAYORAN LAMA': 'GLC',
-  'MAMPANG PRAPATAN': 'GLC',
-  'PASAR MINGGU': 'GLC',
-  'PESANGGRAHAN': 'GLC',
-  // Jakarta Utara - GLC group
-  'PENJARINGAN': 'GLC',
-  // Jakarta Pusat mappings
-  // Plain 'TANAH ABANG' maps to KMY, while the Gelora variant maps to GLC
-  'TANAH ABANG': 'KMY',
-  'TANAH ABANG (GELORA)': 'GLC',
-  // Bogor - GLC group
-  'GUNUNG SINDUR': 'GLC',
-
-  // Kreko mappings
-  'KREKOT': 'KMY',
-  'KREKOT / PUSAT': 'KMY',
-  // Jakarta Barat - KMY group
-  'TAMAN SARI': 'KMY',
-  'TAMBORA': 'KMY',
-  // Jakarta Selatan - KMY group
-  'PANCORAN': 'KMY',
-  'SETIABUDI': 'KMY',
-  'TEBET': 'KMY',
-  // Jakarta Utara - KMY group
-  'CILINCING': 'KMY',
-  'KELAPA GADING': 'KMY',
-  'KOJA': 'KMY',
-  'PADEMANGAN': 'KMY',
-  'TANJUNG PRIOK': 'KMY',
-  // Jakarta Pusat - KMY group (special cases)
-  'TANAH ABANG (gelora)': 'KMY'
-};
+import { areaCodeMapping } from '@/lib/area-codes';
 
 interface BangkaBulkAwbFormProps {
   onSuccess: () => void;
@@ -82,6 +34,7 @@ interface AwbEntry {
   total: number;
   kota_tujuan: string;
   kecamatan: string;
+  wilayah?: string;
 }
 
 interface Template {
@@ -98,6 +51,7 @@ interface Template {
   biaya_transit: number;
   berat_kg: number;
   harga_per_kg: number;
+  wilayah?: string;
 }
 
 // Type for valid kota keys
@@ -621,7 +575,8 @@ export default function BangkaBulkAwbForm({ onSuccess, onCancel, userRole, branc
       
       // Render the PrintLayout component
       await new Promise<void>((resolve) => {
-        root.render(React.createElement(PrintLayout, { data }))
+        const dataWithWilayah = { ...data, wilayah: data.wilayah || data.kota_tujuan };
+        root.render(React.createElement(PrintLayout, { data: dataWithWilayah }))
         // Wait a bit for rendering to complete
         setTimeout(() => {
           printWindow.document.write(tempDiv.innerHTML)
