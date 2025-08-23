@@ -75,21 +75,39 @@ export default function RecapManifest({ userRole, branchOrigin }) {
         setError(`Error fetching data: ${fetchError.message}`)
       } else {
         if (fetchedData) {
+          const toNumber = (v) => {
+            // convert numeric-like strings to numbers, preserve 0 for falsy values
+            const n = Number(v);
+            return Number.isNaN(n) ? 0 : n;
+          };
+
           const groupedData = fetchedData.reduce((acc, item) => {
             const date = item.awb_date;
             if (!acc[date]) {
               acc[date] = { totalAWB: 0, totalColi: 0, totalKg: 0, cash: 0, transfer: 0, cod: 0, count: 0 };
             }
             acc[date].totalAWB += 1;  // Count each item as one AWB entry
-            acc[date].totalColi += item.coli || 0;
-            acc[date].totalKg += item.berat_kg || 0;
-            if (item.metode_pembayaran === 'cash') acc[date].cash += item.total || 0;
-            if (item.metode_pembayaran === 'transfer') acc[date].transfer += item.total || 0;
-            if (item.metode_pembayaran === 'cod') acc[date].cod += item.total || 0;
+            acc[date].totalColi += toNumber(item.coli);
+            acc[date].totalKg += toNumber(item.berat_kg);
+            const totalValue = toNumber(item.total);
+            const metode = (item.metode_pembayaran || '').toString().toLowerCase();
+            if (metode === 'cash') acc[date].cash += totalValue;
+            if (metode === 'transfer') acc[date].transfer += totalValue;
+            if (metode === 'cod') acc[date].cod += totalValue;
             acc[date].count += 1;  // For numbering if needed
             return acc;
           }, {});
-          const processedData = Object.entries(groupedData).map(([date, totals]) => ({ date, ...totals }));
+
+          const processedData = Object.entries(groupedData).map(([date, totals]) => ({
+            date,
+            totalAWB: totals.totalAWB,
+            totalColi: totals.totalColi,
+            totalKg: totals.totalKg,
+            cash: totals.cash,
+            transfer: totals.transfer,
+            cod: totals.cod,
+            count: totals.count
+          }));
           // Sort by date descending for consistency
           processedData.sort((a, b) => new Date(b.date) - new Date(a.date));
           setData(processedData);
