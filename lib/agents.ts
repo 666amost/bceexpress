@@ -68,7 +68,6 @@ export const baseAgentListBangka: string[] = [
   "THEW FU CAU PAULUS",
   "COD UDARA",
   "COD LAUT",
-  // Previously added agents
   "YENNY",
   "TATA",
   "PHING BCE",
@@ -81,8 +80,7 @@ export const baseAgentListBangka: string[] = [
   "KO FAT SUBUR",
   "AF BAKWAN",
   "NOVI / IN IN",
-  "VICHA FOOD"
-  ,
+  "VICHA FOOD",
   "WW Snack",
   "PC 46 / Elly",
   "Devi Snack",
@@ -98,7 +96,9 @@ export const baseAgentListBangka: string[] = [
   "AFun Mesu",
   "Toko Amin Snack",
   "Fong2 Snack",
-  "Ahap Walet"
+  "Ahap Walet",
+  "Kuliner Bangka",
+  "Vita Agen"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [
