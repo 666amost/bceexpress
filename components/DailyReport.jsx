@@ -60,30 +60,99 @@ export default function DailyReport({ userRole, branchOrigin }) {
 
       if (selectedKirimVia) query = query.ilike("kirim_via", selectedKirimVia)
       if (selectedAgentCustomer) {
-        // Allow typing: match agent name text (ilike) OR any mapped emails (in)
-        const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer || "")
-  // debug logs removed
-
-        // Build OR conditions: agent_customer.ilike.%<text>% OR agent_customer.in.("email1","email2")
-        const orClauses = [];
-        
-        // Include mapped emails if available (this is the primary match for mapped agents)
-        if (agentIdentifiers.length > 1) { // More than just the agent name itself
-          const emailsOnly = agentIdentifiers.filter(id => id.includes('@'));
-          if (emailsOnly.length > 0) {
-            const inList = emailsOnly.map(e => `\"${e}\"`).join(',');
-            orClauses.push(`agent_customer.in.(${inList})`);
+        // Build a base query factory that applies all non-agent filters so we can
+        // run multiple targeted queries (email-based and name-based) and merge results.
+        const buildBaseQuery = () => {
+          let q;
+          if (isBranchMode) {
+            q = supabaseClient
+              .from("manifest_cabang")
+              .select("*")
+              .eq('origin_branch', branchOrigin)
+              .order("awb_date", { ascending: false })
+          } else {
+            q = supabaseClient
+              .from("manifest")
+              .select("*")
+              .order("awb_date", { ascending: false })
           }
+
+          // Re-apply date filters and non-agent filters
+          if (selectedDateFrom && selectedDateTo) {
+            q = q.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
+          } else if (selectedDateFrom) {
+            q = q.gte("awb_date", selectedDateFrom)
+          } else if (selectedDateTo) {
+            q = q.lte("awb_date", selectedDateTo)
+          }
+
+          if (selectedKirimVia) q = q.ilike("kirim_via", selectedKirimVia)
+          if (selectedKotaTujuan) q = q.eq("kota_tujuan", selectedKotaTujuan)
+          if (selectedWilayah) {
+            if (isBranchMode) q = q.eq("kecamatan", selectedWilayah)
+            else q = q.eq("wilayah", selectedWilayah)
+          }
+
+          if (selectedAreaCode && isBranchMode) {
+            const areaWilayahList = areaCodeData[selectedAreaCode] || []
+            if (areaWilayahList.length > 0) {
+              const orConditions = areaWilayahList.map(area => `kecamatan.ilike.%${area}%`);
+              if (orConditions.length > 0) {
+                q = q.or(orConditions.join(','));
+              }
+            }
+          }
+
+          return q
         }
-        
-        // Also match free-text agent names (partial) - for both display names and direct agent_customer entries
-        orClauses.push(`agent_customer.ilike.%${selectedAgentCustomer}%`);
-        
-  // debug logs removed
-        
-        if (orClauses.length > 0) {
-          query = query.or(orClauses.join(','));
+
+        // Get identifiers from mapping util (agent name + mapped emails)
+        const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer || "")
+        const emailsOnly = agentIdentifiers.filter(id => id && id.includes("@"));
+
+        // Run targeted queries: one for emails (exact match via .in) and one for name partial match (.ilike)
+        const promises = [];
+
+        if (emailsOnly.length > 0) {
+          // Use .in which accepts an array
+          const qEmail = buildBaseQuery().in('agent_customer', emailsOnly)
+          promises.push(qEmail)
         }
+
+        // Name-based partial match
+        const qName = buildBaseQuery().ilike('agent_customer', `%${selectedAgentCustomer}%`)
+        promises.push(qName)
+
+        // Execute all queries and merge deduplicated results
+        const results = await Promise.all(promises.map(p => p))
+        // results are objects like { data, error } when awaited via supabase client
+        const combined = []
+        for (const r of results) {
+          if (r && r.data) combined.push(...r.data)
+        }
+
+        // Deduplicate by awb_no (prefer latest by awb_date)
+        const byAwb = new Map()
+        combined.forEach(item => {
+          if (!item) return
+          const key = item.awb_no || JSON.stringify(item)
+          const existing = byAwb.get(key)
+          if (!existing) byAwb.set(key, item)
+          else {
+            // keep the one with later awb_date
+            const existingDate = new Date(existing.awb_date || 0)
+            const itemDate = new Date(item.awb_date || 0)
+            if (itemDate > existingDate) byAwb.set(key, item)
+          }
+        })
+
+        // Convert back to array and sort by awb_date desc
+        const merged = Array.from(byAwb.values()).sort((a, b) => new Date(b.awb_date) - new Date(a.awb_date))
+
+        // Set data and skip the normal single-query path below
+        setData(merged || [])
+        setLoading(false)
+        return
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) {

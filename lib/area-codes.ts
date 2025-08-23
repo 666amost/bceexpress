@@ -192,9 +192,16 @@ export function normalizeKecamatan(input?: string | null): string {
   return s;
 }
 
-export default {
+const areaCodesDefaultExport: {
+  airportCodes: Record<string, string>;
+  areaCodes: Record<string, string>;
+  areaCodeMapping: Record<string, string>;
+  areaCodeData: Record<string, string[]>;
+} = {
   airportCodes,
   areaCodes,
   areaCodeMapping,
   areaCodeData
 };
+
+export default areaCodesDefaultExport;
