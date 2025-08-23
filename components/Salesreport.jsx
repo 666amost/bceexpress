@@ -10,9 +10,11 @@ import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral }
 const SalesReport = ({ userRole, branchOrigin }) => {
   // ================== BRANCH / ROLE SWITCH ==================
   const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
+  // normalize branchOrigin for consistent comparisons / DB queries
+  const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
   const isBranchMode =
-    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin)) ||
-    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
+    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin)) ||
+    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin));
   // ===========================================================
 
   const [agent, setAgent] = useState('');
@@ -35,7 +37,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     : agentListCentral;
 
   const kotaTujuan = isBranchMode
-    ? branchOrigin === 'bangka' 
+  ? normalizedBranchOrigin === 'bangka' 
         ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"]
         : ["jakarta", "tangerang", "bekasi", "depok", "bogor"]
     : ["bangka", "kalimantan barat", "belitung", "bali"];
@@ -58,7 +60,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         query = supabaseClient
           .from("manifest_cabang")
           .select("agent_customer")
-          .eq('origin_branch', branchOrigin);
+          .eq('origin_branch', normalizedBranchOrigin);
       } else {
         query = supabaseClient
           .from("manifest")
@@ -98,7 +100,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         query = supabaseClient
           .from('manifest_cabang')
           .select('*')
-          .eq('origin_branch', branchOrigin)
+          .eq('origin_branch', normalizedBranchOrigin)
           .order('awb_date', { ascending: false })
       } else {
         // Central users query central table without any filtering

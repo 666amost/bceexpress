@@ -15,9 +15,11 @@ const kotaTujuanOptions = ["bangka", "kalimantan barat", "belitung", "bali"]  //
 export default function RecapManifest({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
   const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
+  // normalize branchOrigin for consistent comparisons / DB queries
+  const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
   const isBranchMode =
-    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin)) ||
-    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
+    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin)) ||
+    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin));
   // ===========================================================
 
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
@@ -45,7 +47,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
         query = supabaseClient
           .from("manifest_cabang")
           .select("*")
-          .eq('origin_branch', branchOrigin)
+          .eq('origin_branch', normalizedBranchOrigin)
           .order("awb_date", { ascending: false })
       } else {
         // Central users query central table without any filtering
@@ -81,20 +83,48 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             return Number.isNaN(n) ? 0 : n;
           };
 
+          // Compute totals using same logic as SalesReport: total_fix = (berat_kg * harga_per_kg) + biaya_admin + biaya_packaging
+
           const groupedData = fetchedData.reduce((acc, item) => {
             const date = item.awb_date;
             if (!acc[date]) {
-              acc[date] = { totalAWB: 0, totalColi: 0, totalKg: 0, cash: 0, transfer: 0, cod: 0, count: 0 };
+              acc[date] = {
+                totalAWB: 0,
+                totalColi: 0,
+                totalKg: 0,
+                cash: 0,
+                transfer: 0,
+                cod: 0,
+                totalAdmin: 0,
+                totalPackaging: 0,
+                totalOngkir: 0,
+                totalFix: 0,
+                count: 0
+              };
             }
-            acc[date].totalAWB += 1;  // Count each item as one AWB entry
-            acc[date].totalColi += toNumber(item.coli);
-            acc[date].totalKg += toNumber(item.berat_kg);
-            const totalValue = toNumber(item.total);
+            const coli = toNumber(item.coli);
+            const berat = toNumber(item.berat_kg);
+            const hargaPerKg = toNumber(item.harga_per_kg);
+            const adm = toNumber(item.biaya_admin);
+            const pack = toNumber(item.biaya_packaging);
+
+            // compute total consistent with SalesReport
+            const totalFix = (berat * hargaPerKg) + adm + pack;
+
+            acc[date].totalAWB += 1;
+            acc[date].totalColi += coli;
+            acc[date].totalKg += berat;
+            acc[date].totalAdmin += adm;
+            acc[date].totalPackaging += pack;
+            acc[date].totalOngkir += berat * hargaPerKg;
+            acc[date].totalFix += totalFix;
+
             const metode = (item.metode_pembayaran || '').toString().toLowerCase();
-            if (metode === 'cash') acc[date].cash += totalValue;
-            if (metode === 'transfer') acc[date].transfer += totalValue;
-            if (metode === 'cod') acc[date].cod += totalValue;
-            acc[date].count += 1;  // For numbering if needed
+            if (metode === 'cash') acc[date].cash += totalFix;
+            if (metode === 'transfer') acc[date].transfer += totalFix;
+            if (metode === 'cod') acc[date].cod += totalFix;
+
+            acc[date].count += 1;
             return acc;
           }, {});
 
@@ -106,6 +136,10 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             cash: totals.cash,
             transfer: totals.transfer,
             cod: totals.cod,
+            totalAdmin: totals.totalAdmin,
+            totalPackaging: totals.totalPackaging,
+            totalOngkir: totals.totalOngkir,
+            totalFix: totals.totalFix,
             count: totals.count
           }));
           // Sort by date descending for consistency
