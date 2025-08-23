@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabaseClient } from '../lib/auth';  // Ganti impor ini
 import { createStyledExcelWithHTML } from '../lib/excel-utils';
-import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from '../lib/agent-mapping';
+import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers, getAgentForEmail } from '../lib/agent-mapping';
+import * as XLSX from 'xlsx';
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from '../lib/agents';
 
 const SalesReport = ({ userRole, branchOrigin }) => {
@@ -19,6 +20,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   const [toDate, setToDate] = useState('');
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
+  const [collapsedAgents, setCollapsedAgents] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [agentList, setAgentList] = useState([]);
@@ -153,6 +155,124 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     setFilteredData(uniqueData);
   };
 
+  // Group filtered data by agent_customer for clearer UI
+  const groupedByAgent = useMemo(() => {
+    const groups = {};
+    for (const item of filteredData) {
+      // Normalize agent key: map emails to agent name when possible
+      const mapped = getAgentForEmail(item.agent_customer || '') || item.agent_customer || 'UNKNOWN';
+      const key = mapped;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    // Sort agents alphabetically for predictable order
+    const ordered = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'id')).reduce((acc, k) => {
+      acc[k] = groups[k];
+      return acc;
+    }, {});
+    return ordered;
+  }, [filteredData]);
+
+  const toggleAgentCollapse = useCallback((agentKey) => {
+    setCollapsedAgents(prev => {
+      const next = { ...prev, [agentKey]: !prev[agentKey] };
+      try { localStorage.setItem('salesreport_collapsed_agents', JSON.stringify(next)); } catch (e) { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Load persisted collapse state on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('salesreport_collapsed_agents');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setCollapsedAgents(parsed || {});
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  // Helper to sanitize sheet names for Excel
+  const sanitizeSheetName = (name) => {
+    if (!name) return 'Sheet';
+    const invalid = /[\\\/\?\*\[\]:]/g;
+    let s = name.replace(invalid, ' - ');
+    if (s.length > 31) s = s.substring(0, 31);
+    return s;
+  };
+
+  // New: export one sheet per agent
+  const downloadXLSXPerAgent = () => {
+    if (filteredData.length === 0) { alert('No data to download'); return; }
+    const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan';
+    const wb = XLSX.utils.book_new();
+
+    Object.keys(groupedByAgent).forEach(agentKey => {
+      const rows = groupedByAgent[agentKey];
+      const sheetData = [];
+      // header row
+      sheetData.push(['No', 'AWB (awb_no)', 'Tgl AWB', destinationHeader, 'Via Pengiriman', 'Pengirim', 'Penerima', 'Kg', 'Harga (Ongkir)', 'Admin', 'Packaging', 'Total']);
+
+      rows.forEach((item, idx) => {
+        const dest = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
+        sheetData.push([
+          idx + 1,
+          item.awb_no || '',
+          item.awb_date || '',
+          dest || '',
+          item.kirim_via || '',
+          item.nama_pengirim || '',
+          item.nama_penerima || '',
+          Number(item.berat_kg || 0),
+          Number(item.harga_ongkir || 0),
+          Number(item.biaya_admin || 0),
+          Number(item.biaya_packaging || 0),
+          Number(item.total_fix || 0)
+        ]);
+      });
+
+      // subtotal
+      const subtotal = rows.reduce((s, it) => ({
+        berat: s.berat + (it.berat_kg || 0),
+        total: s.total + (it.total_fix || 0)
+      }), { berat: 0, total: 0 });
+      sheetData.push([]);
+      sheetData.push(['', '', '', '', '', '', 'SUBTOTAL', subtotal.berat, '', '', '', subtotal.total]);
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      // Keep raw values (no visual formatting) but ensure numeric cells are numeric
+      try {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+          // Kg column (c=7) - number
+          const kgCell = XLSX.utils.encode_cell({ r: R, c: 7 });
+          if (ws[kgCell]) {
+            const v = ws[kgCell].v;
+            ws[kgCell].t = 'n';
+            ws[kgCell].v = typeof v === 'number' ? v : Number(String(v).replace(',', '.')) || 0;
+          }
+
+          // Currency columns (c=8,9,10,11) - store as raw numbers (no currency formatting)
+          [8, 9, 10, 11].forEach(c => {
+            const addr = XLSX.utils.encode_cell({ r: R, c });
+            if (ws[addr]) {
+              const val = ws[addr].v;
+              ws[addr].t = 'n';
+              ws[addr].v = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.\-]/g, '')) || 0;
+            }
+          });
+        }
+      } catch (err) { /* ignore formatting errors */ }
+
+      const sheetName = sanitizeSheetName(agentKey || 'Agent');
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+    const fileName = `sales_report_${today.replace(/\s+/g, '_')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const downloadXLSX = () => {
     if (filteredData.length === 0) {
       alert('No data to download');
@@ -161,8 +281,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
 
     // Dynamic header based on branch - use Kecamatan for Bangka branch
     const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan';
-    
+    // add Agent column and group rows by agent for clearer export
     const headers = [
+      'Agent',
       'AWB (awb_no)',
       'Tgl AWB',
       destinationHeader,
@@ -176,22 +297,83 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       'Total'
     ]
 
-    const formattedData = filteredData.map(item => {
-      const destinationValue = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
-      return {
-        'AWB (awb_no)': item.awb_no,
-        'Tgl AWB': item.awb_date,
-        [destinationHeader]: destinationValue,
-        'Via Pengiriman': item.kirim_via,
-        'Pengirim': item.nama_pengirim,
-        'Penerima': item.nama_penerima,
-        'Kg': item.berat_kg,
-        'Harga (Ongkir)': item.harga_ongkir,
-        'Admin': item.biaya_admin,
-        'Packaging': item.biaya_packaging,
-        'Total': item.total_fix
-      }
-    })
+    const formattedData = [];
+    Object.keys(groupedByAgent).forEach(agentKey => {
+      const rows = groupedByAgent[agentKey];
+      // Agent header row
+      formattedData.push({
+        'Agent': agentKey,
+        'AWB (awb_no)': '',
+        'Tgl AWB': '',
+        [destinationHeader]: '',
+        'Via Pengiriman': '',
+        'Pengirim': '',
+        'Penerima': '',
+        'Kg': '',
+        'Harga (Ongkir)': '',
+        'Admin': '',
+        'Packaging': '',
+        'Total': ''
+      });
+
+      rows.forEach(item => {
+        const destinationValue = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
+        formattedData.push({
+          'Agent': '',
+          'AWB (awb_no)': item.awb_no,
+          'Tgl AWB': item.awb_date,
+          [destinationHeader]: destinationValue,
+          'Via Pengiriman': item.kirim_via,
+          'Pengirim': item.nama_pengirim,
+          'Penerima': item.nama_penerima,
+          'Kg': item.berat_kg || 0,
+          'Harga (Ongkir)': item.harga_ongkir || 0,
+          'Admin': item.biaya_admin || 0,
+          'Packaging': item.biaya_packaging || 0,
+          'Total': item.total_fix || 0
+        });
+      });
+
+      // subtotal row for agent
+      const subtotal = rows.reduce((s, it) => ({
+        berat: s.berat + (it.berat_kg || 0),
+        harga: s.harga + (it.harga_ongkir || 0),
+        admin: s.admin + (it.biaya_admin || 0),
+        pack: s.pack + (it.biaya_packaging || 0),
+        total: s.total + (it.total_fix || 0)
+      }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+
+      formattedData.push({
+        'Agent': 'SUBTOTAL',
+        'AWB (awb_no)': '',
+        'Tgl AWB': '',
+        [destinationHeader]: '',
+        'Via Pengiriman': '',
+        'Pengirim': '',
+        'Penerima': '',
+        'Kg': subtotal.berat,
+        'Harga (Ongkir)': '',
+        'Admin': '',
+        'Packaging': '',
+        'Total': subtotal.total
+      });
+
+      // empty spacer row
+      formattedData.push({
+        'Agent': '',
+        'AWB (awb_no)': '',
+        'Tgl AWB': '',
+        [destinationHeader]: '',
+        'Via Pengiriman': '',
+        'Pengirim': '',
+        'Penerima': '',
+        'Kg': '',
+        'Harga (Ongkir)': '',
+        'Admin': '',
+        'Packaging': '',
+        'Total': ''
+      });
+    });
 
     const today = new Date().toLocaleDateString('id-ID', { 
       year: 'numeric', 
@@ -225,8 +407,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       data: formattedData,
       fileName: `sales_report_${today.replace(/\s+/g, '_')}.xls`,
       currency: 'Rp',
-      currencyColumns: [7, 8, 9, 10], // Harga, Admin, Packaging, Total
-      numberColumns: [6], // Kg
+      // shifted indexes because we added 'Agent' column at start
+      currencyColumns: [8, 9, 10, 11], // Harga, Admin, Packaging, Total
+      numberColumns: [7], // Kg
       dateRange: dateRange
     })
   };
@@ -240,436 +423,124 @@ const SalesReport = ({ userRole, branchOrigin }) => {
 
     // Dynamic header and field based on branch - use Kecamatan for Bangka branch
     const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'KECAMATAN' : 'DESTINATION';
-    
+    // build grouped HTML for print (reuse CSS above)
+    const groupedHtml = Object.keys(groupedByAgent).map(agentKey => {
+      const rows = groupedByAgent[agentKey];
+      const subtotal = rows.reduce((s, it) => ({
+        berat: s.berat + (it.berat_kg || 0),
+        harga: s.harga + (it.harga_ongkir || 0),
+        admin: s.admin + (it.biaya_admin || 0),
+        pack: s.pack + (it.biaya_packaging || 0),
+        total: s.total + (it.total_fix || 0)
+      }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+
+      const rowsHtml = rows.map((item, idx) => `
+        <tr>
+          <td class="text-center font-medium">${idx + 1}</td>
+          <td class="awb-number">${item.awb_no}</td>
+          <td class="font-medium">${new Date(item.awb_date).toLocaleDateString('en-GB')}</td>
+          <td class="font-medium">${(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
+          <td class="text-center font-medium">${(item.kirim_via || '').toString().toUpperCase()}</td>
+          <td>${item.nama_pengirim || ''}</td>
+          <td>${item.nama_penerima || ''}</td>
+          <td class="text-right font-medium">${(item.berat_kg || 0).toLocaleString('id-ID')} kg</td>
+          <td class="text-right currency">${(item.harga_ongkir || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right currency">${(item.biaya_admin || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div style="margin-bottom:18px; border:1px solid #e5e7eb;">
+          <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
+            <div style="font-weight:700; color:#1e40af;">${agentKey}</div>
+            <div style="text-align:right;">
+              <div style="font-size:12px;">${rows.length} AWB</div>
+              <div style="font-weight:700; color:#1e40af;">Total: Rp ${subtotal.total.toLocaleString('id-ID')}</div>
+            </div>
+          </div>
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#ffffff;">
+                <th style="padding:8px; text-align:left; font-size:10px;">#</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">AWB</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">Date</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">${destinationHeader}</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">Via</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">Sender</th>
+                <th style="padding:8px; text-align:left; font-size:10px;">Recipient</th>
+                <th style="padding:8px; text-align:right; font-size:10px;">Kg</th>
+                <th style="padding:8px; text-align:right; font-size:10px;">Rate</th>
+                <th style="padding:8px; text-align:right; font-size:10px;">Admin</th>
+                <th style="padding:8px; text-align:right; font-size:10px;">Pack</th>
+                <th style="padding:8px; text-align:right; font-size:10px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }).join('');
+
+    // write the full document reusing previous CSS + groupedHtml inserted in body
     printWindow.document.write(`
       <html>
         <head>
           <title>Sales Report</title>
           <style>
-            @page {
-              margin: 20mm;
-              size: A4;
-            }
-            
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            
-            body {
-              font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-              font-size: 10px;
-              line-height: 1.5;
-              color: #1f2937;
-              background: #ffffff;
-              font-weight: 400;
-            }
-            
-            .document-header {
-              border-bottom: 2px solid #e5e7eb;
-              padding-bottom: 24px;
-              margin-bottom: 32px;
-            }
-            
-            .header-top {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              margin-bottom: 16px;
-            }
-            
-            .company-info {
-              display: block;
-            }
-            
-            .company-name {
-              display: block;
-              font-size: 28px;
-              font-weight: 700;
-              color: #1e40af;
-              letter-spacing: -0.5px;
-              margin-bottom: 2px;
-            }
-            
-            .company-tagline {
-              display: block;
-              font-size: 11px;
-              color: #6b7280;
-              font-weight: 500;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              margin-top: 0;
-            }
-            
-            .document-meta {
-              text-align: right;
-              color: #4b5563;
-              font-size: 9px;
-              line-height: 1.4;
-            }
-            
-            .report-title-section {
-              text-align: center;
-              margin: 24px 0;
-            }
-            
-            .report-title {
-              font-size: 22px;
-              font-weight: 600;
-              color: #111827;
-              margin-bottom: 8px;
-              letter-spacing: -0.3px;
-            }
-            
-            .report-subtitle {
-              font-size: 12px;
-              color: #6b7280;
-              font-weight: 500;
-            }
-            
-            .report-parameters {
-              background: #f8fafc;
-              border: 1px solid #e2e8f0;
-              padding: 16px 20px;
-              margin-bottom: 28px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-            
-            .param-group {
-              display: flex;
-              gap: 24px;
-            }
-            
-            .param-item {
-              font-size: 10px;
-            }
-            
-            .param-label {
-              color: #6b7280;
-              font-weight: 500;
-              margin-right: 6px;
-            }
-            
-            .param-value {
-              color: #1f2937;
-              font-weight: 600;
-            }
-            
-            .data-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 32px;
-              background: #ffffff;
-              border: 1px solid #e5e7eb;
-            }
-            
-            .data-table thead th {
-              background: #1e40af;
-              color: #ffffff;
-              font-weight: 600;
-              padding: 14px 10px;
-              text-align: left;
-              font-size: 9px;
-              text-transform: uppercase;
-              letter-spacing: 0.8px;
-              border-bottom: 1px solid #1d4ed8;
-            }
-            
-            .data-table thead th.text-right {
-              text-align: right;
-            }
-            
-            .data-table tbody td {
-              padding: 12px 10px;
-              border-bottom: 1px solid #f3f4f6;
-              font-size: 9px;
-              color: #374151;
-            }
-            
-            .data-table tbody tr:nth-child(even) {
-              background: #f9fafb;
-            }
-            
-            .data-table tbody tr:hover {
-              background: #f3f4f6;
-            }
-            
-            .text-right {
-              text-align: right;
-            }
-            
-            .text-center {
-              text-align: center;
-            }
-            
-            .font-medium {
-              font-weight: 500;
-            }
-            
-            .font-semibold {
-              font-weight: 600;
-            }
-            
-            .awb-number {
-              font-weight: 600;
-              color: #1e40af;
-            }
-            
-            .currency {
-              font-weight: 500;
-              color: #374151;
-            }
-            
-            .total-currency {
-              font-weight: 600;
-              color: #1e40af;
-            }
-            
-            .summary-section {
-              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-              border: 1px solid #cbd5e1;
-              padding: 24px;
-              margin-top: 32px;
-              page-break-inside: avoid;
-              break-inside: avoid;
-            }
-            
-            .summary-title {
-              font-size: 14px;
-              font-weight: 600;
-              color: #1e40af;
-              margin-bottom: 20px;
-              text-align: center;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-            }
-            
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 16px;
-              margin-bottom: 20px;
-            }
-            
-            .summary-item {
-              background: #ffffff;
-              padding: 16px;
-              border: 1px solid #e5e7eb;
-              text-align: center;
-            }
-            
-            .summary-label {
-              font-size: 9px;
-              color: #6b7280;
-              font-weight: 500;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              margin-bottom: 6px;
-            }
-            
-            .summary-value {
-              font-size: 12px;
-              font-weight: 600;
-              color: #1f2937;
-            }
-            
-            .grand-total-section {
-              background: #1e40af;
-              color: #ffffff;
-              padding: 20px;
-              text-align: center;
-              margin-top: 16px;
-            }
-            
-            .grand-total-label {
-              font-size: 11px;
-              font-weight: 500;
-              margin-bottom: 6px;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              color: #bfdbfe;
-            }
-            
-            .grand-total-value {
-              font-size: 18px;
-              font-weight: 700;
-              color: #ffffff;
-            }
-            
-            .document-footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 1px solid #e5e7eb;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              font-size: 8px;
-              color: #9ca3af;
-            }
-            
-            .footer-left {
-              font-weight: 500;
-            }
-            
-            .footer-right {
-              text-align: right;
-            }
-            
-            @media print {
-              body {
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-              }
-              
-              .no-print {
-                display: none !important;
-              }
-              
-              .summary-section {
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-              }
-            }
+            @page { margin: 20mm; size: A4; }
+            body { font-family: 'Inter', Arial, sans-serif; font-size: 10px; color: #1f2937; }
+            .document-header { border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 16px; }
+            .company-name { font-size: 20px; font-weight:700; color:#1e40af }
+            .report-title { font-size:18px; font-weight:600; text-align:center; margin:6px 0 10px }
+            .report-parameters { background:#f8fafc; padding:10px; border:1px solid #e2e8f0; margin-bottom:12px }
+            table { width:100%; border-collapse:collapse }
+            th, td { padding:6px 8px; border-bottom:1px solid #eee; font-size:10px }
+            .text-right { text-align:right }
+            .summary-section { margin-top:16px }
           </style>
         </head>
         <body>
           <div class="document-header">
-            <div class="header-top">
-              <div class="company-info">
-                <div class="company-name">BCE EXPRESS</div>
-                <div class="company-tagline">BETTER CARGO EXPERIENCE</div>
-              </div>
-              <div class="document-meta">
-                <div><strong>Document ID:</strong> SLS-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
-                <div><strong>Generated:</strong> ${new Date().toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric'
-                })} at ${new Date().toLocaleTimeString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}</div>
-              </div>
-            </div>
-            
-            <div class="report-title-section">
-              <div class="report-title">SALES REPORT${agent ? ` - ${agent}` : ''}</div>
-              <div class="report-subtitle">Laporan Penjualan Detail</div>
-            </div>
+            <div class="company-name">BCE EXPRESS</div>
+            <div style="text-align:center;">SALES REPORT${agent ? ` - ${agent}` : ''}</div>
           </div>
-          
           <div class="report-parameters">
-            <div class="param-group">
-              <div class="param-item">
-                <span class="param-label">PERIOD:</span>
-                <span class="param-value">${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</span>
-              </div>
-              ${agent ? `
-              <div class="param-item">
-                <span class="param-label">AGENT:</span>
-                <span class="param-value">${agent}</span>
-              </div>
-              ` : ''}
-            </div>
-            <div class="param-item">
-              <span class="param-label">TOTAL RECORDS:</span>
-              <span class="param-value">${filteredData.length}</span>
-            </div>
+            <div>PERIOD: ${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</div>
+            ${agent ? `<div>AGENT: ${agent}</div>` : ''}
+            <div>TOTAL RECORDS: ${filteredData.length}</div>
           </div>
-          
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width: 4%;">#</th>
-                <th style="width: 12%;">AWB NUMBER</th>
-                <th style="width: 9%;">DATE</th>
-                <th style="width: 11%;">${destinationHeader}</th>
-                <th style="width: 8%;">VIA</th>
-                <th style="width: 15%;">SENDER</th>
-                <th style="width: 15%;">RECIPIENT</th>
-                <th class="text-right" style="width: 6%;">WEIGHT</th>
-                <th class="text-right" style="width: 8%;">RATE</th>
-                <th class="text-right" style="width: 6%;">ADMIN</th>
-                <th class="text-right" style="width: 6%;">PACK</th>
-                <th class="text-right" style="width: 10%;">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredData.map((item, index) => `
+
+          ${groupedHtml}
+
+          <div class="summary-section" style="margin-top:16px; display:flex; justify-content:flex-end;">
+            <div style="width:360px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border:1px solid #cbd5e1; padding:12px;">
+              <div style="font-weight:600; margin-bottom:8px; text-align:center; text-transform:uppercase; color:#1e40af">SUMMARY</div>
+              <table style="width:100%; border-collapse:collapse; font-size:11px;">
                 <tr>
-                  <td class="text-center font-medium">${index + 1}</td>
-                  <td class="awb-number">${item.awb_no}</td>
-                  <td class="font-medium">${new Date(item.awb_date).toLocaleDateString('en-GB')}</td>
-                  <td class="font-medium">${(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
-                  <td class="text-center font-medium">${item.kirim_via.toUpperCase()}</td>
-                  <td>${item.nama_pengirim}</td>
-                  <td>${item.nama_penerima}</td>
-                  <td class="text-right font-medium">${(item.berat_kg || 0).toLocaleString('id-ID')} kg</td>
-                  <td class="text-right currency">${(item.harga_ongkir || 0).toLocaleString('id-ID')}</td>
-                  <td class="text-right currency">${(item.biaya_admin || 0).toLocaleString('id-ID')}</td>
-                  <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
-                  <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
+                  <td style="padding:6px 4px; color:#6b7280">Total Weight</td>
+                  <td style="padding:6px 4px; text-align:right; font-weight:600">${filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('id-ID')} kg</td>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          
-          <div class="summary-section">
-            <div class="summary-title">SUMMARY</div>
-            
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-label">Total Weight</div>
-                <div class="summary-value">${filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('id-ID')} kg</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Shipping Rates</div>
-                <div class="summary-value">Rp ${filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('id-ID')}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Admin Fees</div>
-                <div class="summary-value">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('id-ID')}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Packaging</div>
-                <div class="summary-value">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('id-ID')}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Total Shipments</div>
-                <div class="summary-value">${filteredData.length} AWB</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Avg. per AWB</div>
-                <div class="summary-value">Rp ${filteredData.length > 0 ? Math.round(filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0) / filteredData.length).toLocaleString('id-ID') : '0'}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Avg. Weight</div>
-                <div class="summary-value">${filteredData.length > 0 ? Math.round(filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0) / filteredData.length).toLocaleString('id-ID') : '0'} kg</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Report Date</div>
-                <div class="summary-value">${new Date().toLocaleDateString('en-GB')}</div>
-              </div>
-            </div>
-            
-            <div class="grand-total-section">
-              <div class="grand-total-label">TOTAL SALES</div>
-              <div class="grand-total-value">Rp ${filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('id-ID')}</div>
-            </div>
-          </div>
-          
-          <div class="document-footer">
-            <div class="footer-left">
-              <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
-              <div>This report contains business information</div>
-              <div>Periksa kembali data yang tercantum dalam laporan ini</div>
-            </div>
-            <div class="footer-right">
-              <div>Page 1 of 1</div>
-              <div>Generated by BCE Management System v2.0</div>
+                <tr>
+                  <td style="padding:6px 4px; color:#6b7280">Total Shipping</td>
+                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('id-ID')}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 4px; color:#6b7280">Total Admin</td>
+                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('id-ID')}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 4px; color:#6b7280">Total Packaging</td>
+                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('id-ID')}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 4px; font-weight:700; border-top:1px solid #e5e7eb">TOTAL SALES</td>
+                  <td style="padding:10px 4px; text-align:right; font-weight:700; border-top:1px solid #e5e7eb">Rp ${filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('id-ID')}</td>
+                </tr>
+              </table>
             </div>
           </div>
         </body>
@@ -710,47 +581,88 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       {filteredData.length > 0 && (
         <div className="mb-4 flex justify-end gap-2 no-print">
           <button onClick={downloadXLSX} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">Download XLSX</button>
+          <button onClick={downloadXLSXPerAgent} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800">Download per-Agent (sheets)</button>
           <button onClick={handlePrint} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800">Print</button>
         </div>
       )}
       
       {filteredData.length > 0 && (
-        <table className="mt-4 w-full border-collapse border border-gray-300 dark:border-gray-600 dark:text-gray-200">
-          <thead>
-            <tr>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">No</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">AWB (awb_no)</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Tgl AWB</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">{(isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan'}</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Via Pengiriman</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Pengirim</th>
-              <th className="border p-2 text-left dark:border-gray-600 dark:text-gray-200">Penerima</th>
-              <th className="border p-2 text-right dark:border-gray-600 dark:text-gray-200">Kg</th>
-              <th className="border p-2 text-right dark:border-gray-600 dark:text-gray-200">Harga (Ongkir)</th>
-              <th className="border p-2 text-right dark:border-gray-600 dark:text-gray-200">Admin</th>
-              <th className="border p-2 text-right dark:border-gray-600 dark:text-gray-200">Packaging</th>
-              <th className="border p-2 text-right dark:border-gray-600 dark:text-gray-200">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredData.map((item, index) => (
-              <tr key={item.awb_no} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300">
-                <td className="border p-2 dark:border-gray-600">{index + 1}</td>
-                <td className="border p-2 dark:border-gray-600">{item.awb_no}</td>
-                <td className="border p-2 dark:border-gray-600">{item.awb_date}</td>
-                <td className="border p-2 dark:border-gray-600">{(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
-                <td className="border p-2 dark:border-gray-600">{item.kirim_via}</td>
-                <td className="border p-2 dark:border-gray-600">{item.nama_pengirim}</td>
-                <td className="border p-2 dark:border-gray-600">{item.nama_penerima}</td>
-                <td className="border p-2 text-right dark:border-gray-600">{item.berat_kg}</td>
-                <td className="border p-2 text-right dark:border-gray-600">{item.harga_ongkir}</td>
-                <td className="border p-2 text-right dark:border-gray-600">{item.biaya_admin}</td>
-                <td className="border p-2 text-right dark:border-gray-600">{item.biaya_packaging}</td>
-                <td className="border p-2 text-right font-bold dark:border-gray-600 dark:text-green-400">{item.total_fix}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="mt-4">
+          {Object.keys(groupedByAgent).map((agentKey) => {
+            const rows = groupedByAgent[agentKey];
+            const subtotal = rows.reduce((s, it) => ({
+              berat: s.berat + (it.berat_kg || 0),
+              harga: s.harga + (it.harga_ongkir || 0),
+              admin: s.admin + (it.biaya_admin || 0),
+              pack: s.pack + (it.biaya_packaging || 0),
+              total: s.total + (it.total_fix || 0)
+            }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+
+            const isCollapsed = !!collapsedAgents[agentKey];
+            return (
+              <div key={agentKey} className="mb-6 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700">
+                <div className="flex items-center justify-between p-3 border-b dark:border-gray-700">
+                  <div>
+                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">{agentKey}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{rows.length} AWB</div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right text-sm">
+                      <div className="text-xs text-gray-500">Total Kg</div>
+                      <div className="font-semibold">{subtotal.berat.toLocaleString('en-US')} kg</div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="font-semibold text-green-600 dark:text-green-300">Rp. {subtotal.total.toLocaleString('en-US')}</div>
+                    </div>
+                    <button onClick={() => toggleAgentCollapse(agentKey)} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded text-sm">
+                      {isCollapsed ? 'Expand' : 'Collapse'}
+                    </button>
+                  </div>
+                </div>
+
+                {!isCollapsed && (
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 dark:bg-gray-900">
+                        <th className="p-2 text-left text-xs">No</th>
+                        <th className="p-2 text-left text-xs">AWB</th>
+                        <th className="p-2 text-left text-xs">Tgl</th>
+                        <th className="p-2 text-left text-xs">{(isBranchMode && branchOrigin === 'bangka') ? 'Kecamatan' : 'Tujuan'}</th>
+                        <th className="p-2 text-left text-xs">Via</th>
+                        <th className="p-2 text-left text-xs">Pengirim</th>
+                        <th className="p-2 text-left text-xs">Penerima</th>
+                        <th className="p-2 text-right text-xs">Kg</th>
+                        <th className="p-2 text-right text-xs">Harga</th>
+                        <th className="p-2 text-right text-xs">Admin</th>
+                        <th className="p-2 text-right text-xs">Pack</th>
+                        <th className="p-2 text-right text-xs">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((item, i) => (
+                        <tr key={item.awb_no + i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="p-2 text-xs">{i + 1}</td>
+                          <td className="p-2 text-xs">{item.awb_no}</td>
+                          <td className="p-2 text-xs">{item.awb_date}</td>
+                          <td className="p-2 text-xs">{(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
+                          <td className="p-2 text-xs">{item.kirim_via}</td>
+                          <td className="p-2 text-xs">{item.nama_pengirim}</td>
+                          <td className="p-2 text-xs">{item.nama_penerima}</td>
+                          <td className="p-2 text-right text-xs">{(item.berat_kg || 0).toLocaleString('en-US')}</td>
+                          <td className="p-2 text-right text-xs">{(item.harga_ongkir || 0).toLocaleString('en-US')}</td>
+                          <td className="p-2 text-right text-xs">{(item.biaya_admin || 0).toLocaleString('en-US')}</td>
+                          <td className="p-2 text-right text-xs">{(item.biaya_packaging || 0).toLocaleString('en-US')}</td>
+                          <td className="p-2 text-right text-xs font-semibold text-green-600 dark:text-green-300">{(item.total_fix || 0).toLocaleString('en-US')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
       {filteredData.length > 0 && (
         <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 flex flex-row flex-wrap items-center gap-4 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-200">
