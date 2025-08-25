@@ -142,11 +142,13 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       const berat = item.berat_kg || 0;
       const adm = item.biaya_admin || 0;
       const packing = item.biaya_packaging || 0;
-      // Total = (Kg x Harga Ongkir) + Admin + Packaging
-      const total = (berat * hargaOngkir) + adm + packing;
+      const transit = item.biaya_transit || 0;
+      // Total = (Kg x Harga Ongkir) + Admin + Packaging + Transit
+      const total = (berat * hargaOngkir) + adm + packing + transit;
       return {
         ...item,
         harga_ongkir: hargaOngkir,
+        biaya_transit: transit,
         total_fix: total
       }
     });
@@ -212,8 +214,8 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     Object.keys(groupedByAgent).forEach(agentKey => {
       const rows = groupedByAgent[agentKey];
       const sheetData = [];
-      // header row
-      sheetData.push(['No', 'AWB (awb_no)', 'Tgl AWB', destinationHeader, 'Via Pengiriman', 'Pengirim', 'Penerima', 'Kg', 'Harga (Ongkir)', 'Admin', 'Packaging', 'Total']);
+  // header row (added Transit column)
+  sheetData.push(['No', 'AWB (awb_no)', 'Tgl AWB', destinationHeader, 'Via Pengiriman', 'Pengirim', 'Penerima', 'Kg', 'Harga (Ongkir)', 'Admin', 'Packaging', 'Transit', 'Total']);
 
       rows.forEach((item, idx) => {
         const dest = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
@@ -229,6 +231,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           Number(item.harga_ongkir || 0),
           Number(item.biaya_admin || 0),
           Number(item.biaya_packaging || 0),
+          Number(item.biaya_transit || 0),
           Number(item.total_fix || 0)
         ]);
       });
@@ -238,8 +241,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         berat: s.berat + (it.berat_kg || 0),
         total: s.total + (it.total_fix || 0)
       }), { berat: 0, total: 0 });
-      sheetData.push([]);
-      sheetData.push(['', '', '', '', '', '', 'SUBTOTAL', subtotal.berat, '', '', '', subtotal.total]);
+  sheetData.push([]);
+  // Adjusted subtotal placement to account for Transit column (total is at index 12)
+  sheetData.push(['', '', '', '', '', '', 'SUBTOTAL', subtotal.berat, '', '', '', '', subtotal.total]);
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       // Keep raw values (no visual formatting) but ensure numeric cells are numeric
@@ -254,8 +258,8 @@ const SalesReport = ({ userRole, branchOrigin }) => {
             ws[kgCell].v = typeof v === 'number' ? v : Number(String(v).replace(',', '.')) || 0;
           }
 
-          // Currency columns (c=8,9,10,11) - store as raw numbers (no currency formatting)
-          [8, 9, 10, 11].forEach(c => {
+          // Currency columns (c=8,9,10,11,12) - store as raw numbers (no currency formatting)
+          [8, 9, 10, 11, 12].forEach(c => {
             const addr = XLSX.utils.encode_cell({ r: R, c });
             if (ws[addr]) {
               const val = ws[addr].v;
@@ -296,6 +300,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       'Harga (Ongkir)',
       'Admin',
       'Packaging',
+      'Transit',
       'Total'
     ]
 
@@ -318,7 +323,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         'Total': ''
       });
 
-      rows.forEach(item => {
+    rows.forEach(item => {
         const destinationValue = (isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan;
         formattedData.push({
           'Agent': '',
@@ -331,19 +336,22 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           'Kg': item.berat_kg || 0,
           'Harga (Ongkir)': item.harga_ongkir || 0,
           'Admin': item.biaya_admin || 0,
-          'Packaging': item.biaya_packaging || 0,
-          'Total': item.total_fix || 0
+      'Packaging': item.biaya_packaging || 0,
+      'Transit': item.biaya_transit || 0,
+      'Total': item.total_fix || 0
         });
       });
 
       // subtotal row for agent
+      // subtotal row for agent (include Transit in calculation)
       const subtotal = rows.reduce((s, it) => ({
         berat: s.berat + (it.berat_kg || 0),
         harga: s.harga + (it.harga_ongkir || 0),
         admin: s.admin + (it.biaya_admin || 0),
         pack: s.pack + (it.biaya_packaging || 0),
+        transit: s.transit + (it.biaya_transit || 0),
         total: s.total + (it.total_fix || 0)
-      }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+      }), { berat: 0, harga: 0, admin: 0, pack: 0, transit: 0, total: 0 });
 
       formattedData.push({
         'Agent': 'SUBTOTAL',
@@ -357,6 +365,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         'Harga (Ongkir)': '',
         'Admin': '',
         'Packaging': '',
+        'Transit': '',
         'Total': subtotal.total
       });
 
@@ -373,6 +382,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         'Harga (Ongkir)': '',
         'Admin': '',
         'Packaging': '',
+        'Transit': '',
         'Total': ''
       });
     });
@@ -408,10 +418,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
       headers,
       data: formattedData,
       fileName: `sales_report_${today.replace(/\s+/g, '_')}.xls`,
-      currency: 'Rp',
-      // shifted indexes because we added 'Agent' column at start
-      currencyColumns: [8, 9, 10, 11], // Harga, Admin, Packaging, Total
-      numberColumns: [7], // Kg
+  currency: 'Rp',
+  // shifted indexes because we added 'Agent' column at start
+  currencyColumns: [8, 9, 10, 11, 12], // Harga, Admin, Packaging, Transit, Total
+  numberColumns: [7], // Kg
       dateRange: dateRange
     })
   };
@@ -436,7 +446,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
         total: s.total + (it.total_fix || 0)
       }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
 
-      const rowsHtml = rows.map((item, idx) => `
+    const rowsHtml = rows.map((item, idx) => `
         <tr>
           <td class="text-center font-medium">${idx + 1}</td>
           <td class="awb-number">${item.awb_no}</td>
@@ -448,8 +458,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           <td class="text-right font-medium">${(item.berat_kg || 0).toLocaleString('id-ID')} kg</td>
           <td class="text-right currency">${(item.harga_ongkir || 0).toLocaleString('id-ID')}</td>
           <td class="text-right currency">${(item.biaya_admin || 0).toLocaleString('id-ID')}</td>
-          <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
-          <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
+      <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
+      <td class="text-right currency">${(item.biaya_transit || 0).toLocaleString('id-ID')}</td>
+      <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
         </tr>
       `).join('');
 
@@ -464,7 +475,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           </div>
           <table style="width:100%; border-collapse:collapse;">
             <thead>
-              <tr style="background:#ffffff;">
+          <tr style="background:#ffffff;">
                 <th style="padding:8px; text-align:left; font-size:10px;">#</th>
                 <th style="padding:8px; text-align:left; font-size:10px;">AWB</th>
                 <th style="padding:8px; text-align:left; font-size:10px;">Date</th>
@@ -475,8 +486,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                 <th style="padding:8px; text-align:right; font-size:10px;">Kg</th>
                 <th style="padding:8px; text-align:right; font-size:10px;">Rate</th>
                 <th style="padding:8px; text-align:right; font-size:10px;">Admin</th>
-                <th style="padding:8px; text-align:right; font-size:10px;">Pack</th>
-                <th style="padding:8px; text-align:right; font-size:10px;">Total</th>
+            <th style="padding:8px; text-align:right; font-size:10px;">Pack</th>
+            <th style="padding:8px; text-align:right; font-size:10px;">Transit</th>
+            <th style="padding:8px; text-align:right; font-size:10px;">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -597,8 +609,9 @@ const SalesReport = ({ userRole, branchOrigin }) => {
               harga: s.harga + (it.harga_ongkir || 0),
               admin: s.admin + (it.biaya_admin || 0),
               pack: s.pack + (it.biaya_packaging || 0),
+              transit: s.transit + (it.biaya_transit || 0),
               total: s.total + (it.total_fix || 0)
-            }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+            }), { berat: 0, harga: 0, admin: 0, pack: 0, transit: 0, total: 0 });
 
             const isCollapsed = !!collapsedAgents[agentKey];
             return (
@@ -638,6 +651,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                         <th className="p-2 text-right text-xs">Harga</th>
                         <th className="p-2 text-right text-xs">Admin</th>
                         <th className="p-2 text-right text-xs">Pack</th>
+                        <th className="p-2 text-right text-xs">Transit</th>
                         <th className="p-2 text-right text-xs">Total</th>
                       </tr>
                     </thead>
@@ -655,6 +669,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
                           <td className="p-2 text-right text-xs">{(item.harga_ongkir || 0).toLocaleString('en-US')}</td>
                           <td className="p-2 text-right text-xs">{(item.biaya_admin || 0).toLocaleString('en-US')}</td>
                           <td className="p-2 text-right text-xs">{(item.biaya_packaging || 0).toLocaleString('en-US')}</td>
+                          <td className="p-2 text-right text-xs">{(item.biaya_transit || 0).toLocaleString('en-US')}</td>
                           <td className="p-2 text-right text-xs font-semibold text-green-600 dark:text-green-300">{(item.total_fix || 0).toLocaleString('en-US')}</td>
                         </tr>
                       ))}
@@ -673,6 +688,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           <p className="dark:text-gray-300">Total Harga (Ongkir): Rp. {filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('en-US')}</p>
           <p className="dark:text-gray-300">Total Admin: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('en-US')}</p>
           <p className="dark:text-gray-300">Total Packaging: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('en-US')}</p>
+          <p className="dark:text-gray-300">Total Transit: Rp. {filteredData.reduce((sum, item) => sum + (item.biaya_transit || 0), 0).toLocaleString('en-US')}</p>
           <p className="dark:text-gray-300">Total Keseluruhan: Rp. {filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('en-US')}</p>
         </div>
       )}

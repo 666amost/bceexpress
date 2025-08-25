@@ -97,8 +97,9 @@ export default function RecapManifest({ userRole, branchOrigin }) {
                 cod: 0,
                 totalAdmin: 0,
                 totalPackaging: 0,
-                totalOngkir: 0,
-                totalFix: 0,
+        totalOngkir: 0,
+        totalTransit: 0,
+        totalFix: 0,
                 count: 0
               };
             }
@@ -107,9 +108,11 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             const hargaPerKg = toNumber(item.harga_per_kg);
             const adm = toNumber(item.biaya_admin);
             const pack = toNumber(item.biaya_packaging);
+            const transit = toNumber(item.biaya_transit);
 
-            // compute total consistent with SalesReport
-            const totalFix = (berat * hargaPerKg) + adm + pack;
+      // compute total consistent with SalesReport (include transit)
+      const totalFixWithoutTransit = (berat * hargaPerKg) + adm + pack;
+      const totalWithTransit = totalFixWithoutTransit + transit;
 
             acc[date].totalAWB += 1;
             acc[date].totalColi += coli;
@@ -117,12 +120,13 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             acc[date].totalAdmin += adm;
             acc[date].totalPackaging += pack;
             acc[date].totalOngkir += berat * hargaPerKg;
-            acc[date].totalFix += totalFix;
+            acc[date].totalTransit += transit;
+            acc[date].totalFix += totalWithTransit;
 
             const metode = (item.metode_pembayaran || '').toString().toLowerCase();
-            if (metode === 'cash') acc[date].cash += totalFix;
-            if (metode === 'transfer') acc[date].transfer += totalFix;
-            if (metode === 'cod') acc[date].cod += totalFix;
+            if (metode === 'cash') acc[date].cash += totalWithTransit;
+            if (metode === 'transfer') acc[date].transfer += totalWithTransit;
+            if (metode === 'cod') acc[date].cod += totalWithTransit;
 
             acc[date].count += 1;
             return acc;
@@ -140,6 +144,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             totalPackaging: totals.totalPackaging,
             totalOngkir: totals.totalOngkir,
             totalFix: totals.totalFix,
+            totalTransit: totals.totalTransit,
             count: totals.count
           }));
           // Sort by date descending for consistency
