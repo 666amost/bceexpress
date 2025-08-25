@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
+import { normalizeKecamatan } from "../lib/area-codes"
 // import AwbForm from "./AwbForm" // Unused import removed to resolve TS warning
 import { baseAgentListCentral, baseAgentListTanjungPandan, baseAgentListBangka } from "../lib/agents";
 
@@ -189,22 +190,24 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
-  const currentAgentList = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
-    ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan)
+  const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
+
+  const currentAgentList = userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan')
+    ? (normalizedBranchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan)
     : agentList;
-  const currentKotaWilayah = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
-    ? (branchOrigin === 'bangka' ? kotaWilayahBangka : kotaWilayahTanjungPandan) 
+  const currentKotaWilayah = userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan')
+    ? (normalizedBranchOrigin === 'bangka' ? kotaWilayahBangka : kotaWilayahTanjungPandan) 
     : kotaWilayahPusat;
-  const currentKotaTujuan = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')
-    ? (branchOrigin === 'bangka' ? Object.keys(kotaWilayahBangka) : kotaTujuanTanjungPandan) 
+  const currentKotaTujuan = userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan')
+    ? (normalizedBranchOrigin === 'bangka' ? Object.keys(kotaWilayahBangka) : kotaTujuanTanjungPandan) 
     : kotaTujuanPusat;
-  const currentKirimVia = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan') ? kirimViaTanjungPandan : kirimViaPusat;
-  const currentMetodePembayaran = userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan') ? metodePembayaranTanjungPandan : metodePembayaranPusat;
+  const currentKirimVia = userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan') ? kirimViaTanjungPandan : kirimViaPusat;
+  const currentMetodePembayaran = userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan') ? metodePembayaranTanjungPandan : metodePembayaranPusat;
 
   // Penentuan tabel yang benar (harus di sini, agar bisa diakses semua handler)
-  const isCabangTable = (userRole === 'cabang' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) || 
-                       (userRole === 'admin' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan')) ||
-                       (userRole === 'couriers' && (branchOrigin === 'bangka' || branchOrigin === 'tanjung_pandan'));
+  const isCabangTable = (userRole === 'cabang' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan')) || 
+                       (userRole === 'admin' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan')) ||
+                       (userRole === 'couriers' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan'));
   const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
 
   useEffect(() => {
@@ -703,6 +706,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     if (!selectedItem) return;
     setSaving(true);
     try {
+      // For Bangka branch (manifest_cabang), ensure wilayah stores the kecamatan value
+      const finalWilayah = (targetTable === 'manifest_cabang' && normalizedBranchOrigin === 'bangka')
+        ? normalizeKecamatan(selectedItem.wilayah)
+        : selectedItem.wilayah;
+
       const { error } = await supabaseClient
         .from(targetTable)
         .update({
@@ -710,7 +718,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
           awb_date: selectedItem.awb_date,
           kirim_via: selectedItem.kirim_via,
           kota_tujuan: selectedItem.kota_tujuan,
-          wilayah: selectedItem.wilayah,
+          wilayah: finalWilayah,
           metode_pembayaran: selectedItem.metode_pembayaran,
           agent_customer: selectedItem.agent_customer,
           nama_pengirim: selectedItem.nama_pengirim,

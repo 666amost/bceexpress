@@ -154,6 +154,7 @@ export const areaCodes: Record<string, string> = {
   'TAPOS': 'KMY',
   'TARUMAJAYA': 'KMY',
   'TEBET': 'KMY',
+  'SUNTER JAYA': 'KMY',
   'TIGARAKSA': 'GLC',
 };
 
