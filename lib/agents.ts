@@ -145,5 +145,6 @@ export const baseAgentListCentral: string[] = [
   "HENDRY LIMIA",
   "JESS DOT",
   "SEPIRING RASA BASO",
-  "CHRISTINE PADEMANGAN"
+  "CHRISTINE PADEMANGAN",
+  "AMERTHA / HOLAI RESTO"
 ];
