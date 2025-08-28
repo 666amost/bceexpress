@@ -112,8 +112,6 @@ export const baseAgentListTanjungPandan: string[] = [
 ];
 
 export const baseAgentListCentral: string[] = [
-  "GLC COD UDR",
-  "GLC COD DRT",
   "OTTY OFFICIAL",
   "UDR CASH",
   "SEA CASH",

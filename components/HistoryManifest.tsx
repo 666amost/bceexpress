@@ -223,19 +223,27 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
 
   useEffect(() => {
     setLoading(true)
-    let query;
+    // Limit to the last 7 days to keep the query light and table rendering fast
+    const oneWeekAgo = new Date()
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+    const oneWeekAgoIso = oneWeekAgo.toISOString().split('T')[0] // YYYY-MM-DD
+
+    let query
     if (isCabangTable) {
       query = supabaseClient
         .from('manifest_cabang')
         .select('*')
         .eq('origin_branch', branchOrigin)
-        .order('awb_date', { ascending: false });
+        .gte('awb_date', oneWeekAgoIso)
+        .order('awb_date', { ascending: false })
     } else {
       query = supabaseClient
         .from('manifest')
         .select('*')
-        .order('awb_date', { ascending: false });
+        .gte('awb_date', oneWeekAgoIso)
+        .order('awb_date', { ascending: false })
     }
+
     query.then(({ data }) => {
       setData(data || [])
       setLoading(false)

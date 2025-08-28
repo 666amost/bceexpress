@@ -49,7 +49,21 @@ export function getAgentForEmail(email: string): string | null {
  */
 export function getEnhancedAgentList(baseAgentList: string[]): string[] {
   const enhancedList = [...baseAgentList];
-  
+
+  // Heuristic: only add mapped agent names when the base list already appears
+  // to be for the same branch/area as our AGENT_MAPPINGS. If there is no
+  // overlap between the base list and any known mapped agent names, we assume
+  // the caller is using a different manifest (for example: central) and we
+  // should not inject branch-specific agent names.
+  const hasMappedAgentOverlap = baseAgentList.some(baseAgent =>
+    AGENT_MAPPINGS.some(mapping => mapping.agentName.toLowerCase() === baseAgent.toLowerCase())
+  );
+
+  if (!hasMappedAgentOverlap) {
+    // No overlap -> don't augment; return a stable, sorted copy of the base list.
+    return enhancedList.sort();
+  }
+
   // Add emails that don't have a corresponding agent in the base list
   AGENT_MAPPINGS.forEach(mapping => {
     if (!baseAgentList.some(agent => agent.toLowerCase() === mapping.agentName.toLowerCase())) {
@@ -58,7 +72,7 @@ export function getEnhancedAgentList(baseAgentList: string[]): string[] {
       }
     }
   });
-  
+
   return enhancedList.sort();
 }
 
