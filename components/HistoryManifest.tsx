@@ -813,25 +813,27 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
           const options = {
             filename: row.awb_no + '.pdf',
             margin: 0,
-            image: { 
-              type: 'jpeg', 
-              quality: 1.0 
+            image: {
+              type: 'jpeg',
+              quality: 1.0
             },
-            html2canvas: { 
-              scale: 4,
+            html2canvas: {
+              scale: 6, // Ditingkatkan dari 4 ke 5 untuk kualitas lebih baik
               useCORS: true,
               allowTaint: true,
               backgroundColor: '#ffffff',
-              width: 378, // 100mm * 3.78 (96 DPI to mm conversion * scale)
+              width: 378, // Tetap 378px untuk ukuran file yang lebih kecil
               height: 378,
               scrollX: 0,
-              scrollY: 0
+              scrollY: 0,
+              letterRendering: true, // Untuk rendering teks yang lebih baik
+              logging: false // Mengurangi noise di console
             },
-            jsPDF: { 
-              unit: 'mm', 
-              format: [100, 100] as [number, number], 
+            jsPDF: {
+              unit: 'mm',
+              format: [100, 100] as [number, number],
               orientation: 'portrait',
-              compress: true
+              compress: true // Aktifkan kompresi untuk ukuran file yang lebih kecil
             }
           };
           
