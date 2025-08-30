@@ -5,7 +5,7 @@ import { supabaseClient } from "../lib/auth"
 import { createStyledExcelWithHTML } from "../lib/excel-utils"
 import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
-import { areaCodeData } from '@/lib/area-codes';
+import { areaCodeData, areaCodes, normalizeKecamatan } from '@/lib/area-codes';
 
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
@@ -89,14 +89,23 @@ export default function DailyReport({ userRole, branchOrigin }) {
           if (selectedKirimVia) q = q.ilike("kirim_via", selectedKirimVia)
           if (selectedKotaTujuan) q = q.eq("kota_tujuan", selectedKotaTujuan)
           if (selectedWilayah) {
-            if (isBranchMode) q = q.eq("kecamatan", selectedWilayah)
-            else q = q.eq("wilayah", selectedWilayah)
+            if (isBranchMode) {
+              // Branch data is inconsistent: some rows use `kecamatan`, others use `wilayah`.
+              // Match either field so filtering works reliably (e.g. TANGERANG entries).
+              q = q.or(`kecamatan.eq.${selectedWilayah},wilayah.eq.${selectedWilayah}`)
+            } else q = q.eq("wilayah", selectedWilayah)
           }
 
           if (selectedAreaCode && isBranchMode) {
             const areaWilayahList = areaCodeData[selectedAreaCode] || []
             if (areaWilayahList.length > 0) {
-              const orConditions = areaWilayahList.map(area => `kecamatan.ilike.%${area}%`);
+              // Check both kecamatan and wilayah fields because some branch records
+              // store the area in `wilayah` instead of `kecamatan`.
+              const orConditions = [];
+              for (const area of areaWilayahList) {
+                orConditions.push(`kecamatan.ilike.%${area}%`);
+                orConditions.push(`wilayah.ilike.%${area}%`);
+              }
               if (orConditions.length > 0) {
                 q = q.or(orConditions.join(','));
               }
@@ -156,20 +165,21 @@ export default function DailyReport({ userRole, branchOrigin }) {
       }
       if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
       if (selectedWilayah) {
-        // For branch mode (manifest_cabang) the area is stored in `kecamatan`.
-        // Use `kecamatan` when in branch mode, otherwise use `wilayah`.
         if (isBranchMode) {
-          query = query.eq("kecamatan", selectedWilayah)
+          // Branch records are inconsistent; match either field.
+          query = query.or(`kecamatan.eq.${selectedWilayah},wilayah.eq.${selectedWilayah}`)
         } else {
           query = query.eq("wilayah", selectedWilayah)
         }
       }
       if (selectedAreaCode && isBranchMode) {
-        // Area code filter HANYA untuk branch mode (manifest_cabang)
         const areaWilayahList = areaCodeData[selectedAreaCode] || []
         if (areaWilayahList.length > 0) {
-          // Search in kecamatan field untuk branch mode
-          const orConditions = areaWilayahList.map(area => `kecamatan.ilike.%${area}%`);
+          const orConditions = [];
+          for (const area of areaWilayahList) {
+            orConditions.push(`kecamatan.ilike.%${area}%`);
+            orConditions.push(`wilayah.ilike.%${area}%`);
+          }
           if (orConditions.length > 0) {
             query = query.or(orConditions.join(','));
           }
@@ -237,15 +247,24 @@ export default function DailyReport({ userRole, branchOrigin }) {
   }, [isBranchMode, branchOrigin]);
 
   const wilayahOptions = useMemo(() => {
-    // Prioritas 1: Area code filter untuk branch mode
+    // Jika kedua filter dipilih: area code dan kota tujuan
+    if (isBranchMode && selectedAreaCode && selectedKotaTujuan && kotaWilayah[selectedKotaTujuan]) {
+      const kecamatanList = kotaWilayah[selectedKotaTujuan];
+      const targetCode = selectedAreaCode === 'BCE GLC' ? 'GLC' : 'KMY';
+      return kecamatanList.filter(kec => {
+        const normalized = normalizeKecamatan(kec);
+        return normalized && areaCodes[normalized] === targetCode;
+      });
+    }
+    // Jika hanya area code dipilih
     if (isBranchMode && selectedAreaCode && areaCodeData[selectedAreaCode]) {
       return areaCodeData[selectedAreaCode];
     }
-    // Prioritas 2: Kota tujuan filter (untuk semua mode)
+    // Jika hanya kota tujuan dipilih
     if (selectedKotaTujuan && kotaWilayah[selectedKotaTujuan]) {
       return kotaWilayah[selectedKotaTujuan];
     }
-    // Prioritas 3: Default untuk branch mode tanpa filter area code dan kota tujuan
+    // Default untuk branch mode tanpa filter area code dan kota tujuan
     if (isBranchMode && !selectedAreaCode && !selectedKotaTujuan) {
       const allAreaOptions = [...areaCodeData["BCE GLC"], ...areaCodeData["BCE KMY"]];
       return [...new Set(allAreaOptions)]; // Remove duplicates
