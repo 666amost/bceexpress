@@ -34,6 +34,7 @@ import { Camera, Box, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { ContinuousScanModal } from "./continuous-scan-modal"
+import { PushNotification } from "./push-notification"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -642,6 +643,9 @@ export function CourierDashboard() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
+      {/* Push Notification Component */}
+      <PushNotification userId={currentUser.id} />
+      
       {/* Watermark Background */}
       <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04] z-0">
         {Array.from({ length: 48 }).map((_, i) => (

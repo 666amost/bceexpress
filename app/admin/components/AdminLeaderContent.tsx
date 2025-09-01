@@ -800,7 +800,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     return (
       <div className="space-y-6">
         {selectedCourier ? (
-          <CourierShipmentList courierId={selectedCourier} dataRange={dataRange} />
+          <CourierShipmentList courierId={selectedCourier} dataRange={dataRange} isAdminView={true} />
         ) : (
           <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700">
             <BoxIcon className="h-16 w-16 text-blue-400 mx-auto mb-4" />
@@ -1231,21 +1231,21 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full rounded-lg">
         <DialogHeader>
-          <DialogTitle className="text-green-700 font-bold flex items-center gap-2">
+          <DialogTitle className="text-green-700 dark:text-green-400 font-bold flex items-center gap-2">
             <ChartIcon className="h-5 w-5" /> Manifest Cabang
           </DialogTitle>
         </DialogHeader>
         <div className="overflow-x-auto max-h-[60vh]">
             {loading ? (
-            <div className="text-center py-8 text-green-700 font-semibold">Loading manifest...</div>
+            <div className="text-center py-8 text-green-700 dark:text-green-400 font-semibold">Loading manifest...</div>
           ) : error ? (
-            <div className="text-center py-8 text-red-600 font-semibold">{error}</div>
+            <div className="text-center py-8 text-red-600 dark:text-red-400 font-semibold">{error}</div>
           ) : data.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">No manifest data found.</div>
           ) : (
             <table className="min-w-full text-xs sm:text-sm">
               <thead>
-                <tr className="bg-green-100 text-green-900">
+                <tr className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300">
                   <th className="px-2 py-1">AWB</th>
                   <th className="px-2 py-1">Tanggal</th>
                   <th className="px-2 py-1">Tujuan</th>
@@ -1254,10 +1254,10 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
               </thead>
               <tbody>
                 {data.map((row) => (
-                  <tr key={row.id} className="border-b hover:bg-green-50">
-                    <td className="px-2 py-1 font-mono">{row.awb_no}</td>
-                    <td className="px-2 py-1">{row.awb_date}</td>
-                    <td className="px-2 py-1">{row.kota_tujuan}</td>
+                  <tr key={row.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20">
+                    <td className="px-2 py-1 font-mono text-gray-900 dark:text-gray-100">{row.awb_no}</td>
+                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{row.awb_date}</td>
+                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{row.kota_tujuan}</td>
                     <td className="px-2 py-1 max-w-[260px]">
                       {row.alamat_penerima ? (
                         <Tooltip.Provider>
@@ -1269,21 +1269,21 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
                                   setSelectedAddress(row.alamat_penerima || null);
                                   setIsAddressDialogOpen(true);
                                 }}
-                                className="truncate text-sm text-gray-700 max-w-[240px] text-left flex items-center gap-2"
+                                className="truncate text-sm text-gray-700 dark:text-gray-300 max-w-[240px] text-left flex items-center gap-2"
                                 style={{ cursor: 'pointer' }}
                               >
                                 <span className="flex-1 truncate">{row.alamat_penerima}</span>
-                                <span className="text-gray-400 text-sm ml-1">›</span>
+                                <span className="text-gray-400 dark:text-gray-500 text-sm ml-1">›</span>
                               </button>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side="top" align="center" className="bg-gray-800 text-white text-xs rounded px-2 py-1 max-w-[320px] break-words">
+                            <Tooltip.Content side="top" align="center" className="bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-xs rounded px-2 py-1 max-w-[320px] break-words">
                               {row.alamat_penerima}
-                              <Tooltip.Arrow className="fill-current text-gray-800" />
+                              <Tooltip.Arrow className="fill-current text-gray-800 dark:text-gray-200" />
                             </Tooltip.Content>
                           </Tooltip.Root>
                         </Tooltip.Provider>
                       ) : (
-                        '-'
+                        <span className="text-gray-500 dark:text-gray-400">-</span>
                       )}
                     </td>
                   </tr>
@@ -1299,16 +1299,16 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
     <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
       <DialogContent className="max-w-md w-full rounded-lg">
         <DialogHeader>
-          <DialogTitle className="text-sm font-bold text-gray-800">Alamat Penerima</DialogTitle>
+          <DialogTitle className="text-sm font-bold text-gray-800 dark:text-gray-200">Alamat Penerima</DialogTitle>
         </DialogHeader>
         <div className="p-4">
-          <p className="text-sm text-gray-700 break-words">{selectedAddress ?? '-'}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 break-words">{selectedAddress ?? '-'}</p>
         </div>
         <div className="p-4 pt-0 flex justify-end gap-2">
           <Button onClick={handleCopyAddress} className="bg-green-600 hover:bg-green-700 text-white" size="sm">
             {copied ? 'Copied' : 'Copy'}
           </Button>
-          <Button onClick={() => setIsAddressDialogOpen(false)} className="bg-blue-600 text-white" size="sm">Close</Button>
+          <Button onClick={() => setIsAddressDialogOpen(false)} className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">Close</Button>
         </div>
       </DialogContent>
     </Dialog>

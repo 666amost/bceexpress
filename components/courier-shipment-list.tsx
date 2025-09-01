@@ -4,15 +4,18 @@ import type React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Oval } from 'react-loading-icons';
 import { DeliveryParcel as DeliveryParcelIcon, Package as PackageIcon, Checkmark as CheckCircleIcon, Warning as AlertTriangleIcon, Time as ClockIcon, LocationFilled as LocationPointIcon } from '@carbon/icons-react';
+import { Bell } from 'lucide-react';
 import { supabaseClient } from "@/lib/auth";
 
 interface CourierShipmentListProps {
   courierId: string;
   onDeleteShipment?: (shipmentId: string) => void;
   dataRange: number;
+  isAdminView?: boolean; // Tambah prop untuk menentukan apakah ini view admin
 }
 
 interface ShipmentUpdate {
@@ -61,7 +64,7 @@ const getDateRange = (days: number) => {
   };
 };
 
-export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: CourierShipmentListProps) {
+export function CourierShipmentList({ courierId, onDeleteShipment, dataRange, isAdminView = false }: CourierShipmentListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [courier, setCourier] = useState<{ name?: string; email?: string } | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]); // State untuk semua shipment yang terkait dengan kurir
@@ -74,6 +77,32 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
   const [issuesCount, setIssuesCount] = useState(0);
   const [allCount, setAllCount] = useState(0);
   // === Akhir State jumlah ===
+
+  // Fungsi untuk mengirim push notification
+  const sendPushNotification = async (awbNumber: string) => {
+    try {
+      const message = `RESI ${awbNumber} Minta segera diantar`;
+      
+      const { error } = await supabaseClient
+        .from('courier_notifications')
+        .insert({
+          awb_number: awbNumber,
+          courier_id: courierId,
+          message: message,
+          is_read: false
+        });
+
+      if (error) {
+        console.error('Error sending push notification:', error);
+        alert('Gagal mengirim notifikasi: ' + error.message);
+      } else {
+        alert(`Notifikasi URGENT berhasil dikirim ke courier untuk AWB ${awbNumber}`);
+      }
+    } catch (error) {
+      console.error('Error sending push notification:', error);
+      alert('Terjadi error saat mengirim notifikasi');
+    }
+  };
 
 
   const loadCourierData = useCallback(async () => {
@@ -293,16 +322,34 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange }: 
 
         {/* === Bagian TabsContent: Gunakan filteredShipments yang sudah dihitung === */}
         <TabsContent value="ongoing">
-          <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
+          <ShipmentList 
+            shipments={filteredShipments} 
+            getStatusIcon={getStatusIcon} 
+            formatStatus={formatStatus}
+            isAdminView={isAdminView}
+            sendPushNotification={sendPushNotification}
+          />
         </TabsContent>
 
         <TabsContent value="completed">
-          <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
+          <ShipmentList 
+            shipments={filteredShipments} 
+            getStatusIcon={getStatusIcon} 
+            formatStatus={formatStatus}
+            isAdminView={isAdminView}
+            sendPushNotification={sendPushNotification}
+          />
         </TabsContent>
 
         
         <TabsContent value="all">
-          <ShipmentList shipments={filteredShipments} getStatusIcon={getStatusIcon} formatStatus={formatStatus} />
+          <ShipmentList 
+            shipments={filteredShipments} 
+            getStatusIcon={getStatusIcon} 
+            formatStatus={formatStatus}
+            isAdminView={isAdminView}
+            sendPushNotification={sendPushNotification}
+          />
         </TabsContent>
         {/* === Akhir Bagian TabsContent === */}
 
@@ -323,10 +370,14 @@ function ShipmentList({
   shipments,
   getStatusIcon,
   formatStatus,
+  isAdminView = false,
+  sendPushNotification,
 }: {
   shipments: Shipment[];
   getStatusIcon: (status: string) => React.ReactNode;
   formatStatus: (status: string) => string;
+  isAdminView?: boolean;
+  sendPushNotification?: (awbNumber: string) => void;
 }) {
   const [expandedShipments, setExpandedShipments] = useState<Set<string>>(new Set());
 
@@ -351,14 +402,34 @@ function ShipmentList({
           <CardContent className="p-0">
             <div className="flex flex-col md:flex-row">
               <div className="p-4 md:w-1/4 bg-gray-50 dark:bg-gray-800 border-r border-gray-100 dark:border-gray-800">
-                <p className="font-mono text-sm mb-1 text-gray-800 dark:text-gray-200">{shipment.awb_number}</p>
-                <div className="flex items-center text-gray-700 dark:text-gray-300">
-                  {getStatusIcon(shipment.current_status)}
-                  <span className="ml-2 font-medium">{formatStatus(shipment.current_status)}</span>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="font-mono text-sm mb-1 text-gray-800 dark:text-gray-200">{shipment.awb_number}</p>
+                    <div className="flex items-center text-gray-700 dark:text-gray-300">
+                      {getStatusIcon(shipment.current_status)}
+                      <span className="ml-2 font-medium">{formatStatus(shipment.current_status)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Last update: {shipment.updated_at ? new Date(shipment.updated_at).toLocaleString() : "N/A"}
+                    </p>
+                  </div>
+                  
+                  {/* Push Notification Button - hanya tampil untuk admin dan shipment ongoing */}
+                  {isAdminView && sendPushNotification && (
+                    shipment.current_status !== 'delivered' && 
+                    shipment.current_status !== 'cancelled' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => sendPushNotification(shipment.awb_number)}
+                        className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-600 dark:text-orange-300 ml-2"
+                        title="Kirim notifikasi ke courier"
+                      >
+                        <Bell className="h-3 w-3" />
+                      </Button>
+                    )
+                  )}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Last update: {shipment.updated_at ? new Date(shipment.updated_at).toLocaleString() : "N/A"}
-                </p>
               </div>
 
               <div className="p-4 md:w-3/4 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700">
