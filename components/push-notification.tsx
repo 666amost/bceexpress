@@ -189,7 +189,7 @@ export function PushNotification({ userId }: PushNotificationProps) {
                   URGENT
                 </div>
                 <div className="text-white/90 text-xs sm:text-sm truncate">
-                  RESI {currentNotification.awb_number} Minta segera diantar
+                   RESI {currentNotification.awb_number} Minta segera diantar
                 </div>
               </div>
             </div>
