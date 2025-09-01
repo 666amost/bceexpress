@@ -184,6 +184,8 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [editStatus, setEditStatus] = useState("lunas")
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [isSearchMode, setIsSearchMode] = useState(false)
   const [printData, setPrintData] = useState<ManifestData | null>(null)
   const [showPrintLayout, setShowPrintLayout] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -249,6 +251,72 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
       setLoading(false)
     })
   }, [saving, userRole, branchOrigin, isCabangTable])
+
+  // Function to handle search in entire database
+  const handleSearch = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      // If search is empty, reset to default view (1 week)
+      setIsSearchMode(false)
+      setLoading(true)
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      const oneWeekAgoIso = oneWeekAgo.toISOString().split('T')[0]
+
+      let query
+      if (isCabangTable) {
+        query = supabaseClient
+          .from('manifest_cabang')
+          .select('*')
+          .eq('origin_branch', branchOrigin)
+          .gte('awb_date', oneWeekAgoIso)
+          .order('awb_date', { ascending: false })
+      } else {
+        query = supabaseClient
+          .from('manifest')
+          .select('*')
+          .gte('awb_date', oneWeekAgoIso)
+          .order('awb_date', { ascending: false })
+      }
+
+      const { data } = await query
+      setData(data || [])
+      setLoading(false)
+      return
+    }
+
+    // Search in entire database
+    setSearching(true)
+    setIsSearchMode(true)
+    
+    let query
+    if (isCabangTable) {
+      query = supabaseClient
+        .from('manifest_cabang')
+        .select('*')
+        .eq('origin_branch', branchOrigin)
+        .or(`awb_no.ilike.%${searchTerm}%,kota_tujuan.ilike.%${searchTerm}%,agent_customer.ilike.%${searchTerm}%,nama_pengirim.ilike.%${searchTerm}%,nama_penerima.ilike.%${searchTerm}%`)
+        .order('awb_date', { ascending: false })
+    } else {
+      query = supabaseClient
+        .from('manifest')
+        .select('*')
+        .or(`awb_no.ilike.%${searchTerm}%,kota_tujuan.ilike.%${searchTerm}%,agent_customer.ilike.%${searchTerm}%,nama_pengirim.ilike.%${searchTerm}%,nama_penerima.ilike.%${searchTerm}%`)
+        .order('awb_date', { ascending: false })
+    }
+
+    const { data } = await query
+    setData(data || [])
+    setSearching(false)
+  }
+
+  // Debounce search to avoid too many API calls
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch(search)
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEditModal = (row: ManifestData) => {
     setEditData(row)
@@ -1105,6 +1173,19 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by AWB, customer, etc."
             />
+            {searching && (
+              <span className="text-blue-600 dark:text-blue-400 text-xs">Searching...</span>
+            )}
+            {isSearchMode && !searching && (
+              <span className="text-green-600 dark:text-green-400 text-xs">
+                Searching all data • Clear search to view recent data
+              </span>
+            )}
+            {!isSearchMode && !searching && (
+              <span className="text-gray-500 dark:text-gray-400 text-xs">
+                Showing last 7 days
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
             <table className="min-w-full text-sm">
@@ -1139,14 +1220,6 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                   </tr>
                 ) : (
                   data
-                    .filter(
-                      (item) =>
-                        item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
-                        item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
-                        item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
-                        item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
-                        item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
-                    )
                     .map((m, idx) => (
                       <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50 dark:even:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 transition-colors">
                         <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_no}</td>
@@ -1232,11 +1305,23 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Masukkan nama Agen untuk mencari..."
             />
+            {searching && (
+              <span className="text-blue-600 dark:text-blue-400 text-xs">Searching...</span>
+            )}
+            {isSearchMode && !searching && (
+              <span className="text-green-600 dark:text-green-400 text-xs">
+                Searching all data • Clear search to view recent data
+              </span>
+            )}
+            {!isSearchMode && !searching && (
+              <span className="text-gray-500 dark:text-gray-400 text-xs">
+                Showing last 7 days
+              </span>
+            )}
           </div>
           
           {/* Tabel hasil pencarian untuk couriers */}
-          {search && (
-            <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
+          <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded shadow border border-gray-200 dark:border-gray-700">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-blue-600 dark:bg-blue-700 text-white">
@@ -1269,14 +1354,6 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                     </tr>
                   ) : (
                     data
-                      .filter(
-                        (item) =>
-                          item.awb_no?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.kota_tujuan?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.agent_customer?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.nama_pengirim?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.nama_penerima?.toLowerCase().includes(search.toLowerCase()),
-                      )
                       .map((m, idx) => (
                         <tr key={m.id || m.awb_no || idx} className="even:bg-blue-50 dark:even:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 transition-colors">
                           <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{m.awb_no}</td>
@@ -1312,7 +1389,6 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                 </tbody>
               </table>
             </div>
-          )}
         </>
       )}
     </div>
