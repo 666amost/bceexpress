@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { supabaseClient } from '@/lib/auth'
 import CustomerManager from '@/components/CustomerManager'
+import type { User } from '@supabase/supabase-js'
 
 export default function CustomersPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [branchOrigin, setBranchOrigin] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)

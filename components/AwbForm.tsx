@@ -6,6 +6,29 @@ import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.j
 import CustomerSelector from "./CustomerSelector"
 import { AwbFormData, ChangeEvent, FormEvent } from "../types"
 
+interface Customer {
+  id: string
+  customer_name: string
+  customer_phone: string | null
+  nama_pengirim: string
+  nomor_pengirim: string | null
+  nama_penerima: string
+  nomor_penerima: string | null
+  alamat_penerima: string | null
+  kota_tujuan: string | null
+  kecamatan: string | null // untuk branch bangka
+  wilayah: string | null // untuk branch tanjung_pandan dan pusat
+  kirim_via: string | null
+  isi_barang: string | null
+  metode_pembayaran: string | null
+  agent_customer: string | null
+  notes: string | null
+  branch_origin: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface AwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
@@ -176,7 +199,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
   // Handle customer selection from CustomerSelector for AwbForm (uses wilayah instead of kecamatan)
-  const handleCustomerSelect = (customer: any): void => {
+  const handleCustomerSelect = (customer: Customer): void => {
     setForm(prev => ({
       ...prev,
       nama_pengirim: customer.nama_pengirim || '',

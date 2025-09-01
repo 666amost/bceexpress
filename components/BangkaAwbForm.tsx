@@ -9,6 +9,29 @@ import CustomerSelector from "./CustomerSelector"
 
 import { areaCodeMapping } from '@/lib/area-codes';
 
+interface Customer {
+  id: string
+  customer_name: string
+  customer_phone: string | null
+  nama_pengirim: string
+  nomor_pengirim: string | null
+  nama_penerima: string
+  nomor_penerima: string | null
+  alamat_penerima: string | null
+  kota_tujuan: string | null
+  kecamatan: string | null // untuk branch bangka
+  wilayah: string | null // untuk branch tanjung_pandan dan pusat
+  kirim_via: string | null
+  isi_barang: string | null
+  metode_pembayaran: string | null
+  agent_customer: string | null
+  notes: string | null
+  branch_origin: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface BangkaAwbFormProps {
   onSuccess: () => void;
   onCancel: () => void;
@@ -354,7 +377,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
   // Handle customer selection from CustomerSelector
-  const handleCustomerSelect = (customer: any): void => {
+  const handleCustomerSelect = (customer: Customer): void => {
     setForm(prev => ({
       ...prev,
       nama_pengirim: customer.nama_pengirim || '',

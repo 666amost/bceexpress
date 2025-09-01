@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabaseClient } from '@/lib/auth'
 import { getEnhancedAgentList } from '../lib/agent-mapping'
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from '../lib/agents'
@@ -43,6 +43,10 @@ interface CustomerFormData {
   agent_customer: string
 }
 
+interface BangkaMapping {
+  kecamatan: string[]
+}
+
 interface CustomerManagerProps {
   branchOrigin: string | null
   userRole?: string | null // tambahkan userRole prop
@@ -79,8 +83,6 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
 
   // Get dropdown data based on branch
   const dropdownData = useMemo(() => {
-    console.log('CustomerManager branchOrigin:', branchOrigin) // Debug log
-    
     // Normalize case untuk comparison
     const normalizedBranch = branchOrigin?.toLowerCase()
     
@@ -261,12 +263,12 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
     
     // Untuk BANGKA, mapping berupa object dengan property kecamatan
     if (branchOrigin?.toLowerCase() === 'bangka' && mapping && typeof mapping === 'object' && 'kecamatan' in mapping) {
-      return (mapping as any).kecamatan || []
+      return (mapping as BangkaMapping).kecamatan || []
     }
     
     // Untuk TANJUNG_PANDAN dan PUSAT, mapping berupa array langsung
     return (mapping as string[]) || []
-  }, [formData.kota_tujuan, dropdownData.kotaWilayahMapping, branchOrigin])
+  }, [formData.kota_tujuan, dropdownData, branchOrigin])
 
   // Reset location field when kota_tujuan changes
   useEffect(() => {
@@ -279,7 +281,7 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
   }, [formData.kota_tujuan, dropdownData.locationField])
 
   // Load customers
-  const loadCustomers = async (): Promise<void> => {
+  const loadCustomers = useCallback(async (): Promise<void> => {
     try {
       setLoading(true)
       
@@ -308,7 +310,7 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
     } finally {
       setLoading(false)
     }
-  }
+  }, [branchOrigin])
 
   // Filter customers based on search
   useEffect(() => {
@@ -328,7 +330,7 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
 
   useEffect(() => {
     void loadCustomers()
-  }, [branchOrigin]) // Reload customers ketika branchOrigin berubah
+  }, [loadCustomers]) // Reload customers ketika loadCustomers berubah
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>): void => {
     const { name, value } = e.target
