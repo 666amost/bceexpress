@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
+import CustomerSelector from "./CustomerSelector"
 import { AwbFormData, ChangeEvent, FormEvent } from "../types"
 
 interface AwbFormProps {
@@ -147,6 +148,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showPrintPreview, setShowPrintPreview] = useState(false) // State ini mungkin tidak digunakan secara langsung untuk pencetakan iframe
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false)
   const printFrameRef = useRef<HTMLDivElement>(null) // Ref untuk div tersembunyi yang merender PrintLayout
   // Determine which data source to use based on branchOrigin (not userRole)
   const currentKotaWilayah = branchOrigin === 'tanjung_pandan' ? kotaWilayahTanjungPandan : kotaWilayahPusat;
@@ -172,6 +174,38 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
     const total = sub_total + Number(form.biaya_admin) + Number(form.biaya_packaging) + Number(form.biaya_transit)
     setForm((f) => ({ ...f, sub_total, total }))
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
+
+  // Handle customer selection from CustomerSelector for AwbForm (uses wilayah instead of kecamatan)
+  const handleCustomerSelect = (customer: any): void => {
+    setForm(prev => ({
+      ...prev,
+      nama_pengirim: customer.nama_pengirim || '',
+      nomor_pengirim: customer.nomor_pengirim || '',
+      nama_penerima: customer.nama_penerima || '',
+      nomor_penerima: customer.nomor_penerima || '',
+      alamat_penerima: customer.alamat_penerima || '',
+      kota_tujuan: customer.kota_tujuan || '',
+      wilayah: customer.wilayah || '', // AwbForm uses wilayah instead of kecamatan
+      kirim_via: customer.kirim_via || '',
+      metode_pembayaran: customer.metode_pembayaran || '',
+      agent_customer: customer.agent_customer || '',
+      isi_barang: customer.isi_barang || ''
+    }))
+    
+    // Update harga berdasarkan customer data
+    if (customer.wilayah && currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg]) {
+      setForm(prev => ({
+        ...prev,
+        harga_per_kg: currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg],
+        sub_total: currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg] * (prev.berat_kg || 0),
+        total: (currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg] * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + (prev.biaya_transit || 0)
+      }));
+    }
+    
+    setError('');
+    setSuccess('Data customer berhasil diimport!');
+    setTimeout(() => setSuccess(''), 3000);
+  }
 
   const handleChange = (e: ChangeEvent) => {
     const { name, value } = e.target
@@ -843,9 +877,21 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
       </div>
 
       <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-0 px-0 py-6 bg-transparent">
-        <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
-          {isEditing ? "Edit AWB Manifest" : "Input AWB Manifest"}
-        </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 tracking-tight">
+            {isEditing ? "Edit AWB Manifest" : "Input AWB Manifest"}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowCustomerSelector(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Import Customer
+          </button>
+        </div>
         {error && <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-semibold shadow border border-red-200 dark:border-red-800">{error}</div>}
         {success && (
           <div className="mb-2 p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-semibold shadow border border-green-200 dark:border-green-800">{success}</div>
@@ -1155,6 +1201,16 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           </div>
         </div>
       </form>
+
+      {/* Customer Selector Modal */}
+      {showCustomerSelector && (
+        <CustomerSelector
+          onCustomerSelect={handleCustomerSelect}
+          onClose={() => setShowCustomerSelector(false)}
+          branchOrigin={branchOrigin}
+          userRole={userRole}
+        />
+      )}
     </>
   )
 }

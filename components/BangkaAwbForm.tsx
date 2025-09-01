@@ -5,6 +5,7 @@ import { supabaseClient } from "../lib/auth"
 import { getEnhancedAgentList } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
+import CustomerSelector from "./CustomerSelector"
 
 import { areaCodeMapping } from '@/lib/area-codes';
 
@@ -327,6 +328,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
   const kecamatanOptions = useMemo(() => {
@@ -350,6 +352,88 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     const total = sub_total + Number(form.biaya_admin) + Number(form.biaya_packaging) + Number(form.biaya_transit)
     setForm((f) => ({ ...f, sub_total, total }))
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
+
+  // Handle customer selection from CustomerSelector
+  const handleCustomerSelect = (customer: any): void => {
+    setForm(prev => ({
+      ...prev,
+      nama_pengirim: customer.nama_pengirim || '',
+      nomor_pengirim: customer.nomor_pengirim || '',
+      nama_penerima: customer.nama_penerima || '',
+      nomor_penerima: customer.nomor_penerima || '',
+      alamat_penerima: customer.alamat_penerima || '',
+      kota_tujuan: customer.kota_tujuan || '',
+      kecamatan: customer.kecamatan || '', // Bangka uses kecamatan
+      kirim_via: customer.kirim_via || '',
+      metode_pembayaran: customer.metode_pembayaran || '',
+      agent_customer: customer.agent_customer || '',
+      isi_barang: customer.isi_barang || ''
+    }))
+    
+    // Update harga dan transit berdasarkan customer data
+    if (customer.kota_tujuan && customer.kecamatan) {
+      let harga = form.harga_per_kg;
+      let transit = form.biaya_transit;
+      
+      // Apply pricing logic similar to handleChange
+      const kotaTujuan = customer.kota_tujuan.toUpperCase();
+      const kecamatan = customer.kecamatan;
+      
+      if (kotaTujuan === 'JAKARTA UTARA') {
+        if ([
+          'Kebon Bawang', 'Papanggo', 'Sungai Bambu', 'Tj Priok', 'Warakas', 'Koja', 'Cilincing'
+        ].includes(kecamatan)) {
+          harga = 30000;
+        } else if ([
+          'Sunter Jaya', 'Sunter Agung'
+        ].includes(kecamatan)) {
+          harga = 27000;
+        } else {
+          harga = 27000;
+        }
+      } 
+      else if (kotaTujuan === 'TANGERANG') {
+        if (['Neglasari', 'Benda', 'Jatiuwung', 'Cibodas', 'Periuk'].includes(kecamatan)) {
+          harga = 30000;
+        } else {
+          harga = 27000;
+        }
+      }
+      else if (kotaTujuan === 'TANGERANG SELATAN') {
+        if (kecamatan === 'Serpong Utara') {
+          harga = 27000;
+        } else {
+          harga = 30000;
+        }
+      }
+      else if (kotaTujuan === 'TANGERANG KABUPATEN') {
+        if (kecamatan === 'Kelapa Dua') {
+          harga = 27000;
+        } else if (['Curug', 'Kosambi', 'Pagedangan'].includes(kecamatan)) {
+          harga = 30000;
+        } else {
+          harga = 35000;
+        }
+      }
+      else {
+        harga = getPriceByArea(kotaTujuan);
+      }
+      
+      transit = getTransitFee(`${kotaTujuan} ${kecamatan}`.toUpperCase());
+      
+      setForm(prev => ({
+        ...prev,
+        harga_per_kg: harga,
+        biaya_transit: transit,
+        sub_total: harga * (prev.berat_kg || 0),
+        total: (harga * (prev.berat_kg || 0)) + (prev.biaya_admin || 0) + (prev.biaya_packaging || 0) + transit
+      }));
+    }
+    
+    setError('');
+    setSuccess('Data customer berhasil diimport!');
+    setTimeout(() => setSuccess(''), 3000);
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -1087,9 +1171,21 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
       </div>
 
       <form onSubmit={handleSubmit} autoComplete="off" className="w-full max-w-none mx-0 px-0 py-6 bg-transparent">
-        <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
-          {isEditing ? "Edit AWB Manifest Bangka" : "Input AWB Manifest Bangka"}
-        </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 tracking-tight">
+            {isEditing ? "Edit AWB Manifest Bangka" : "Input AWB Manifest Bangka"}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowCustomerSelector(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Import Customer
+          </button>
+        </div>
         {error && <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-semibold shadow border border-red-200 dark:border-red-800">{error}</div>}
         {success && (
           <div className="mb-2 p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-semibold shadow border border-green-200 dark:border-green-800">{success}</div>
@@ -1395,6 +1491,16 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           </div>
         </div>
       </form>
+
+      {/* Customer Selector Modal */}
+      {showCustomerSelector && (
+        <CustomerSelector
+          onCustomerSelect={handleCustomerSelect}
+          onClose={() => setShowCustomerSelector(false)}
+          branchOrigin={branchOrigin}
+          userRole={userRole}
+        />
+      )}
     </>
   )
 }
