@@ -793,7 +793,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     setSaving(true);
     try {
       // Untuk Bangka branch (manifest_cabang), pastikan kecamatan disimpan ke kolom yang sesuai
-      let updateData: any = {
+      let updateData: Partial<ManifestData> = {
         awb_no: dataToSave.awb_no,
         awb_date: dataToSave.awb_date,
         kirim_via: dataToSave.kirim_via,
@@ -819,9 +819,9 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
 
       // Untuk Bangka branch, tambahkan kolom kecamatan jika ada
       if (targetTable === 'manifest_cabang' && normalizedBranchOrigin === 'bangka') {
-        updateData.kecamatan = (dataToSave as any).kecamatan || dataToSave.wilayah;
+        updateData.kecamatan = dataToSave.kecamatan || dataToSave.wilayah;
         // Pastikan wilayah juga terisi untuk konsistensi
-        updateData.wilayah = (dataToSave as any).kecamatan || dataToSave.wilayah;
+        updateData.wilayah = dataToSave.kecamatan || dataToSave.wilayah;
       }
 
       const { error } = await supabaseClient

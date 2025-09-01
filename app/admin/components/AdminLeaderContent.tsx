@@ -27,6 +27,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Oval as LoadingIcon } from 'react-loading-icons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TrackingResults } from "@/components/tracking-results";
+import * as Tooltip from '@radix-ui/react-tooltip';
 
 const CourierShipmentList = dynamic(() => import('@/components/courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -469,7 +470,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex justify-center items-center">
           <div className="text-center">
             <LoadingIcon className="h-16 w-16 animate-spin mx-auto mb-4" style={{ color: '#1e40af', fontWeight: 'bold' }} />
-            <p className="text-blue-900 font-semibold animate-pulse">Loading Dashboard...</p>
+            <p className="text-blue-900 dark:text-white font-semibold animate-pulse">Loading Dashboard...</p>
           </div>
         </div>
       );
@@ -480,11 +481,11 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
       return (
         <div className="space-y-6">
           {/* Header with filters */}
-          <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-6">
             <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div>
-                <h2 className="text-xl font-bold text-blue-900">BCE Express Dashboard</h2>
-                <p className="text-sm text-gray-600 mt-1">Monitoring For Couriers BCE Express</p>
+                <h2 className="text-xl font-bold text-blue-900 dark:text-white">BCE Express Dashboard</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Monitoring For Couriers BCE Express</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 7, 14, 30].map((days) => (
@@ -495,7 +496,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                   onClick={() => handleRangeChange(days)}
                   className={`${dataRange === days 
                     ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                    : "border-blue-200 text-blue-700 hover:bg-blue-50"}`}
+                    : "border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"}`}
                 >
                   {days}d
                 </Button>
@@ -503,7 +504,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
               <Button 
                 variant="outline" 
                 onClick={handleRefresh}
-                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                className="border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
               >
                 <RefreshIcon className="h-4 w-4 mr-1" />
                 Refresh
@@ -517,7 +518,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           {/* Live Shipment Activity Card - hanya tampil di desktop */}
           <div className="hidden lg:flex relative col-span-1 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg border border-blue-500 p-3 text-center flex-col aspect-square overflow-hidden">
             <div className="flex items-center justify-center gap-1 mb-2">
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white text-blue-600 shadow-md">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white dark:bg-gray-200 text-blue-600 dark:text-blue-700 shadow-md">
                 Live Activity ({liveShipments.length})
               </span>
             </div>
@@ -529,17 +530,17 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                 {displayedShipments.slice(0, 2).map((item, idx) => (
                   <div
                     key={item.awb_number}
-                    className={`rounded-lg px-2 py-1.5 flex flex-col text-left border border-blue-300 bg-white/90 shadow-sm ${idx === 0 ? "font-bold" : "opacity-80"}`}
+                    className={`rounded-lg px-2 py-1.5 flex flex-col text-left border border-blue-300 dark:border-blue-500 bg-white/90 dark:bg-gray-700/90 shadow-sm ${idx === 0 ? "font-bold" : "opacity-80"}`}
                   >
                     <div className="flex items-center gap-1 mb-1">
-                      <span className="font-mono font-bold text-blue-700 text-xs truncate">{item.awb_number}</span>
+                      <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-xs truncate">{item.awb_number}</span>
                       {item.current_status === 'delivered' ? (
                         <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-1 py-0.5 flex-shrink-0">✓</span>
                       ) : (
-                        <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded px-1 py-0.5 flex-shrink-0">●</span>
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded px-1 py-0.5 flex-shrink-0">●</span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       <span className="font-semibold text-gray-700">{item.courier_name}</span>
                       <span className="mx-1">•</span>
                       <span>{new Date(item.updated_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -622,8 +623,8 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
-          <h3 className="text-lg font-bold text-blue-900 mb-4">Quick Actions</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
+          <h3 className="text-lg font-bold text-blue-900 dark:text-white mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <Button 
               className="bg-blue-600 hover:bg-blue-700 text-white h-12 w-full text-sm sm:text-base"
@@ -654,7 +655,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         {/* Mobile Live Activity Section - only visible on mobile */}
         <div className="lg:hidden bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg border border-blue-500 p-4">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-lg font-bold px-3 py-1 rounded-full bg-white text-blue-600 shadow-md">
+            <span className="text-lg font-bold px-3 py-1 rounded-full bg-white dark:bg-gray-200 text-blue-600 dark:text-blue-700 shadow-md">
               Live Activity ({liveShipments.length})
             </span>
           </div>
@@ -662,17 +663,17 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
             {displayedShipments.slice(0, 3).map((item, idx) => (
               <div
                 key={item.awb_number}
-                className={`rounded-lg px-3 py-3 border border-blue-300 bg-white/90 ${idx === 0 ? "font-bold" : "opacity-80"}`}
+                className={`rounded-lg px-3 py-3 border border-blue-300 dark:border-blue-500 bg-white/90 dark:bg-gray-700/90 ${idx === 0 ? "font-bold" : "opacity-80"}`}
               >
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="font-mono font-bold text-blue-700 text-sm">{item.awb_number}</span>
+                  <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{item.awb_number}</span>
                   {item.current_status === 'delivered' ? (
                     <span className="text-xs font-bold bg-green-200 text-green-800 rounded px-2 py-0.5">Delivered</span>
                   ) : (
-                    <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5 capitalize">{item.current_status.replace(/_/g, " ")}</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded px-2 py-0.5 capitalize">{item.current_status.replace(/_/g, " ")}</span>
                   )}
                 </div>
-                <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
+                <div className="text-xs text-gray-600 dark:text-gray-300 flex flex-wrap items-center gap-2">
                   <span>by <span className="font-semibold text-gray-800">{item.courier_name}</span></span>
                   <span>•</span>
                   <span>{new Date(item.updated_at).toLocaleTimeString()}</span>
@@ -707,14 +708,14 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           <Button
             variant={prioritySort ? "default" : "outline"}
             onClick={() => setPrioritySort(!prioritySort)}
-            className={`${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-blue-200 text-blue-700 hover:bg-blue-50'}`}
+            className={`${prioritySort ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'}`}
           >
             {prioritySort ? "Priority: ON" : "Priority: OFF"}
           </Button>
           <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                <Button variant="outline" className="border-blue-200 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                   Sort By: {sortOption === 'name' ? 'Name' : sortOption === 'total' ? 'Total' : sortOption === 'pending' ? 'Pending' : 'Completed'}
                 </Button>
               </DropdownMenuTrigger>
@@ -732,12 +733,12 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           {sortedCouriers.map((courier) => (
             <div
               key={courier.id}
-              className={`bg-white rounded-xl shadow-lg border p-4 transition-all duration-300 cursor-pointer hover:shadow-xl ${
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg border p-4 transition-all duration-300 cursor-pointer hover:shadow-xl ${
                 selectedCourier === courier.id 
-                  ? "border-blue-500 bg-blue-50" 
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400" 
                   : courierStats[courier.id]?.pending > highPriorityThreshold
-                  ? "border-red-300"
-                  : "border-blue-100 hover:border-blue-300"
+                  ? "border-red-300 dark:border-red-500"
+                  : "border-blue-100 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500"
               }`}
               onClick={() => setSelectedCourier(courier.id)}
               onDoubleClick={() => {
@@ -758,7 +759,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                   }`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-blue-900 truncate">
+                  <h3 className="font-bold text-blue-900 dark:text-white truncate">
                     {courier.name}
                     {courierStats[courier.id]?.pending > highPriorityThreshold && (
                       <span className="inline-flex items-center ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -766,25 +767,25 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                       </span>
                     )}
                   </h3>
-                  <p className="text-xs text-gray-500 truncate">{courier.email}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{courier.email}</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="bg-blue-50 rounded-lg p-2">
                   <BoxIcon className="h-4 w-4 text-blue-600 mx-auto mb-1" />
-                  <span className="text-base font-bold text-blue-900 block">{courierStats[courier.id]?.total || 0}</span>
-                  <span className="text-xs text-gray-500">Total</span>
+                  <span className="text-base font-bold text-blue-900 dark:text-white block">{courierStats[courier.id]?.total || 0}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
                 </div>
                 <div className="bg-red-50 rounded-lg p-2">
                   <WarningIcon className="h-4 w-4 text-red-600 mx-auto mb-1" />
                   <span className="text-base font-bold text-red-600 block">{courierStats[courier.id]?.pending || 0}</span>
-                  <span className="text-xs text-gray-500">Pending</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Pending</span>
                 </div>
                 <div className="bg-green-50 rounded-lg p-2">
                   <CheckmarkIcon className="h-4 w-4 text-green-600 mx-auto mb-1" />
                   <span className="text-base font-bold text-green-600 block">{courierStats[courier.id]?.completed || 0}</span>
-                  <span className="text-xs text-gray-500">Done</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Done</span>
                 </div>
               </div>
             </div>
@@ -801,9 +802,9 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         {selectedCourier ? (
           <CourierShipmentList courierId={selectedCourier} dataRange={dataRange} />
         ) : (
-          <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-blue-100">
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700">
             <BoxIcon className="h-16 w-16 text-blue-400 mx-auto mb-4" />
-            <p className="text-blue-900 font-semibold">Select a courier from the Couriers tab to view their shipments</p>
+            <p className="text-blue-900 dark:text-white font-semibold">Select a courier from the Couriers tab to view their shipments</p>
           </div>
         )}
       </div>
@@ -814,7 +815,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   if (activeView === 'search') {
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
           <div className="max-w-md mx-auto">
             <div className="mb-4 flex flex-col sm:flex-row gap-2">
               <Input 
@@ -841,7 +842,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                   <div className="space-y-4">
                     {searchResults.map((shipment) => (
                       <div key={shipment.awb_number} className="overflow-x-auto w-full">
-                        <Card className="border-blue-100 shadow-md min-w-[320px] max-w-full">
+                        <Card className="border-blue-100 dark:border-gray-700 shadow-md min-w-[320px] max-w-full">
                           <CardContent className="p-0">
                             {/* Render TrackingResults untuk setiap hasil pencarian resi */}
                             <div className="w-full max-w-full overflow-x-auto">
@@ -850,7 +851,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                             <div className="flex flex-col sm:flex-row gap-2 justify-end p-4 border-t mt-2">
                               <Button
                                 variant="outline"
-                                className="border-blue-300 text-blue-700 hover:bg-blue-50 w-full sm:w-auto"
+                                className="border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 w-full sm:w-auto"
                                 onClick={() => {
                                   setSelectedShipmentForUpdate(shipment);
                                   setNewStatus(shipment.current_status);
@@ -912,7 +913,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center">No shipments found.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-center">No shipments found.</p>
                 )
               ) : (
                 <p className="text-red-600 text-center">{(searchResults as { error: string }).error}</p>
@@ -920,7 +921,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
             ) : (
               <div className="text-center py-8">
                 <SearchIcon className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-                <p className="text-blue-900 font-semibold">Enter AWB number or courier name to search</p>
+                <p className="text-blue-900 dark:text-white font-semibold">Enter AWB number or courier name to search</p>
               </div>
             )}
           </div>
@@ -1029,7 +1030,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     if (activeView === 'search') {
       return (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-6">
             <div className="max-w-md mx-auto">
               <div className="flex gap-2">
                 <Input
@@ -1052,9 +1053,9 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                 searchResults.length > 0 ? (
                   <div className="mt-4 space-y-2">
                     {searchResults.map((shipment) => (
-                      <Card key={shipment.awb_number} className="border-blue-100">
+                      <Card key={shipment.awb_number} className="border-blue-100 dark:border-gray-700">
                         <CardContent className="p-4">
-                          <h3 className="font-bold text-blue-900">AWB: {shipment.awb_number}</h3>
+                          <h3 className="font-bold text-blue-900 dark:text-white">AWB: {shipment.awb_number}</h3>
                           <p><strong>Courier:</strong> {shipment.courier}</p>
                           <p><strong>Status:</strong> {shipment.current_status?.replace(/_/g, " ") || "N/A"}</p>
                           {shipment.updated_at && (
@@ -1065,7 +1066,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center">No shipments found.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-center">No shipments found.</p>
                 )
               ) : (
                 <p className="text-red-600 text-center">{searchResults.error}</p>
@@ -1073,7 +1074,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
             ) : (
               <div className="text-center py-8">
                 <SearchIcon className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-                <p className="text-blue-900 font-semibold">Enter AWB number or courier name to search</p>
+                <p className="text-blue-900 dark:text-white font-semibold">Enter AWB number or courier name to search</p>
               </div>
             )}
           </div>
@@ -1092,7 +1093,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
       <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
         <DialogContent className="max-w-3xl w-full h-[70vh] p-0 overflow-hidden rounded-lg">
           <DialogHeader>
-            <DialogTitle className="text-blue-900 font-bold flex items-center gap-2">
+            <DialogTitle className="text-blue-900 dark:text-white font-bold flex items-center gap-2">
               <LocationPointIcon className="h-5 w-5" /> Courier Locations
             </DialogTitle>
           </DialogHeader>
@@ -1154,7 +1155,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                 })}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-8">No pending shipments found</p>
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">No pending shipments found</p>
             )}
           </div>
         </DialogContent>
@@ -1170,7 +1171,7 @@ interface ManifestRow {
   awb_date: string;
   origin_branch: string;
   kota_tujuan: string;
-  status_pelunasan: string;
+  alamat_penerima?: string | null;
 }
 
 interface ManifestModalProps {
@@ -1183,15 +1184,39 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
   const [data, setData] = React.useState<ManifestRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = React.useState<string | null>(null);
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopyAddress = async () => {
+    if (!selectedAddress) return;
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(selectedAddress);
+      } else {
+        // Fallback for older browsers
+        const el = document.createElement('textarea');
+        el.value = selectedAddress;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // ignore
+    }
+  };
 
   React.useEffect(() => {
     if (!open) return;
     setLoading(true);
     setError(null);
-    // Fetch manifest_cabang data
+    // Fetch manifest_cabang data (include alamat_penerima)
     supabaseClient
       .from("manifest_cabang")
-      .select("id, awb_no, awb_date, origin_branch, kota_tujuan, status_pelunasan")
+      .select("id, awb_no, awb_date, origin_branch, kota_tujuan, alamat_penerima")
       .order("awb_date", { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
@@ -1202,6 +1227,7 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
   }, [open]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full rounded-lg">
         <DialogHeader>
@@ -1210,21 +1236,20 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
           </DialogTitle>
         </DialogHeader>
         <div className="overflow-x-auto max-h-[60vh]">
-          {loading ? (
+            {loading ? (
             <div className="text-center py-8 text-green-700 font-semibold">Loading manifest...</div>
           ) : error ? (
             <div className="text-center py-8 text-red-600 font-semibold">{error}</div>
           ) : data.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No manifest data found.</div>
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">No manifest data found.</div>
           ) : (
             <table className="min-w-full text-xs sm:text-sm">
               <thead>
                 <tr className="bg-green-100 text-green-900">
                   <th className="px-2 py-1">AWB</th>
                   <th className="px-2 py-1">Tanggal</th>
-                  <th className="px-2 py-1">Origin</th>
                   <th className="px-2 py-1">Tujuan</th>
-                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1">Alamat Penerima</th>
                 </tr>
               </thead>
               <tbody>
@@ -1232,9 +1257,35 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
                   <tr key={row.id} className="border-b hover:bg-green-50">
                     <td className="px-2 py-1 font-mono">{row.awb_no}</td>
                     <td className="px-2 py-1">{row.awb_date}</td>
-                    <td className="px-2 py-1">{row.origin_branch}</td>
                     <td className="px-2 py-1">{row.kota_tujuan}</td>
-                    <td className="px-2 py-1">{row.status_pelunasan}</td>
+                    <td className="px-2 py-1 max-w-[260px]">
+                      {row.alamat_penerima ? (
+                        <Tooltip.Provider>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAddress(row.alamat_penerima || null);
+                                  setIsAddressDialogOpen(true);
+                                }}
+                                className="truncate text-sm text-gray-700 max-w-[240px] text-left flex items-center gap-2"
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <span className="flex-1 truncate">{row.alamat_penerima}</span>
+                                <span className="text-gray-400 text-sm ml-1">›</span>
+                              </button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side="top" align="center" className="bg-gray-800 text-white text-xs rounded px-2 py-1 max-w-[320px] break-words">
+                              {row.alamat_penerima}
+                              <Tooltip.Arrow className="fill-current text-gray-800" />
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        </Tooltip.Provider>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1243,5 +1294,24 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Dialog to show full address on click (mobile-friendly) */}
+    <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
+      <DialogContent className="max-w-md w-full rounded-lg">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold text-gray-800">Alamat Penerima</DialogTitle>
+        </DialogHeader>
+        <div className="p-4">
+          <p className="text-sm text-gray-700 break-words">{selectedAddress ?? '-'}</p>
+        </div>
+        <div className="p-4 pt-0 flex justify-end gap-2">
+          <Button onClick={handleCopyAddress} className="bg-green-600 hover:bg-green-700 text-white" size="sm">
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+          <Button onClick={() => setIsAddressDialogOpen(false)} className="bg-blue-600 text-white" size="sm">Close</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
