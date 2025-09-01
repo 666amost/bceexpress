@@ -25,6 +25,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [selectedAreaCode, setSelectedAreaCode] = useState("")  // State baru untuk filter area code (GLC/KMY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [isDefaultView, setIsDefaultView] = useState(true) // State untuk mendeteksi apakah menggunakan view default atau filtered
 
   // ================== LISTS ==================
 
@@ -34,6 +35,13 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const fetchDailyReport = useCallback(async () => {
     setLoading(true)
     setError("")
+    
+    // Check if any filter is applied
+    const hasFilters = selectedDateFrom || selectedDateTo || selectedKirimVia || 
+                      selectedAgentCustomer || selectedKotaTujuan || selectedWilayah || selectedAreaCode;
+    
+    setIsDefaultView(!hasFilters);
+    
     try {
       let query;
       if (isBranchMode) {
@@ -49,13 +57,21 @@ export default function DailyReport({ userRole, branchOrigin }) {
           .order("awb_date", { ascending: false })
       }
 
-      // Apply date range filter
-      if (selectedDateFrom && selectedDateTo) {
-        query = query.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
-      } else if (selectedDateFrom) {
-        query = query.gte("awb_date", selectedDateFrom)
-      } else if (selectedDateTo) {
-        query = query.lte("awb_date", selectedDateTo)
+      // If no filters are applied, only show last 1 day for performance
+      if (!hasFilters) {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayIso = yesterday.toISOString().split('T')[0] // YYYY-MM-DD
+        query = query.gte("awb_date", yesterdayIso)
+      } else {
+        // Apply date range filter only if filters are applied
+        if (selectedDateFrom && selectedDateTo) {
+          query = query.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
+        } else if (selectedDateFrom) {
+          query = query.gte("awb_date", selectedDateFrom)
+        } else if (selectedDateTo) {
+          query = query.lte("awb_date", selectedDateTo)
+        }
       }
 
       if (selectedKirimVia) query = query.ilike("kirim_via", selectedKirimVia)
@@ -77,13 +93,15 @@ export default function DailyReport({ userRole, branchOrigin }) {
               .order("awb_date", { ascending: false })
           }
 
-          // Re-apply date filters and non-agent filters
-          if (selectedDateFrom && selectedDateTo) {
-            q = q.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
-          } else if (selectedDateFrom) {
-            q = q.gte("awb_date", selectedDateFrom)
-          } else if (selectedDateTo) {
-            q = q.lte("awb_date", selectedDateTo)
+          // Apply date filters only if other filters are applied (not default view)
+          if (hasFilters) {
+            if (selectedDateFrom && selectedDateTo) {
+              q = q.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
+            } else if (selectedDateFrom) {
+              q = q.gte("awb_date", selectedDateFrom)
+            } else if (selectedDateTo) {
+              q = q.lte("awb_date", selectedDateTo)
+            }
           }
 
           if (selectedKirimVia) q = q.ilike("kirim_via", selectedKirimVia)
@@ -400,7 +418,107 @@ export default function DailyReport({ userRole, branchOrigin }) {
       dateRangeText = `Sampai ${toFormatted}`
     }
 
-    printWindow.document.write(`
+    const htmlContent = generateReportHTML({
+      totalKg,
+      totalAdmin,
+      totalTransit,
+      totalCash,
+      totalTransfer,
+      totalCOD,
+      grandTotal,
+      dateRangeText,
+      data,
+      selectedKirimVia,
+      selectedAgentCustomer,
+      selectedKotaTujuan,
+      selectedWilayah
+    })
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+    printWindow.print()
+  }
+
+  const handleDownloadPDF = async () => {
+    if (data.length === 0) {
+      alert('Tidak ada data untuk diexport.');
+      return;
+    }
+
+    // Dynamically import html2pdf
+    const html2pdf = (await import('html2pdf.js')).default;
+
+    const totalKg = data.reduce((sum, item) => sum + (item.berat_kg || 0), 0)
+    const totalAdmin = data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0)
+    const totalTransit = data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0)
+    const totalCash = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash').reduce((sum, item) => sum + (item.total || 0), 0)
+    const totalTransfer = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0)
+    const totalCOD = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod').reduce((sum, item) => sum + (item.total || 0), 0)
+    const grandTotal = data.reduce((sum, item) => sum + (item.total || 0), 0)
+
+    let dateRangeText = ''
+    if (selectedDateFrom && selectedDateTo) {
+      const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
+      const toFormatted = selectedDateTo.split('-').reverse().join('-')
+      dateRangeText = `${fromFormatted} s/d ${toFormatted}`
+    } else if (selectedDateFrom) {
+      const fromFormatted = selectedDateFrom.split('-').reverse().join('-')
+      dateRangeText = `Dari ${fromFormatted}`
+    } else if (selectedDateTo) {
+      const toFormatted = selectedDateTo.split('-').reverse().join('-')
+      dateRangeText = `Sampai ${toFormatted}`
+    } else {
+      dateRangeText = 'Semua Periode'
+    }
+
+    // Create temporary element for PDF generation
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = generateReportHTML({
+      totalKg,
+      totalAdmin,
+      totalTransit,
+      totalCash,
+      totalTransfer,
+      totalCOD,
+      grandTotal,
+      dateRangeText,
+      data,
+      selectedKirimVia,
+      selectedAgentCustomer,
+      selectedKotaTujuan,
+      selectedWilayah
+    });
+
+    // Configure PDF options
+    const opt = {
+      margin: 10,
+      filename: `DailyReport_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        allowTaint: false
+      },
+      jsPDF: { 
+        unit: 'mm', 
+        format: 'a4', 
+        orientation: 'portrait' 
+      }
+    };
+
+    try {
+      await html2pdf().set(opt).from(tempDiv).save();
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Gagal membuat PDF. Silakan coba lagi.');
+    } finally {
+      document.body.removeChild(tempDiv);
+    }
+  }
+
+  const generateReportHTML = ({ totalKg, totalAdmin, totalTransit, totalCash, totalTransfer, totalCOD, grandTotal, dateRangeText, data, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah }) => {
+    return `
       <html>
         <head>
           <title>Daily Report</title>
@@ -552,9 +670,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
           </div>
         </body>
       </html>
-    `)
-    printWindow.document.close()
-    printWindow.print()
+    `
   }
 
   return (
@@ -600,9 +716,47 @@ export default function DailyReport({ userRole, branchOrigin }) {
         </select>
       </div>
 
+      {/* Status Indicator */}
+      <div className="mb-4 flex items-center gap-2 no-print">
+        {loading && (
+          <span className="text-blue-600 dark:text-blue-400 text-xs">Loading...</span>
+        )}
+        {!loading && isDefaultView && (
+          <span className="text-gray-500 dark:text-gray-400 text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+            Showing last 1 day • Use filters to search all data
+          </span>
+        )}
+        {!loading && !isDefaultView && (
+          <span className="text-green-600 dark:text-green-400 text-xs bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+            Filtering all data • Clear filters to view recent data
+          </span>
+        )}
+      </div>
+
+      {/* Clear Filters Button */}
+      {!isDefaultView && (
+        <div className="mb-4 no-print">
+          <button 
+            onClick={() => {
+              setSelectedDateFrom("");
+              setSelectedDateTo("");
+              setSelectedKirimVia("");
+              setSelectedAgentCustomer("");
+              setSelectedKotaTujuan("");
+              setSelectedWilayah("");
+              setSelectedAreaCode("");
+            }}
+            className="px-3 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-sm transition-colors"
+          >
+            Clear All Filters
+          </button>
+        </div>
+      )}
+
       {data.length > 0 && (
         <div className="mb-4 flex justify-end no-print">
           <button onClick={downloadXLSX} className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 mr-2 transition-colors">Download XLSX</button>
+          <button onClick={handleDownloadPDF} className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-800 mr-2 transition-colors">Download PDF</button>
           <button onClick={handlePrint} className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800 transition-colors">Print</button>
         </div>
       )}

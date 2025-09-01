@@ -6,6 +6,7 @@ import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.j
 import { normalizeKecamatan } from "../lib/area-codes"
 // import AwbForm from "./AwbForm" // Unused import removed to resolve TS warning
 import { baseAgentListCentral, baseAgentListTanjungPandan, baseAgentListBangka } from "../lib/agents";
+import BangkaHistoryEditForm from "./BangkaHistoryEditForm";
 
 const agentList = baseAgentListCentral;
 const agentListTanjungPandan = baseAgentListTanjungPandan;
@@ -136,6 +137,7 @@ interface ManifestData {
   awb_date: string;
   kirim_via?: string;
   kota_tujuan: string;
+  kecamatan?: string;
   wilayah?: string;
   metode_pembayaran?: string;
   agent_customer?: string;
@@ -190,6 +192,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [showPrintLayout, setShowPrintLayout] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
+  const [isInitialMount, setIsInitialMount] = useState(true)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
   const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
@@ -213,14 +216,15 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
 
   useEffect(() => {
-    if (selectedItem) {
-      const sub_total = (parseFloat(String(selectedItem.berat_kg) || '0')) * (parseFloat(String(selectedItem.harga_per_kg) || '0'));
-      const total = sub_total
-        + (parseFloat(String(selectedItem.biaya_admin) || '0'))
-        + (parseFloat(String(selectedItem.biaya_packaging) || '0'))
-        + (parseFloat(String(selectedItem.biaya_transit) || '0'));
-      setSelectedItem(prev => prev ? { ...prev, sub_total, total } : null);
-    }
+    // Only trigger auto-calculation if we have a selectedItem and it's not the initial mount
+    if (!selectedItem || isInitialMount) return;
+    
+    const sub_total = (parseFloat(String(selectedItem.berat_kg) || '0')) * (parseFloat(String(selectedItem.harga_per_kg) || '0'));
+    const total = sub_total
+      + (parseFloat(String(selectedItem.biaya_admin) || '0'))
+      + (parseFloat(String(selectedItem.biaya_packaging) || '0'))
+      + (parseFloat(String(selectedItem.biaya_transit) || '0'));
+    setSelectedItem(prev => prev ? { ...prev, sub_total, total } : null);
   }, [selectedItem?.berat_kg, selectedItem?.harga_per_kg, selectedItem?.biaya_admin, selectedItem?.biaya_packaging, selectedItem?.biaya_transit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -249,6 +253,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     query.then(({ data }) => {
       setData(data || [])
       setLoading(false)
+      setIsInitialMount(false) // Mark that initial data load is complete
     })
   }, [saving, userRole, branchOrigin, isCabangTable])
 
@@ -257,7 +262,8 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     if (!searchTerm.trim()) {
       // If search is empty, reset to default view (1 week)
       setIsSearchMode(false)
-      setLoading(true)
+      // Don't show loading if we're just clearing search and data already exists
+      if (data.length === 0) setLoading(true)
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       const oneWeekAgoIso = oneWeekAgo.toISOString().split('T')[0]
@@ -278,8 +284,8 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
           .order('awb_date', { ascending: false })
       }
 
-      const { data } = await query
-      setData(data || [])
+      const { data: fetchedData } = await query
+      setData(fetchedData || [])
       setLoading(false)
       return
     }
@@ -304,13 +310,16 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
         .order('awb_date', { ascending: false })
     }
 
-    const { data } = await query
-    setData(data || [])
+    const { data: searchData } = await query
+    setData(searchData || [])
     setSearching(false)
   }
 
   // Debounce search to avoid too many API calls
   useEffect(() => {
+    // Skip search on initial mount when search is empty
+    if (search.trim() === '' || isInitialMount) return;
+    
     const timeoutId = setTimeout(() => {
       handleSearch(search)
     }, 500)
@@ -778,40 +787,47 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     setShowEditForm(true);
   }
 
-  const handleSaveEdit = async () => {
-    if (!selectedItem) return;
+  const handleSaveEdit = async (updatedData?: ManifestData) => {
+    const dataToSave = updatedData || selectedItem;
+    if (!dataToSave) return;
     setSaving(true);
     try {
-      // For Bangka branch (manifest_cabang), ensure wilayah stores the kecamatan value
-      const finalWilayah = (targetTable === 'manifest_cabang' && normalizedBranchOrigin === 'bangka')
-        ? normalizeKecamatan(selectedItem.wilayah)
-        : selectedItem.wilayah;
+      // Untuk Bangka branch (manifest_cabang), pastikan kecamatan disimpan ke kolom yang sesuai
+      let updateData: any = {
+        awb_no: dataToSave.awb_no,
+        awb_date: dataToSave.awb_date,
+        kirim_via: dataToSave.kirim_via,
+        kota_tujuan: dataToSave.kota_tujuan,
+        wilayah: dataToSave.wilayah,
+        metode_pembayaran: dataToSave.metode_pembayaran,
+        agent_customer: dataToSave.agent_customer,
+        nama_pengirim: dataToSave.nama_pengirim,
+        nomor_pengirim: dataToSave.nomor_pengirim,
+        nama_penerima: dataToSave.nama_penerima,
+        nomor_penerima: dataToSave.nomor_penerima,
+        alamat_penerima: dataToSave.alamat_penerima,
+        coli: dataToSave.coli,
+        berat_kg: dataToSave.berat_kg,
+        harga_per_kg: dataToSave.harga_per_kg,
+        sub_total: dataToSave.sub_total,
+        biaya_admin: dataToSave.biaya_admin,
+        biaya_packaging: dataToSave.biaya_packaging,
+        biaya_transit: dataToSave.biaya_transit,
+        total: dataToSave.total,
+        isi_barang: dataToSave.isi_barang,
+      };
+
+      // Untuk Bangka branch, tambahkan kolom kecamatan jika ada
+      if (targetTable === 'manifest_cabang' && normalizedBranchOrigin === 'bangka') {
+        updateData.kecamatan = (dataToSave as any).kecamatan || dataToSave.wilayah;
+        // Pastikan wilayah juga terisi untuk konsistensi
+        updateData.wilayah = (dataToSave as any).kecamatan || dataToSave.wilayah;
+      }
 
       const { error } = await supabaseClient
         .from(targetTable)
-        .update({
-          awb_no: selectedItem.awb_no,
-          awb_date: selectedItem.awb_date,
-          kirim_via: selectedItem.kirim_via,
-          kota_tujuan: selectedItem.kota_tujuan,
-          wilayah: finalWilayah,
-          metode_pembayaran: selectedItem.metode_pembayaran,
-          agent_customer: selectedItem.agent_customer,
-          nama_pengirim: selectedItem.nama_pengirim,
-          nomor_pengirim: selectedItem.nomor_pengirim,
-          nama_penerima: selectedItem.nama_penerima,
-          nomor_penerima: selectedItem.nomor_penerima,
-          alamat_penerima: selectedItem.alamat_penerima,
-          coli: selectedItem.coli,
-          berat_kg: selectedItem.berat_kg,
-          harga_per_kg: selectedItem.harga_per_kg,
-          sub_total: selectedItem.sub_total,
-          biaya_admin: selectedItem.biaya_admin,
-          biaya_packaging: selectedItem.biaya_packaging,
-          biaya_transit: selectedItem.biaya_transit,
-          total: selectedItem.total,
-        })
-        .eq("awb_no", selectedItem.awb_no);
+        .update(updateData)
+        .eq("awb_no", dataToSave.awb_no);
 
       if (error) {
         alert("Gagal memperbarui data: " + error.message);
@@ -924,6 +940,19 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   };
 
   if (showEditForm && selectedItem) {
+    // Jika origin_branch adalah bangka, gunakan komponen khusus
+    if (normalizedBranchOrigin === 'bangka') {
+      return (
+        <BangkaHistoryEditForm 
+          selectedItem={selectedItem}
+          onSave={handleSaveEdit}
+          onCancel={handleCancelEdit}
+          saving={saving}
+        />
+      );
+    }
+
+    // Form edit untuk origin_branch lainnya (existing form)
     const getWilayahOptions = (kotaWilayah: Record<string, string[] | { kecamatan: string[], harga: number }>, kotaTujuan: string): string[] => {
       const area = kotaWilayah[kotaTujuan];
       if (!area) return [];
