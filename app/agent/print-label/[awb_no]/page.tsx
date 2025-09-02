@@ -221,16 +221,44 @@ export default function PrintLabelPage() {
           display: block !important;
           position: relative !important;
           top: -1mm !important;
+          color: #000000 !important;
         }
         .logo-qr {
           padding-top: 0mm !important;
         }
         .shipping-details {
           margin-top: -2mm !important;
+          color: #000000 !important;
         }
         .agent-code-box .agent-abbr-left {
           position: relative !important;
           top: -3mm !important;
+          color: #ffffff !important; /* Tetap putih untuk kontras dengan background hitam */
+        }
+        /* Force semua teks menjadi hitam untuk PDF kecuali yang sudah ditentukan */
+        .shipping-label,
+        .shipping-label *:not(.agent-abbr-left) {
+          color: #000000 !important;
+        }
+        /* Pastikan address box dan semua child elementnya hitam */
+        .address-box,
+        .address-box *,
+        .address-box .sender-info,
+        .address-box .sender-info *,
+        .address-box .recipient-info,
+        .address-box .recipient-info * {
+          color: #000000 !important;
+        }
+        /* Pastikan awb number dan shipping details hitam */
+        .awb-number,
+        .awb-number *,
+        .shipping-details,
+        .shipping-details * {
+          color: #000000 !important;
+        }
+        /* Background tetap putih untuk PDF */
+        .shipping-label {
+          background-color: #ffffff !important;
         }
       `;
       element.appendChild(pdfSpecificStyle);

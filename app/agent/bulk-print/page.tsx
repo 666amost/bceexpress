@@ -449,6 +449,27 @@ function BulkPrintContent(): JSX.Element {
             background: white !important;
             -webkit-print-color-adjust: exact !important;
             color-adjust: exact !important;
+            color: #000000 !important;
+          }
+
+          /* Force all text to black in print mode except agent code */
+          * {
+            color: #000000 !important;
+          }
+
+          .agent-abbr-left {
+            color: #ffffff !important; /* Keep white for contrast */
+          }
+
+          /* Force all shipping label text to black */
+          .shipping-label,
+          .shipping-label *:not(.agent-abbr-left) {
+            color: #000000 !important;
+          }
+
+          /* Ensure background is white */
+          .shipping-label {
+            background-color: #ffffff !important;
           }
           
           .container {

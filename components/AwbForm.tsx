@@ -383,6 +383,7 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                   display: block !important;
                   position: relative !important;
                   top: -1mm !important;
+                  color: #000000 !important;
                 }
                 .logo-qr {
                   padding-top: 0mm !important;
@@ -390,11 +391,38 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
                 /* CSS untuk menaikkan detail pengiriman */
                 .shipping-details {
                   margin-top: -2mm !important;
+                  color: #000000 !important;
                 }
                 /* CSS untuk menaikkan teks agent di dalam kotaknya */
                 .agent-code-box .agent-abbr-left {
                   position: relative !important;
                   top: -3mm !important; /* Sesuaikan nilai ini jika perlu */
+                  color: #ffffff !important; /* Tetap putih untuk kontras dengan background hitam */
+                }
+                /* Force semua teks menjadi hitam untuk PDF kecuali yang sudah ditentukan */
+                .shipping-label,
+                .shipping-label *:not(.agent-abbr-left) {
+                  color: #000000 !important;
+                }
+                /* Pastikan address box dan semua child elementnya hitam */
+                .address-box,
+                .address-box *,
+                .address-box .sender-info,
+                .address-box .sender-info *,
+                .address-box .recipient-info,
+                .address-box .recipient-info * {
+                  color: #000000 !important;
+                }
+                /* Pastikan awb number dan shipping details hitam */
+                .awb-number,
+                .awb-number *,
+                .shipping-details,
+                .shipping-details * {
+                  color: #000000 !important;
+                }
+                /* Background tetap putih untuk PDF */
+                .shipping-label {
+                  background-color: #ffffff !important;
                 }
               `;
               printFrameRef.current.appendChild(pdfSpecificStyle);
@@ -699,7 +727,17 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        color: black;
+        color: black !important;
+      }
+
+      /* Force all text colors to black for PDF/print, except agent code */
+      .shipping-label,
+      .shipping-label *:not(.agent-abbr-left) {
+        color: #000000 !important;
+      }
+
+      .agent-abbr-left {
+        color: #ffffff !important; /* Keep white for contrast with black background */
       }
 
       .airport-code {
@@ -720,6 +758,16 @@ export default function AwbForm({ onSuccess, onCancel, initialData, isEditing, u
           margin: 0;
           -webkit-print-color-adjust: exact !important;
           color-adjust: exact !important;
+          color: #000000 !important;
+        }
+
+        /* Force all text to black in print mode except agent code */
+        * {
+          color: #000000 !important;
+        }
+
+        .agent-abbr-left {
+          color: #ffffff !important; /* Keep white for contrast */
         }
 
         .print-only {
