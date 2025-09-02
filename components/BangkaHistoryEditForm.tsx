@@ -265,6 +265,40 @@ export default function BangkaHistoryEditForm({
             </select>
           </div>
 
+          {/* Metode Pembayaran */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Metode Pembayaran</label>
+            <select
+              value={selectedItem.metode_pembayaran?.toLowerCase() || ""}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedItem({ ...selectedItem, metode_pembayaran: e.target.value.toUpperCase() })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            >
+              <option value="">Pilih</option>
+              {metodePembayaranBangka.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Agent Customer */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Agent</label>
+            <select
+              value={getAgentDisplayValue(selectedItem.agent_customer)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleAgentChange(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            >
+              <option value="">Pilih</option>
+              {enhancedAgentList.map((agent) => (
+                <option key={agent} value={agent}>
+                  {agent}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Kota Tujuan */}
           <div>
             <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Kota Tujuan</label>
@@ -309,95 +343,6 @@ export default function BangkaHistoryEditForm({
               readOnly
               className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 cursor-not-allowed"
               placeholder="Akan terisi otomatis sesuai kecamatan"
-            />
-          </div>
-
-          {/* Metode Pembayaran */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Metode Pembayaran</label>
-            <select
-              value={selectedItem.metode_pembayaran?.toLowerCase() || ""}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedItem({ ...selectedItem, metode_pembayaran: e.target.value.toUpperCase() })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            >
-              <option value="">Pilih</option>
-              {metodePembayaranBangka.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Agent Customer */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Agent</label>
-            <select
-              value={getAgentDisplayValue(selectedItem.agent_customer)}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleAgentChange(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            >
-              <option value="">Pilih</option>
-              {enhancedAgentList.map((agent) => (
-                <option key={agent} value={agent}>
-                  {agent}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Nama Pengirim */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nama Pengirim</label>
-            <input
-              type="text"
-              value={selectedItem.nama_pengirim || ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nama_pengirim: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            />
-          </div>
-
-          {/* Nomor Pengirim */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nomor Pengirim</label>
-            <input
-              type="text"
-              value={selectedItem.nomor_pengirim || ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nomor_pengirim: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            />
-          </div>
-
-          {/* Nama Penerima */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nama Penerima</label>
-            <input
-              type="text"
-              value={selectedItem.nama_penerima || ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nama_penerima: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            />
-          </div>
-
-          {/* Nomor Penerima */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nomor Penerima</label>
-            <input
-              type="text"
-              value={selectedItem.nomor_penerima || ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nomor_penerima: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-            />
-          </div>
-
-          {/* Alamat Penerima */}
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Alamat Penerima</label>
-            <input
-              type="text"
-              value={selectedItem.alamat_penerima || ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, alamat_penerima: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
             />
           </div>
 
@@ -497,6 +442,61 @@ export default function BangkaHistoryEditForm({
               type="text"
               value={selectedItem.isi_barang || ""}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, isi_barang: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            />
+          </div>
+
+          {/* Nama Pengirim */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nama Pengirim</label>
+            <input
+              type="text"
+              value={selectedItem.nama_pengirim || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nama_pengirim: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            />
+          </div>
+
+          {/* Nomor Pengirim */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nomor Pengirim</label>
+            <input
+              type="text"
+              value={selectedItem.nomor_pengirim || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nomor_pengirim: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            />
+          </div>
+
+          {/* Nama Penerima */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nama Penerima</label>
+            <input
+              type="text"
+              value={selectedItem.nama_penerima || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nama_penerima: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            />
+          </div>
+
+          {/* Nomor Penerima */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Nomor Penerima</label>
+            <input
+              type="text"
+              value={selectedItem.nomor_penerima || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, nomor_penerima: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+            />
+          </div>
+
+          {/* Alamat Penerima */}
+          <div className="md:col-span-2">
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Alamat Penerima</label>
+            <input
+              type="text"
+              value={selectedItem.alamat_penerima || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, alamat_penerima: e.target.value })}
               className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
             />
           </div>

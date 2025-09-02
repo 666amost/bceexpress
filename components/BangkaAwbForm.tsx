@@ -1312,41 +1312,6 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
               ))}
             </select>
           </div>
-          <div className="flex flex-col w-full md:w-40 md:ml-4">
-            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kota Tujuan</label>
-            <select
-              name="kota_tujuan"
-              value={form.kota_tujuan}
-              onChange={handleChange}
-              required
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
-            >
-              <option value="">Pilih</option>
-              {Object.keys(kotaWilayahJabodetabek).map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col w-36 md:ml-4">
-            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kecamatan</label>
-            <select
-              name="kecamatan"
-              value={form.kecamatan}
-              onChange={handleChange}
-              required
-              disabled={!form.kota_tujuan}
-              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
-            >
-              <option value="">Pilih</option>
-              {kecamatanOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
           <div className="flex flex-col w-40 md:ml-4">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Agent</label>
             <select
@@ -1445,6 +1410,41 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           </div>
         </section>
         <section className="bg-white/70 dark:bg-gray-800/80 rounded-lg p-3 border border-blue-100 dark:border-gray-600 shadow flex flex-col md:flex-wrap md:flex-row gap-4 items-end mb-2">
+          <div className="flex flex-col w-full md:w-40">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kota Tujuan</label>
+            <select
+              name="kota_tujuan"
+              value={form.kota_tujuan}
+              onChange={handleChange}
+              required
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900"
+            >
+              <option value="">Pilih</option>
+              {Object.keys(kotaWilayahJabodetabek).map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col w-full md:w-36">
+            <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Kecamatan</label>
+            <select
+              name="kecamatan"
+              value={form.kecamatan}
+              onChange={handleChange}
+              required
+              disabled={!form.kota_tujuan}
+              className="rounded border border-blue-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 focus:border-blue-400 dark:focus:border-blue-500 w-full px-2 py-1 text-sm shadow-sm transition bg-white text-gray-900 disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
+            >
+              <option value="">Pilih</option>
+              {kecamatanOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col w-full md:w-28">
             <label className="text-xs font-semibold mb-1 text-blue-900 dark:text-blue-200">Berat (kg)</label>
             <input
