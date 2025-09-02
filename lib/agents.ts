@@ -39,6 +39,7 @@ export const baseAgentListBangka: string[] = [
   "ACN SNACK",
   "ACS SNACK",
   "OW SNACK",
+  "SNACK 168",
   "ADOK RUMAH MAKAN",
   "JI FUN MESU",
   "BE YOU",
@@ -76,6 +77,8 @@ export const baseAgentListBangka: string[] = [
   "TATA",
   "PHING BCE",
   "AJIN",
+  "ALUN AGEN",
+  "ALING BINTANG",
   "NINA SARJU",
   // Additional requested agents
   "GETAS PIALA",
