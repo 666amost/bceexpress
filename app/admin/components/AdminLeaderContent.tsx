@@ -959,7 +959,8 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                     .insert({
                       awb_number: selectedShipmentForUpdate.awb_number,
                       status: newStatus,
-                      notes: updateNotes,
+                      location: "Admin Update", // Provide default location for admin updates
+                      notes: updateNotes || `Status updated by admin to ${newStatus}`,
                       created_at: currentDate,
                     });
                   if (historyError) {
