@@ -34,6 +34,13 @@ interface WahaWebhookBody {
   payload: MessageData;
 }
 
+// ================== Rate Limiting ==================
+// Simple in-memory store for tracking user message counts
+// In production, consider using Redis or database for persistence
+const userMessageCount: Map<string, { count: number; lastMessage: number }> = new Map();
+const MAX_REPLIES = 3;
+const RESET_AFTER_HOURS = 24; // Reset count after 24 hours
+
 // ================== Handler ==================
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +67,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, info: 'Message from bot or group chat, skipped' });
     }
 
-    const replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan input no AWB.\n\nTERIMA KASIH.`;
+    // Check and update user message count
+    const normalizedFrom = normalizePhoneNumber(from.replace('@c.us', ''));
+    const now = Date.now();
+    const userKey = normalizedFrom;
+    
+    // Get or initialize user count
+    let userData = userMessageCount.get(userKey);
+    if (!userData) {
+      userData = { count: 0, lastMessage: now };
+      userMessageCount.set(userKey, userData);
+    }
+    
+    // Reset count if it's been more than 24 hours since last message
+    const hoursSinceLastMessage = (now - userData.lastMessage) / (1000 * 60 * 60);
+    if (hoursSinceLastMessage >= RESET_AFTER_HOURS) {
+      userData.count = 0;
+    }
+    
+    // Check if user has exceeded max replies
+    if (userData.count >= MAX_REPLIES) {
+      return NextResponse.json({ 
+        ok: true, 
+        info: `User ${normalizedFrom} has reached max replies (${MAX_REPLIES}), skipping` 
+      });
+    }
+    
+    // Increment count and update timestamp
+    userData.count++;
+    userData.lastMessage = now;
+    userMessageCount.set(userKey, userData);
+
+    // Choose reply text based on message count
+    let replyText: string;
+    if (userData.count === 1) {
+      // First reply - original message
+      replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan input no AWB.\n\nTERIMA KASIH.`;
+    } else {
+      // Second and subsequent replies - new message
+      replyText = `Terima kasih telah menggunakan BCE EXPRESS\nWhatsApp ini adalah konfirmasi penerima paket\n\nuntuk informasi yang penting bisa cek web bcexp.id\nuntuk soal pengiriman bisa hubungi admin pengiriman\n\nMohon jangan telpon, karena ini adalah sistem\n\nTERIMA KASIH.`;
+    }
 
     try {
       await sendTextSafe(from, replyText); // fast send, no typing/delay to avoid 524
@@ -74,7 +120,10 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ 
+      ok: true, 
+      info: `Reply sent (${userData.count}/${MAX_REPLIES})` 
+    });
   } catch (err: unknown) {
     // Return 200 OK even for other errors to prevent retry loops
     return NextResponse.json({ 
