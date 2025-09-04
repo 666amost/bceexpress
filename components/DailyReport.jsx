@@ -7,6 +7,31 @@ import { getEnhancedAgentList, doesAgentMatch, getAllAgentIdentifiers } from "..
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import { areaCodeData, areaCodes, normalizeKecamatan } from '@/lib/area-codes';
 
+// Simplified utility function for total verification
+const calculateTotalBreakdown = (data) => {
+  const totalCash = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash')
+    .reduce((sum, item) => sum + (item.total || 0), 0);
+  const totalTransfer = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer')
+    .reduce((sum, item) => sum + (item.total || 0), 0);
+  const totalCOD = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod')
+    .reduce((sum, item) => sum + (item.total || 0), 0);
+  const grandTotal = data.reduce((sum, item) => sum + (item.total || 0), 0);
+  
+  // Check if there's a discrepancy between payment methods sum and grand total
+  const paymentSum = totalCash + totalTransfer + totalCOD;
+  const hasMismatch = Math.abs(paymentSum - grandTotal) > 0.01;
+  
+  return {
+    totalCash,
+    totalTransfer,
+    totalCOD,
+    grandTotal,
+    paymentSum,
+    difference: Math.abs(grandTotal - paymentSum),
+    hasMismatch
+  };
+};
+
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
   const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
@@ -16,6 +41,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
   // ===========================================================
 
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
+  const [unfiltered, setUnfiltered] = useState([]) // State untuk menyimpan data tanpa filter (untuk verifikasi)
   const [selectedDateFrom, setSelectedDateFrom] = useState("") // State baru untuk filter tanggal Dari
   const [selectedDateTo, setSelectedDateTo] = useState("") // State baru untuk filter tanggal Sampai
   const [selectedKirimVia, setSelectedKirimVia] = useState("")  // State untuk filter kirim via
@@ -26,6 +52,11 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [isDefaultView, setIsDefaultView] = useState(true) // State untuk mendeteksi apakah menggunakan view default atau filtered
+  
+  // ================== VERIFICATION STATES ==================
+  const [verificationActive, setVerificationActive] = useState(false) // Toggle untuk verifikasi data
+  const [isVerifying, setIsVerifying] = useState(false) // Status sedang memverifikasi
+  const [paymentBreakdown, setPaymentBreakdown] = useState(null) // Payment breakdown and difference check
 
   // ================== LISTS ==================
 
@@ -35,6 +66,8 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const fetchDailyReport = useCallback(async () => {
     setLoading(true)
     setError("")
+    // Reset verification results when fetching new data
+    setPaymentBreakdown(null)
     
     // Check if any filter is applied
     const hasFilters = selectedDateFrom || selectedDateTo || selectedKirimVia || 
@@ -210,13 +243,24 @@ export default function DailyReport({ userRole, branchOrigin }) {
         setError(`Error fetching data: ${fetchError.message}`)
       } else {
         setData(fetchedData || [])
+        
+        // Always calculate payment breakdown for display
+        const breakdown = calculateTotalBreakdown(fetchedData || []);
+        setPaymentBreakdown(breakdown);
+        
+        // Additional verification steps if needed
+        if (verificationActive && isBranchMode && branchOrigin === 'bangka') {
+          setIsVerifying(true)
+          // Any additional verification logic can go here
+          setIsVerifying(false)
+        }
       }
     } catch (err) {
       setError(`Unexpected error: ${err.message}`)
     } finally {
       setLoading(false)
     }
-  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode]);
+  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode, verificationActive]);
 
   // Use centralized agent lists
   const agentList = isBranchMode
@@ -715,6 +759,35 @@ export default function DailyReport({ userRole, branchOrigin }) {
           {wilayahOptions.map((w, index) => (<option key={`${w}-${index}`} value={w}>{w.toUpperCase()}</option>))}
         </select>
       </div>
+      
+      {/* Verifikasi Data Toggle khusus Bangka branch - Simplified */}
+      {branchOrigin === 'bangka' && isBranchMode && (
+        <div className="mb-4 no-print">
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              checked={verificationActive}
+              onChange={() => setVerificationActive(!verificationActive)}
+              className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
+            />
+            <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Aktifkan Verifikasi Dana
+            </span>
+          </label>
+          {verificationActive && (
+            <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+              (Memeriksa selisih total vs sumber dana)
+            </span>
+          )}
+        </div>
+      )}
+      
+      {/* Loading indicator untuk verifikasi */}
+      {isVerifying && (
+        <div className="mb-4 p-2 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded text-sm text-blue-800 dark:text-blue-300 animate-pulse no-print">
+          Sedang memverifikasi data... Mohon tunggu
+        </div>
+      )}
 
       {/* Status Indicator */}
       <div className="mb-4 flex items-center gap-2 no-print">
@@ -745,6 +818,8 @@ export default function DailyReport({ userRole, branchOrigin }) {
               setSelectedKotaTujuan("");
               setSelectedWilayah("");
               setSelectedAreaCode("");
+              // Reset verification results
+              setPaymentBreakdown(null);
             }}
             className="px-3 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-sm transition-colors"
           >
@@ -809,15 +884,83 @@ export default function DailyReport({ userRole, branchOrigin }) {
             </table>
           </div>
           {data.length > 0 && (
-            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Total Keseluruhan:</h3>
+            <div className={`mt-4 p-4 rounded border ${
+              paymentBreakdown && paymentBreakdown.hasMismatch && verificationActive
+              ? "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800" 
+              : "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800"
+            }`}>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Total Keseluruhan:
+                  {verificationActive && paymentBreakdown && !paymentBreakdown.hasMismatch && (
+                    <span className="ml-2 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded">
+                      ✓ Terverifikasi
+                    </span>
+                  )}
+                </h3>
+              </div>
               <p className="text-gray-800 dark:text-gray-200">Total Kg: {data.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Admin: Rp. {data.reduce((sum, item) => sum + (item.biaya_admin || item.admin || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Transit: Rp. {data.reduce((sum, item) => sum + (item.biaya_transit || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Semua: Rp. {data.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}</p>
+              
+              {/* Payment method totals */}
+              {/* Always show sumber dana */}
+              <div className="mb-2">
+                <div className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Sumber Dana:</div>
+                <div className="pl-2 border-l-2 border-blue-300 dark:border-blue-700">
+                  <p className="text-gray-800 dark:text-gray-200">
+                    Total Cash: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}
+                  </p>
+                  <p className="text-gray-800 dark:text-gray-200">
+                    Total Transfer: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}
+                  </p>
+                  <p className="text-gray-800 dark:text-gray-200">
+                    Total COD: Rp. {data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod').reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Display total with explanation of where it comes from */}
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <p className={`font-semibold ${
+                  paymentBreakdown && paymentBreakdown.hasMismatch && verificationActive
+                  ? "text-red-800 dark:text-red-300" 
+                  : "text-gray-900 dark:text-gray-100"
+                }`}>
+                  Total Semua: Rp. {data.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}
+                </p>
+                
+                {/* Always calculate and show the difference */}
+                {(() => {
+                  const totalCash = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash')
+                    .reduce((sum, item) => sum + (item.total || 0), 0);
+                  const totalTransfer = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer')
+                    .reduce((sum, item) => sum + (item.total || 0), 0);
+                  const totalCOD = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cod')
+                    .reduce((sum, item) => sum + (item.total || 0), 0);
+                  const sumPayments = totalCash + totalTransfer + totalCOD;
+                  const grandTotal = data.reduce((sum, item) => sum + (item.total || 0), 0);
+                  const difference = Math.abs(grandTotal - sumPayments);
+                  
+                  // Only show if there's a meaningful difference
+                  if (difference > 0.01) {
+                    return (
+                      <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                        <p className="text-yellow-800 dark:text-yellow-300 font-medium">
+                          {grandTotal > sumPayments 
+                            ? `Ada Rp. ${difference.toLocaleString('en-US')} yang tidak tercatat di sumber dana (Cash/Transfer/COD).` 
+                            : `Sumber dana (Cash+Transfer+COD) melebihi total sebesar Rp. ${difference.toLocaleString('en-US')}.`
+                          }
+                        </p>
+                        <p className="mt-1 text-gray-600 dark:text-gray-400">
+                          Mohon periksa pembayaran yang tercatat untuk memastikan semua transaksi memiliki metode pembayaran yang benar.
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null;
+                })()}
+              </div>
             </div>
           )}
         </>
