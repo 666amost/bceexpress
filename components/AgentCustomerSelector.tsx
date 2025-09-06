@@ -87,7 +87,7 @@ export function AgentCustomerSelector({ onSelect, onClose, branchOrigin }: Agent
     } finally {
       setIsLoading(false)
     }
-  }, [supabase, toast, branchOrigin])
+  }, [toast, branchOrigin]) // Removed supabase as it's an outer scope value
 
   // Filter customers based on search term
   const filterCustomers = useCallback((searchTerm: string): void => {

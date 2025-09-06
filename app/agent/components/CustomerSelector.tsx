@@ -184,7 +184,7 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
     } finally {
       setIsLoading(false)
     }
-  }, [supabase, toast, agentEmail])
+  }, [toast, agentEmail]) // Removed supabase as it's an outer scope value
 
   // Filter customers based on search term
   const filterCustomers = useCallback((searchTerm: string): void => {

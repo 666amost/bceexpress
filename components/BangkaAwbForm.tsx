@@ -10,6 +10,27 @@ import { AgentCustomerSelector } from "./AgentCustomerSelector"
 
 import { areaCodeMapping } from '@/lib/area-codes';
 
+interface AgentCustomer {
+  id: string
+  nama_pengirim: string
+  nomor_pengirim: string | null
+  nama_penerima: string
+  nomor_penerima: string | null
+  alamat_penerima: string | null
+  kota_tujuan: string | null
+  kecamatan: string | null
+  wilayah: string | null
+  kirim_via: string | null
+  isi_barang: string | null
+  metode_pembayaran: string | null
+  agent_email: string
+  agent_customer: string | null
+  notes: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface Customer {
   id: string
   customer_name: string
@@ -467,7 +488,7 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   }
 
   // Handle agent customer selection from AgentCustomerSelector
-  const handleAgentCustomerSelect = (customer: any): void => {
+  const handleAgentCustomerSelect = (customer: AgentCustomer): void => {
     setIsImportingCustomer(true);
     
     setForm(prev => ({
