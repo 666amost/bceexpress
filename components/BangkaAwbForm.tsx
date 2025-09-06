@@ -6,6 +6,7 @@ import { getEnhancedAgentList } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
 import CustomerSelector from "./CustomerSelector"
+import { AgentCustomerSelector } from "./AgentCustomerSelector"
 
 import { areaCodeMapping } from '@/lib/area-codes';
 
@@ -352,6 +353,8 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   const [success, setSuccess] = useState("")
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [showCustomerSelector, setShowCustomerSelector] = useState(false)
+  const [showAgentCustomerSelector, setShowAgentCustomerSelector] = useState(false)
+  const [isImportingCustomer, setIsImportingCustomer] = useState(false)
   const printFrameRef = useRef<HTMLDivElement>(null)
 
   const kecamatanOptions = useMemo(() => {
@@ -378,6 +381,8 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
 
   // Handle customer selection from CustomerSelector
   const handleCustomerSelect = (customer: Customer): void => {
+    setIsImportingCustomer(true);
+    
     setForm(prev => ({
       ...prev,
       nama_pengirim: customer.nama_pengirim || '',
@@ -455,7 +460,51 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     
     setError('');
     setSuccess('Data customer berhasil diimport!');
-    setTimeout(() => setSuccess(''), 3000);
+    setTimeout(() => {
+      setSuccess('');
+      setIsImportingCustomer(false);
+    }, 3000);
+  }
+
+  // Handle agent customer selection from AgentCustomerSelector
+  const handleAgentCustomerSelect = (customer: any): void => {
+    setIsImportingCustomer(true);
+    
+    setForm(prev => ({
+      ...prev,
+      nama_pengirim: customer.nama_pengirim || '',
+      nomor_pengirim: customer.nomor_pengirim || '',
+      nama_penerima: customer.nama_penerima || '',
+      nomor_penerima: customer.nomor_penerima || '',
+      alamat_penerima: customer.alamat_penerima || '',
+      kota_tujuan: customer.kota_tujuan || '',
+      kecamatan: customer.kecamatan || '',
+      kirim_via: customer.kirim_via || '',
+      metode_pembayaran: customer.metode_pembayaran || '',
+      agent_customer: customer.agent_email || '', // Use agent_email as agent_customer
+      isi_barang: customer.isi_barang || ''
+    }))
+    
+    // Update harga berdasarkan customer data (sama seperti handleCustomerSelect)
+    if (customer.kota_tujuan && customer.kecamatan) {
+      const wilayahForPricing = `${customer.kota_tujuan} ${customer.kecamatan}`.toUpperCase();
+      let harga = getPriceByArea(wilayahForPricing);
+      const transit = getTransitFee(wilayahForPricing);
+      
+      setForm(prev => ({
+        ...prev,
+        harga_per_kg: harga,
+        biaya_transit: transit
+      }));
+    }
+    
+    setError('');
+    setSuccess('Data agent customer berhasil diimport!');
+    setTimeout(() => {
+      setSuccess('');
+      setIsImportingCustomer(false);
+    }, 3000);
+    setShowAgentCustomerSelector(false);
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -532,6 +581,11 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
   }
 
   const handleSelectChange = (name: string, value: string) => {
+    // Prevent kecamatan reset during customer import
+    if (isImportingCustomer && name === 'kota_tujuan') {
+      return;
+    }
+    
     setForm((f) => ({ ...f, [name]: value }))
     setError("")
     setSuccess("")
@@ -1246,16 +1300,28 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           <h2 className="text-2xl font-extrabold text-blue-900 dark:text-blue-100 tracking-tight">
             {isEditing ? "Edit AWB Manifest Bangka" : "Input AWB Manifest Bangka"}
           </h2>
-          <button
-            type="button"
-            onClick={() => setShowCustomerSelector(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Import Customer
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCustomerSelector(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Import Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAgentCustomerSelector(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Import Agent Customer
+            </button>
+          </div>
         </div>
         {error && <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-semibold shadow border border-red-200 dark:border-red-800">{error}</div>}
         {success && (
@@ -1570,6 +1636,15 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           onClose={() => setShowCustomerSelector(false)}
           branchOrigin={branchOrigin}
           userRole={userRole}
+        />
+      )}
+
+      {/* Agent Customer Selector Modal */}
+      {showAgentCustomerSelector && (
+        <AgentCustomerSelector
+          onSelect={handleAgentCustomerSelect}
+          onClose={() => setShowAgentCustomerSelector(false)}
+          branchOrigin={branchOrigin || ''}
         />
       )}
     </>

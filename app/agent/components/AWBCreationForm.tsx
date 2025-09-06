@@ -1,14 +1,15 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FaCheckCircle, FaPrint, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
+import { FaCheckCircle, FaPrint, FaExclamationTriangle, FaRedo, FaUsers } from 'react-icons/fa';
 import { useAgent } from '../context/AgentContext';
+import { CustomerSelector } from './CustomerSelector';
 
 // Tambahkan mapping kode bandara dan kode area dengan explicit typing
 interface CityData {
@@ -337,6 +338,40 @@ function getTransitFee(wilayah: string): number {
   return 0; // Default jika tidak ada biaya transit
 }
 
+// Utility: normalize string for comparison (trim + collapse spaces + lowercase)
+function normalizeForCompare(input: string): string {
+  return input
+    ? input
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+    : '';
+}
+
+// Utility: find canonical kecamatan value from the city list (case-insensitive)
+function findCanonicalDistrict(city: string, district: string): string {
+  const cityKey: string = (city || '').trim();
+  const rawDistrict: string = (district || '').trim();
+  if (!cityKey || !rawDistrict) return rawDistrict;
+
+  const cityData = kotaWilayahJabodetabek[cityKey as keyof typeof kotaWilayahJabodetabek];
+  if (!cityData || !Array.isArray(cityData.kecamatan)) return rawDistrict;
+
+  const target = normalizeForCompare(rawDistrict);
+  const match = cityData.kecamatan.find(k => normalizeForCompare(k) === target);
+  return match || rawDistrict;
+}
+
+// Utility: find canonical city key from our mapping (case-insensitive)
+function findCanonicalCity(city: string): string {
+  const raw = (city || '').trim();
+  if (!raw) return '';
+  const target = normalizeForCompare(raw);
+  const keys = Object.keys(kotaWilayahJabodetabek);
+  const match = keys.find(k => normalizeForCompare(k) === target);
+  return match || raw; // fall back to raw so UI still shows value
+}
+
 interface FormDataType {
   awb_no: string;
   awb_date: string;
@@ -363,6 +398,28 @@ interface FormDataType {
   catatan: string;
 }
 
+// Interface for AgentCustomer (matching CustomerSelector)
+interface AgentCustomer {
+  id: string;
+  nama_pengirim: string;
+  nomor_pengirim: string | null;
+  nama_penerima: string;
+  nomor_penerima: string | null;
+  alamat_penerima: string | null;
+  kota_tujuan: string | null;
+  kecamatan: string | null;
+  wilayah: string | null;
+  kirim_via: string | null;
+  isi_barang: string | null;
+  metode_pembayaran: string | null;
+  agent_email: string;
+  agent_customer: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Interface for tracking display values of numeric fields
 interface NumericDisplayState {
   coli: string;
@@ -375,6 +432,14 @@ export const AWBCreationForm: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [submittedAWB, setSubmittedAWB] = useState<string>('');
+  const [showCustomerSelector, setShowCustomerSelector] = useState<boolean>(false);
+  const [isImportingCustomer, setIsImportingCustomer] = useState<boolean>(false);
+  
+  // Use ref for more reliable import tracking
+  const importingRef = useRef<boolean>(false);
+  // Refs to ensure kecamatan is applied after kota options are mounted
+  const pendingCityRef = useRef<string | null>(null);
+  const pendingDistrictRef = useRef<string | null>(null);
 
   // State for tracking display values of numeric fields
   const [numericDisplay, setNumericDisplay] = useState<NumericDisplayState>({
@@ -524,29 +589,135 @@ export const AWBCreationForm: React.FC = () => {
     }
   }, [numericDisplay]);
 
+  // Handle customer selection from CustomerSelector
+  const handleCustomerSelect = useCallback((customer: AgentCustomer): void => {
+    
+    
+    // Use both state and ref for maximum reliability
+    setIsImportingCustomer(true);
+    importingRef.current = true;
+    
+  // Canonicalize imported city and district to match our Select options
+  const importedCity = findCanonicalCity((customer.kota_tujuan || '').trim());
+  const canonicalDistrict = findCanonicalDistrict(importedCity, customer.kecamatan || '');
+  // Save to refs so we can re-apply after options are populated if needed
+  pendingCityRef.current = importedCity || null;
+  pendingDistrictRef.current = canonicalDistrict || null;
+
+    // Calculate biaya transit first using canonical values
+    const transitFee = importedCity && canonicalDistrict 
+      ? getTransitFee(`${importedCity} ${canonicalDistrict}`.toUpperCase())
+      : 0;
+
+    // Calculate wilayah based on customer data
+    let calculatedWilayah = customer.wilayah || '';
+    if (!calculatedWilayah && importedCity && canonicalDistrict) {
+  const airportCode = airportCodes[importedCity] || '';
+      const areaCode = areaCodes[canonicalDistrict] || '';
+      
+      // For Bangka branch: use kecamatan directly as wilayah
+      if (currentAgent?.branchOrigin?.toLowerCase().includes('bangka')) {
+  calculatedWilayah = canonicalDistrict;
+      } else {
+        // For other branches: use airport code + area code format
+        calculatedWilayah = areaCode ? `${airportCode}/${areaCode}` : airportCode;
+      }
+    }
+
+    
+
+    // Update all data in single setFormData call to prevent race conditions
+    setFormData(prev => ({
+      ...prev,
+      nama_pengirim: customer.nama_pengirim || '',
+      nomor_pengirim: customer.nomor_pengirim || '',
+      nama_penerima: customer.nama_penerima || '',
+      nomor_penerima: customer.nomor_penerima || '',
+      alamat_penerima: customer.alamat_penerima || '',
+  kota_tujuan: importedCity || '',
+  kecamatan: canonicalDistrict || '',
+      wilayah: calculatedWilayah,
+      kirim_via: customer.kirim_via || 'udara',
+      metode_pembayaran: customer.metode_pembayaran || 'CASH',
+      isi_barang: customer.isi_barang || '',
+  biaya_transit: transitFee
+    }));
+    
+    setShowCustomerSelector(false);
+    toast({
+      title: "Success",
+      description: "Customer data imported successfully",
+      variant: "default"
+    });
+    
+    // Reset flag after a longer timeout to ensure all React updates complete
+    setTimeout(() => {
+      
+      setIsImportingCustomer(false);
+      importingRef.current = false;
+    }, 5000);
+  }, [toast, currentAgent?.branchOrigin]);
+
+  // Ensure kecamatan is set after options exist (first import edge-case)
+  useEffect(() => {
+    // Only attempt to patch if currently importing and kecamatan is still empty
+    if ((isImportingCustomer || importingRef.current) &&
+        formData.kota_tujuan &&
+        !formData.kecamatan &&
+        pendingCityRef.current &&
+        pendingDistrictRef.current &&
+        findCanonicalCity(formData.kota_tujuan) === pendingCityRef.current) {
+      const canonical = findCanonicalDistrict(pendingCityRef.current, pendingDistrictRef.current);
+      
+      setFormData(prev => ({ ...prev, kecamatan: canonical }));
+      // Clear refs once applied
+      pendingCityRef.current = null;
+      pendingDistrictRef.current = null;
+    }
+  }, [formData.kota_tujuan, formData.kecamatan, isImportingCustomer]);
+
   const handleSelectChange = useCallback((name: string, value: string): void => {
+    const isImporting = isImportingCustomer || importingRef.current;
+    
+    
     setFormData(prev => {
-      const newData = { ...prev, [name]: value };
+      let newValue = value;
+      // If changing kota_tujuan, canonicalize the city key
+      if (name === 'kota_tujuan') {
+        newValue = findCanonicalCity(value);
+      }
+      // If changing kecamatan, ensure it's canonical for the selected city
+      if (name === 'kecamatan' && prev.kota_tujuan) {
+        newValue = findCanonicalDistrict(prev.kota_tujuan, value);
+      }
+      const newData = { ...prev, [name]: newValue };
       
       // Reset kecamatan and calculate wilayah when kota_tujuan changes
-      if (name === 'kota_tujuan') {
-        newData.kecamatan = '';
-        newData.wilayah = airportCodes[value] || '';
-        newData.biaya_transit = 0; // Reset biaya transit when city changes
+      // Skip reset if we're currently importing customer data
+  if (name === 'kota_tujuan') {
+        if (!isImporting) {
+          
+          newData.kecamatan = '';
+          newData.wilayah = airportCodes[value] || '';
+          newData.biaya_transit = 0; // Reset biaya transit when city changes
+        } else {
+          
+        }
+        // If importing customer, don't reset anything, just update the city
       }
       
       // Calculate wilayah and biaya_transit when kecamatan changes
       if (name === 'kecamatan' && newData.kota_tujuan) {
         const airportCode = airportCodes[newData.kota_tujuan] || '';
-        const areaCode = areaCodes[value] || '';
+        const areaCode = areaCodes[newValue] || '';
         
         // Calculate biaya transit based on kecamatan
-        const transitFee = getTransitFee(`${newData.kota_tujuan} ${value}`.toUpperCase());
+        const transitFee = getTransitFee(`${newData.kota_tujuan} ${newValue}`.toUpperCase());
         newData.biaya_transit = transitFee;
         
         // For Bangka branch: use kecamatan directly as wilayah
         if (currentAgent?.branchOrigin?.toLowerCase().includes('bangka')) {
-          newData.wilayah = value; // Use kecamatan directly
+          newData.wilayah = newValue; // Use kecamatan directly
         } else {
           // For other branches: use airport code + area code format
           if (areaCode) {
@@ -557,9 +728,11 @@ export const AWBCreationForm: React.FC = () => {
         }
       }
       
+      
+      
       return newData;
     });
-  }, [currentAgent?.branchOrigin]);
+  }, [currentAgent?.branchOrigin, isImportingCustomer]);
 
   const validateForm = useCallback((): boolean => {
     const requiredFields: Array<{ field: keyof FormDataType; label: string }> = [
@@ -939,6 +1112,19 @@ export const AWBCreationForm: React.FC = () => {
             </div>
           </div>
 
+          {/* Import Customer Button */}
+          <div className="flex justify-center pt-2 pb-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCustomerSelector(true)}
+              className="flex items-center gap-2"
+            >
+              <FaUsers className="h-4 w-4" />
+              Import Customer Data
+            </Button>
+          </div>
+
           {/* Sender Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1155,6 +1341,15 @@ export const AWBCreationForm: React.FC = () => {
           </Button>
         </form>
       </CardContent>
+      
+      {/* Customer Selector Modal */}
+      {showCustomerSelector && currentAgent?.email && (
+        <CustomerSelector
+          onSelect={handleCustomerSelect}
+          onClose={() => setShowCustomerSelector(false)}
+          agentEmail={currentAgent.email}
+        />
+      )}
     </Card>
   );
 };
