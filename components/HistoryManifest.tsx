@@ -185,9 +185,14 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [editPotongan, setEditPotongan] = useState(0)
   const [editStatus, setEditStatus] = useState("lunas")
   const [saving, setSaving] = useState(false)
-  const [search, setSearch] = useState("")
+  // Search states: input vs committed (to avoid fetching while typing)
+  const [searchInput, setSearchInput] = useState("")
+  const [committedSearch, setCommittedSearch] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const [isSearchMode, setIsSearchMode] = useState(false)
+  const [isTyping, setIsTyping] = useState(false)
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requestIdRef = useRef(0) // Ignore stale search responses
   const [printData, setPrintData] = useState<ManifestData | null>(null)
   const [showPrintLayout, setShowPrintLayout] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -259,9 +264,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
 
   // Function to handle search in entire database
   const handleSearch = async (searchTerm: string) => {
+    const currentReq = ++requestIdRef.current
     if (!searchTerm.trim()) {
       // If search is empty, reset to default view (1 week)
       setIsSearchMode(false)
+      setSearching(false)
       // Don't show loading if we're just clearing search and data already exists
       if (data.length === 0) setLoading(true)
       const oneWeekAgo = new Date()
@@ -285,8 +292,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
       }
 
       const { data: fetchedData } = await query
-      setData(fetchedData || [])
-      setLoading(false)
+      // Only apply if this is the latest request
+      if (currentReq === requestIdRef.current) {
+        setData(fetchedData || [])
+        setLoading(false)
+      }
       return
     }
 
@@ -311,21 +321,18 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
     }
 
     const { data: searchData } = await query
-    setData(searchData || [])
-    setSearching(false)
+    // Apply only if latest request
+    if (currentReq === requestIdRef.current) {
+      setData(searchData || [])
+      setSearching(false)
+    }
   }
 
-  // Debounce search to avoid too many API calls
+  // Trigger search only when user commits (debounced or Enter)
   useEffect(() => {
-    // Skip search on initial mount when search is empty
-    if (search.trim() === '' || isInitialMount) return;
-    
-    const timeoutId = setTimeout(() => {
-      handleSearch(search)
-    }, 500)
-
-    return () => clearTimeout(timeoutId)
-  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (committedSearch === null) return; // initial mount
+    handleSearch(committedSearch)
+  }, [committedSearch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEditModal = (row: ManifestData) => {
     setEditData(row)
@@ -1246,19 +1253,36 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             <span className="text-gray-700 dark:text-gray-300">Search:</span>
             <input
               className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => {
+                const val = e.target.value
+                setSearchInput(val)
+                setIsTyping(true)
+                if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+                typingTimerRef.current = setTimeout(() => {
+                  setIsTyping(false)
+                  setCommittedSearch(val)
+                }, 700)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+                  setIsTyping(false)
+                  setCommittedSearch(searchInput)
+                }
+              }}
               placeholder="Search by AWB, customer, etc."
             />
-            {searching && (
+            {searching && !isTyping && (
               <span className="text-blue-600 dark:text-blue-400 text-xs">Searching...</span>
             )}
-            {isSearchMode && !searching && (
+            {isSearchMode && !searching && !isTyping && (
               <span className="text-green-600 dark:text-green-400 text-xs">
                 Searching all data • Clear search to view recent data
               </span>
             )}
-            {!isSearchMode && !searching && (
+            {!isSearchMode && !searching && !isTyping && (
               <span className="text-gray-500 dark:text-gray-400 text-xs">
                 Showing last 7 days
               </span>
@@ -1283,7 +1307,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading || searching ? (
                   <tr>
                     <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
                       Loading...
@@ -1378,19 +1402,36 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             <span className="text-gray-700 dark:text-gray-300">Cari AWB:</span>
             <input
               className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 flex-1"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => {
+                const val = e.target.value
+                setSearchInput(val)
+                setIsTyping(true)
+                if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+                typingTimerRef.current = setTimeout(() => {
+                  setIsTyping(false)
+                  setCommittedSearch(val)
+                }, 700)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+                  setIsTyping(false)
+                  setCommittedSearch(searchInput)
+                }
+              }}
               placeholder="Masukkan nama Agen untuk mencari..."
             />
-            {searching && (
+            {searching && !isTyping && (
               <span className="text-blue-600 dark:text-blue-400 text-xs">Searching...</span>
             )}
-            {isSearchMode && !searching && (
+            {isSearchMode && !searching && !isTyping && (
               <span className="text-green-600 dark:text-green-400 text-xs">
                 Searching all data • Clear search to view recent data
               </span>
             )}
-            {!isSearchMode && !searching && (
+            {!isSearchMode && !searching && !isTyping && (
               <span className="text-gray-500 dark:text-gray-400 text-xs">
                 Showing last 7 days
               </span>
@@ -1417,7 +1458,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
+                  {loading || searching ? (
                     <tr>
                       <td colSpan={mode === "pelunasan" ? 12 : 11} className="text-center py-4 text-gray-600 dark:text-gray-400">
                         Loading...
