@@ -57,10 +57,67 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [verificationActive, setVerificationActive] = useState(false) // Toggle untuk verifikasi data
   const [isVerifying, setIsVerifying] = useState(false) // Status sedang memverifikasi
   const [paymentBreakdown, setPaymentBreakdown] = useState(null) // Payment breakdown and difference check
+  const [awbVerification, setAwbVerification] = useState(null) // AWB verification across area codes
+  const [showMissingAwb, setShowMissingAwb] = useState(false) // toggle detail list of missing AWB
 
   // ================== LISTS ==================
 
   // ...existing code...
+
+  // Helper: map a row to an area code using normalized kecamatan/wilayah, with fallback to kota_tujuan
+  const getAreaCode = useCallback((item) => {
+    if (!item) return undefined;
+    const raw = (item.kecamatan || item.wilayah || "").trim();
+    const norm = normalizeKecamatan(raw);
+    let code = norm ? areaCodes[norm] : undefined;
+    if (code === 'GLC' || code === 'KMY') return code;
+    const kt = (item.kota_tujuan || '').trim();
+    if (kt) {
+      const ktNorm = normalizeKecamatan(kt);
+      const byKota = ktNorm ? areaCodes[ktNorm] : undefined;
+      if (byKota === 'GLC' || byKota === 'KMY') return byKota;
+    }
+    // additional loose fallback for common variants
+    const up = raw.toUpperCase();
+    if (up.includes('TELUK NAGA') || up === 'TELUKNAGA') return 'GLC';
+    return undefined;
+  }, []);
+
+  // Helper: compute AWB verification (GLC + KMY vs total) from an unfiltered dataset
+  const computeAwbVerification = useCallback((rows) => {
+    if (!rows || rows.length === 0) return { total: 0, glc: 0, kmy: 0, unknownCount: 0, unknownList: [], diff: 0, ok: true };
+
+    // de-duplicate by awb_no (prefer latest awb_date)
+    const byAwb = new Map();
+    rows.forEach((item) => {
+      if (!item) return;
+      const key = item.awb_no || JSON.stringify(item);
+      const existing = byAwb.get(key);
+      if (!existing) byAwb.set(key, item);
+      else {
+        const existingDate = new Date(existing.awb_date || 0);
+        const itemDate = new Date(item.awb_date || 0);
+        if (itemDate > existingDate) byAwb.set(key, item);
+      }
+    });
+
+    let glc = 0;
+    let kmy = 0;
+    const unknownList = [];
+
+    for (const item of byAwb.values()) {
+      const raw = (item.kecamatan || item.wilayah || '').trim();
+      const code = getAreaCode(item); // 'GLC' | 'KMY' | undefined
+      if (code === 'GLC') glc += 1;
+      else if (code === 'KMY') kmy += 1;
+      else unknownList.push({ awb_no: item.awb_no, wilayah: raw });
+    }
+
+    const total = byAwb.size;
+    const classified = glc + kmy;
+    const diff = total - classified;
+    return { total, glc, kmy, unknownCount: unknownList.length, unknownList, diff, ok: diff === 0 };
+  }, [getAreaCode]);
 
   // Fetch function must be defined after all dependencies
   const fetchDailyReport = useCallback(async () => {
@@ -68,6 +125,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
     setError("")
     // Reset verification results when fetching new data
     setPaymentBreakdown(null)
+    setAwbVerification(null)
     
     // Check if any filter is applied
     const hasFilters = selectedDateFrom || selectedDateTo || selectedKirimVia || 
@@ -76,95 +134,68 @@ export default function DailyReport({ userRole, branchOrigin }) {
     setIsDefaultView(!hasFilters);
     
     try {
-      let query;
-      if (isBranchMode) {
-        query = supabaseClient
-          .from("manifest_cabang")
-          .select("*")
-          .eq('origin_branch', branchOrigin)
-          .order("awb_date", { ascending: false })
-      } else {
-        query = supabaseClient
-          .from("manifest")
-          .select("*")
-          .order("awb_date", { ascending: false })
-      }
-
-      // If no filters are applied, only show last 1 day for performance
-      if (!hasFilters) {
-        const yesterday = new Date()
-        yesterday.setDate(yesterday.getDate() - 1)
-        const yesterdayIso = yesterday.toISOString().split('T')[0] // YYYY-MM-DD
-        query = query.gte("awb_date", yesterdayIso)
-      } else {
-        // Apply date range filter only if filters are applied
-        if (selectedDateFrom && selectedDateTo) {
-          query = query.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
-        } else if (selectedDateFrom) {
-          query = query.gte("awb_date", selectedDateFrom)
-        } else if (selectedDateTo) {
-          query = query.lte("awb_date", selectedDateTo)
+      // builder to create main query; includeAreaCode: whether to apply area code filter
+      const createQuery = (includeAreaCode = true) => {
+        let q;
+        if (isBranchMode) {
+          q = supabaseClient
+            .from("manifest_cabang")
+            .select("*")
+            .eq('origin_branch', branchOrigin)
+            .order("awb_date", { ascending: false })
+        } else {
+          q = supabaseClient
+            .from("manifest")
+            .select("*")
+            .order("awb_date", { ascending: false })
         }
-      }
 
-      if (selectedKirimVia) query = query.ilike("kirim_via", selectedKirimVia)
-      if (selectedAgentCustomer) {
-        // Build a base query factory that applies all non-agent filters so we can
-        // run multiple targeted queries (email-based and name-based) and merge results.
-        const buildBaseQuery = () => {
-          let q;
+        // If no filters are applied, only show last 1 day for performance
+        if (!hasFilters) {
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const yesterdayIso = yesterday.toISOString().split('T')[0] // YYYY-MM-DD
+          q = q.gte("awb_date", yesterdayIso)
+        } else {
+          // Apply date range filter only if filters are applied
+          if (selectedDateFrom && selectedDateTo) {
+            q = q.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
+          } else if (selectedDateFrom) {
+            q = q.gte("awb_date", selectedDateFrom)
+          } else if (selectedDateTo) {
+            q = q.lte("awb_date", selectedDateTo)
+          }
+        }
+
+        if (selectedKirimVia) q = q.ilike("kirim_via", selectedKirimVia)
+        if (selectedKotaTujuan) q = q.eq("kota_tujuan", selectedKotaTujuan)
+        if (selectedWilayah) {
           if (isBranchMode) {
-            q = supabaseClient
-              .from("manifest_cabang")
-              .select("*")
-              .eq('origin_branch', branchOrigin)
-              .order("awb_date", { ascending: false })
+            q = q.or(`kecamatan.eq.${selectedWilayah},wilayah.eq.${selectedWilayah}`)
           } else {
-            q = supabaseClient
-              .from("manifest")
-              .select("*")
-              .order("awb_date", { ascending: false })
+            q = q.eq("wilayah", selectedWilayah)
           }
-
-          // Apply date filters only if other filters are applied (not default view)
-          if (hasFilters) {
-            if (selectedDateFrom && selectedDateTo) {
-              q = q.gte("awb_date", selectedDateFrom).lte("awb_date", selectedDateTo)
-            } else if (selectedDateFrom) {
-              q = q.gte("awb_date", selectedDateFrom)
-            } else if (selectedDateTo) {
-              q = q.lte("awb_date", selectedDateTo)
-            }
-          }
-
-          if (selectedKirimVia) q = q.ilike("kirim_via", selectedKirimVia)
-          if (selectedKotaTujuan) q = q.eq("kota_tujuan", selectedKotaTujuan)
-          if (selectedWilayah) {
-            if (isBranchMode) {
-              // Branch data is inconsistent: some rows use `kecamatan`, others use `wilayah`.
-              // Match either field so filtering works reliably (e.g. TANGERANG entries).
-              q = q.or(`kecamatan.eq.${selectedWilayah},wilayah.eq.${selectedWilayah}`)
-            } else q = q.eq("wilayah", selectedWilayah)
-          }
-
-          if (selectedAreaCode && isBranchMode) {
-            const areaWilayahList = areaCodeData[selectedAreaCode] || []
-            if (areaWilayahList.length > 0) {
-              // Check both kecamatan and wilayah fields because some branch records
-              // store the area in `wilayah` instead of `kecamatan`.
-              const orConditions = [];
-              for (const area of areaWilayahList) {
-                orConditions.push(`kecamatan.ilike.%${area}%`);
-                orConditions.push(`wilayah.ilike.%${area}%`);
-              }
-              if (orConditions.length > 0) {
-                q = q.or(orConditions.join(','));
-              }
-            }
-          }
-
-          return q
         }
+        if (includeAreaCode && selectedAreaCode && isBranchMode) {
+          const areaWilayahList = areaCodeData[selectedAreaCode] || []
+          if (areaWilayahList.length > 0) {
+            const orConditions = []
+            for (const area of areaWilayahList) {
+              orConditions.push(`kecamatan.ilike.%${area}%`)
+              orConditions.push(`wilayah.ilike.%${area}%`)
+            }
+            if (orConditions.length > 0) q = q.or(orConditions.join(','))
+          }
+        }
+        return q
+      }
+
+      // decide if we need an unfiltered (no area code) dataset for AWB verification
+      const needUnfiltered = isBranchMode && (verificationActive || !!selectedAreaCode)
+
+      if (selectedAgentCustomer) {
+        // Build a base query factory for agent filter. Toggle area code inclusion via param.
+        const buildBaseQuery = (includeAreaCode = true) => createQuery(includeAreaCode)
 
         // Get identifiers from mapping util (agent name + mapped emails)
         const agentIdentifiers = getAllAgentIdentifiers(selectedAgentCustomer || "")
@@ -172,23 +203,37 @@ export default function DailyReport({ userRole, branchOrigin }) {
 
         // Run targeted queries: one for emails (exact match via .in) and one for name partial match (.ilike)
         const promises = [];
+        const promisesNoArea = [];
 
         if (emailsOnly.length > 0) {
           // Use .in which accepts an array
-          const qEmail = buildBaseQuery().in('agent_customer', emailsOnly)
+          const qEmail = buildBaseQuery(true).in('agent_customer', emailsOnly)
           promises.push(qEmail)
+          if (needUnfiltered) {
+            const qEmailNoArea = buildBaseQuery(false).in('agent_customer', emailsOnly)
+            promisesNoArea.push(qEmailNoArea)
+          }
         }
 
         // Name-based partial match
-        const qName = buildBaseQuery().ilike('agent_customer', `%${selectedAgentCustomer}%`)
+        const qName = buildBaseQuery(true).ilike('agent_customer', `%${selectedAgentCustomer}%`)
         promises.push(qName)
+        if (needUnfiltered) {
+          const qNameNoArea = buildBaseQuery(false).ilike('agent_customer', `%${selectedAgentCustomer}%`)
+          promisesNoArea.push(qNameNoArea)
+        }
 
         // Execute all queries and merge deduplicated results
         const results = await Promise.all(promises.map(p => p))
+        const resultsNoArea = needUnfiltered ? await Promise.all(promisesNoArea.map(p => p)) : []
         // results are objects like { data, error } when awaited via supabase client
         const combined = []
         for (const r of results) {
           if (r && r.data) combined.push(...r.data)
+        }
+        const combinedNoArea = []
+        for (const r of resultsNoArea) {
+          if (r && r.data) combinedNoArea.push(...r.data)
         }
 
         // Deduplicate by awb_no (prefer latest by awb_date)
@@ -205,48 +250,109 @@ export default function DailyReport({ userRole, branchOrigin }) {
             if (itemDate > existingDate) byAwb.set(key, item)
           }
         })
+        const byAwbNoArea = new Map()
+        combinedNoArea.forEach(item => {
+          if (!item) return
+          const key = item.awb_no || JSON.stringify(item)
+          const existing = byAwbNoArea.get(key)
+          if (!existing) byAwbNoArea.set(key, item)
+          else {
+            const existingDate = new Date(existing.awb_date || 0)
+            const itemDate = new Date(item.awb_date || 0)
+            if (itemDate > existingDate) byAwbNoArea.set(key, item)
+          }
+        })
 
         // Convert back to array and sort by awb_date desc
         const merged = Array.from(byAwb.values()).sort((a, b) => new Date(b.awb_date) - new Date(a.awb_date))
+        const mergedNoArea = Array.from(byAwbNoArea.values()).sort((a, b) => new Date(b.awb_date) - new Date(a.awb_date))
+
+        // When Area Code is selected, apply the same client-side classification
+        let finalRows = merged || []
+        if (isBranchMode && selectedAreaCode) {
+          const target = selectedAreaCode === 'BCE GLC' ? 'GLC' : 'KMY'
+          const base = [
+            ...(Array.isArray(mergedNoArea) ? mergedNoArea : []),
+            ...(Array.isArray(merged) ? merged : [])
+          ]
+          const filtered = base.filter((item) => getAreaCode(item) === target)
+          const by = new Map()
+          for (const item of filtered) {
+            const key = item.awb_no || JSON.stringify(item)
+            const ex = by.get(key)
+            if (!ex) by.set(key, item)
+            else {
+              const exd = new Date(ex.awb_date || 0)
+              const it = new Date(item.awb_date || 0)
+              if (it > exd) by.set(key, item)
+            }
+          }
+          finalRows = Array.from(by.values()).sort((a, b) => new Date(b.awb_date) - new Date(a.awb_date))
+        }
 
         // Set data and skip the normal single-query path below
-        setData(merged || [])
+        setData(finalRows)
+        if (needUnfiltered) setUnfiltered(mergedNoArea || [])
+        if (needUnfiltered && isBranchMode) setAwbVerification(computeAwbVerification(mergedNoArea || []))
+        // Payment breakdown should reflect the table rows
+        setPaymentBreakdown(calculateTotalBreakdown(finalRows))
         setLoading(false)
         return
       }
-      if (selectedKotaTujuan) query = query.eq("kota_tujuan", selectedKotaTujuan)
-      if (selectedWilayah) {
-        if (isBranchMode) {
-          // Branch records are inconsistent; match either field.
-          query = query.or(`kecamatan.eq.${selectedWilayah},wilayah.eq.${selectedWilayah}`)
-        } else {
-          query = query.eq("wilayah", selectedWilayah)
-        }
-      }
-      if (selectedAreaCode && isBranchMode) {
-        const areaWilayahList = areaCodeData[selectedAreaCode] || []
-        if (areaWilayahList.length > 0) {
-          const orConditions = [];
-          for (const area of areaWilayahList) {
-            orConditions.push(`kecamatan.ilike.%${area}%`);
-            orConditions.push(`wilayah.ilike.%${area}%`);
-          }
-          if (orConditions.length > 0) {
-            query = query.or(orConditions.join(','));
-          }
-        }
-      }
-
-      const { data: fetchedData, error: fetchError } = await query
+      // Run main query and (optionally) unfiltered query in parallel
+      const mainQ = createQuery(true)
+      const noAreaQ = needUnfiltered ? createQuery(false) : null
+      const [mainRes, noAreaRes] = await Promise.all([
+        mainQ,
+        noAreaQ ? noAreaQ : Promise.resolve({ data: null, error: null })
+      ])
+      const fetchedData = mainRes?.data
+      const fetchError = mainRes?.error
+      const unfilteredData = noAreaRes?.data || null
 
       if (fetchError) {
         setError(`Error fetching data: ${fetchError.message}`)
       } else {
-        setData(fetchedData || [])
+        // If user selected Area Code, align the table strictly with client-side classification
+        if (isBranchMode && selectedAreaCode) {
+          // Merge both datasets to avoid miss from server filtering differences
+          const base = [
+            ...(Array.isArray(unfilteredData) ? unfilteredData : []),
+            ...(Array.isArray(fetchedData) ? fetchedData : [])
+          ]
+          const target = selectedAreaCode === 'BCE GLC' ? 'GLC' : 'KMY'
+          // filter by normalized kecamatan/wilayah mapping
+          const filtered = base.filter((item) => getAreaCode(item) === target)
+          // de-duplicate by awb_no and keep latest by awb_date
+          const byAwb = new Map()
+          filtered.forEach((item) => {
+            const key = item.awb_no || JSON.stringify(item)
+            const existing = byAwb.get(key)
+            if (!existing) byAwb.set(key, item)
+            else {
+              const existingDate = new Date(existing.awb_date || 0)
+              const itemDate = new Date(item.awb_date || 0)
+              if (itemDate > existingDate) byAwb.set(key, item)
+            }
+          })
+          const finalRows = Array.from(byAwb.values()).sort((a, b) => new Date(b.awb_date) - new Date(a.awb_date))
+          setData(finalRows)
+        } else {
+          setData(fetchedData || [])
+        }
+        if (needUnfiltered) setUnfiltered(unfilteredData || [])
         
         // Always calculate payment breakdown for display
-        const breakdown = calculateTotalBreakdown(fetchedData || []);
+        const breakdown = calculateTotalBreakdown((isBranchMode && selectedAreaCode)
+          ? ([
+              ...(Array.isArray(unfilteredData) ? unfilteredData : []),
+              ...(Array.isArray(fetchedData) ? fetchedData : [])
+            ].filter((item) => getAreaCode(item) === (selectedAreaCode === 'BCE GLC' ? 'GLC' : 'KMY')))
+          : (fetchedData || []));
         setPaymentBreakdown(breakdown);
+        if (needUnfiltered && isBranchMode) {
+          setAwbVerification(computeAwbVerification(unfilteredData || []))
+        }
         
         // Additional verification steps if needed
         if (verificationActive && isBranchMode && branchOrigin === 'bangka') {
@@ -260,7 +366,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
     } finally {
       setLoading(false)
     }
-  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode, verificationActive]);
+  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode, verificationActive, computeAwbVerification]);
 
   // Use centralized agent lists
   const agentList = isBranchMode
@@ -334,6 +440,22 @@ export default function DailyReport({ userRole, branchOrigin }) {
     // Default: kosong
     return [];
   }, [selectedKotaTujuan, selectedAreaCode, kotaWilayah, isBranchMode]);
+
+  // Flag rows that contribute to payment mismatch: total > 0 but metode_pembayaran is empty/unknown
+  const flaggedPaymentKeys = useMemo(() => {
+    const s = new Set();
+    if (!verificationActive) return s;
+    const valid = new Set(['cash','transfer','cod']);
+    for (const item of data) {
+      const total = Number(item?.total || 0);
+      const method = String(item?.metode_pembayaran || '').trim().toLowerCase();
+      if (total > 0 && !valid.has(method)) {
+        const key = item.awb_no || JSON.stringify(item);
+        s.add(key);
+      }
+    }
+    return s;
+  }, [verificationActive, data]);
 
   // useEffect hook to fetch data on component mount and when filters change
   useEffect(() => {
@@ -771,7 +893,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
               className="form-checkbox h-5 w-5 text-blue-600 dark:text-blue-400"
             />
             <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-              Aktifkan Verifikasi Dana
+              Aktifkan Verifikasi (Dana & AWB)
             </span>
           </label>
           {verificationActive && (
@@ -779,7 +901,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
               (Memeriksa selisih total vs sumber dana)
             </span>
           )}
-        </div>
+  </div>
       )}
       
       {/* Loading indicator untuk verifikasi */}
@@ -820,6 +942,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
               setSelectedAreaCode("");
               // Reset verification results
               setPaymentBreakdown(null);
+              setAwbVerification(null);
             }}
             className="px-3 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-sm transition-colors"
           >
@@ -842,6 +965,11 @@ export default function DailyReport({ userRole, branchOrigin }) {
       ) : (
         <>
           <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 rounded shadow sm:overflow-visible border border-gray-200 dark:border-gray-700">
+            {verificationActive && paymentBreakdown && paymentBreakdown.hasMismatch && (
+              <div className="mb-2 p-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 rounded">
+                Baris yang ditandai menandakan total &gt; 0 namun metode pembayaran kosong/unknown. Perbaiki metode pembayaran pada baris tersebut.
+              </div>
+            )}
             <table className="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-blue-50 dark:bg-blue-900/50">
                 <tr>
@@ -862,10 +990,18 @@ export default function DailyReport({ userRole, branchOrigin }) {
                 </tr>
               </thead>
               <tbody>
-                {data.map((item, index) => (
-                  <tr key={item.awb_no || `item-${index}`} className="even:bg-gray-50 dark:even:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                {data.map((item, index) => {
+                  const rowKey = item.awb_no || `item-${index}`;
+                  const isFlagged = flaggedPaymentKeys.has(item.awb_no || JSON.stringify(item));
+                  return (
+                  <tr key={rowKey} className={`${isFlagged ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'even:bg-gray-50 dark:even:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{index + 1}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.awb_no}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+                      {item.awb_no}
+                      {isFlagged && (
+                        <span className="ml-2 inline-block text-[10px] px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 dark:bg-yellow-700 dark:text-yellow-100 align-middle">Belum isi metode</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.nama_pengirim}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.nama_penerima}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.coli}</td>
@@ -879,7 +1015,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">{(item.metode_pembayaran || '').toLowerCase() === 'cod' ? `Rp. ${(item.total || 0).toLocaleString('en-US')}` : 'Rp. 0'}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{item.kecamatan || item.wilayah}</td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -930,8 +1066,8 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   Total Semua: Rp. {data.reduce((sum, item) => sum + (item.total || 0), 0).toLocaleString('en-US')}
                 </p>
                 
-                {/* Always calculate and show the difference */}
-                {(() => {
+                {/* Tampilkan selisih hanya saat verifikasi aktif */}
+                {verificationActive && (() => {
                   const totalCash = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'cash')
                     .reduce((sum, item) => sum + (item.total || 0), 0);
                   const totalTransfer = data.filter(item => (item.metode_pembayaran || '').toLowerCase() === 'transfer')
@@ -960,6 +1096,56 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   }
                   return null;
                 })()}
+                {/* AWB Verification (GLC+KMY should equal total). Uses unfiltered dataset without area code restriction. */}
+                {isBranchMode && verificationActive && awbVerification && (
+                  <div className={`mt-3 p-3 rounded border ${awbVerification.ok ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">Verifikasi AWB per Area Code:</span>
+                      <span className="text-gray-800 dark:text-gray-200">Total (tanpa filter Area): {awbVerification.total} AWB</span>
+                      <span className="text-blue-800 dark:text-blue-300">GLC: {awbVerification.glc}</span>
+                      <span className="text-purple-800 dark:text-purple-300">KMY: {awbVerification.kmy}</span>
+                      {!awbVerification.ok && (
+                        <span className="text-red-800 dark:text-red-300 font-medium">Selisih: {awbVerification.diff} AWB tidak terklasifikasi</span>
+                      )}
+                      {awbVerification.ok && (
+                        <span className="text-green-700 dark:text-green-300 font-medium">✓ Konsisten</span>
+                      )}
+                    </div>
+                    {!awbVerification.ok && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setShowMissingAwb(v => !v)}
+                          className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700"
+                        >
+                          {showMissingAwb ? 'Sembunyikan daftar AWB hilang' : 'Tampilkan AWB hilang'}
+                        </button>
+                        {showMissingAwb && (
+                          <div className="mt-2 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded">
+                            <table className="min-w-full text-xs">
+                              <thead className="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                  <th className="px-2 py-1 text-left border border-gray-200 dark:border-gray-600">AWB</th>
+                                  <th className="px-2 py-1 text-left border border-gray-200 dark:border-gray-600">Wilayah/Kecamatan</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {awbVerification.unknownList.map((u, idx) => (
+                                  <tr key={`${u.awb_no}-${idx}`} className="even:bg-gray-50 dark:even:bg-gray-700">
+                                    <td className="px-2 py-1 border border-gray-200 dark:border-gray-600">{u.awb_no}</td>
+                                    <td className="px-2 py-1 border border-gray-200 dark:border-gray-600">{u.wilayah || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                          Catatan: AWB di atas tidak muncul saat filter "BCE GLC" atau "BCE KMY" karena wilayah/kecamatan belum terpetakan ke Area Code. Tambahkan mapping di file area-codes.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
