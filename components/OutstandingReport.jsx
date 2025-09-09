@@ -29,6 +29,7 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
   const [outstandingData, setOutstandingData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [currentUserName, setCurrentUserName] = useState("")
 
   const currentAgentList = isBranchMode ? (branchOrigin === 'bangka' ? agentListBangka : agentListTanjungPandan) : agentList;
 
@@ -36,6 +37,45 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
     fetchAgents()
     fetchOutstandingData()
   }, [selectedAgent, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch current logged-in user display name for footer
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      try {
+        let user = null
+        // supabaseClient.auth.getUser is available in newer clients
+        if (supabaseClient.auth && typeof supabaseClient.auth.getUser === 'function') {
+          const { data } = await supabaseClient.auth.getUser()
+          user = data?.user
+        } else if (supabaseClient.auth && typeof supabaseClient.auth.user === 'function') {
+          user = supabaseClient.auth.user()
+        } else if (supabaseClient.auth && supabaseClient.auth.user) {
+          user = supabaseClient.auth.user
+        }
+
+        if (user) {
+          // Prefer explicit full_name or name from metadata
+          let rawName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || user.id || ''
+
+          // If it's an email, use local-part (before @). If it's a full name, use first token.
+          let displayName = rawName
+          if (typeof rawName === 'string') {
+            if (rawName.includes('@')) {
+              displayName = rawName.split('@')[0]
+            } else if (rawName.trim().includes(' ')) {
+              displayName = rawName.trim().split(/\s+/)[0]
+            }
+          }
+
+          setCurrentUserName(displayName)
+        }
+      } catch (err) {
+        // ignore, fallback will be used
+      }
+    }
+
+    fetchCurrentUser()
+  }, [])
 
   async function fetchAgents() {
     try {
@@ -242,85 +282,87 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
               margin: 20mm;
               size: A4;
             }
-            
+
             * {
               margin: 0;
               padding: 0;
               box-sizing: border-box;
             }
-            
+
+            /* Increase base font for print readability */
             body {
               font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-              font-size: 10px;
-              line-height: 1.5;
+              font-size: 12px;
+              line-height: 1.6;
               color: #1f2937;
               background: #ffffff;
               font-weight: 400;
             }
-            
+
             .document-header {
               border-bottom: 2px solid #e5e7eb;
               padding-bottom: 24px;
               margin-bottom: 32px;
             }
-            
+
             .header-top {
               display: flex;
               justify-content: space-between;
               align-items: flex-start;
               margin-bottom: 16px;
             }
-            
+
             .company-info {
-              /* Ensure children stack vertically */
               display: block;
             }
-            
+
             .company-name {
-              display: block; /* Ensure block display for vertical stacking */
-              font-size: 28px;
+              display: block;
+              font-size: 30px;
               font-weight: 700;
               color: #1e40af;
               letter-spacing: -0.5px;
-              margin-bottom: 2px; /* Adjust margin below name */
+              margin-bottom: 4px;
             }
-            
+
             .company-tagline {
-              display: block; /* Ensure block display for vertical stacking */
-              font-size: 11px;
+              display: block;
+              font-size: 12px;
               color: #6b7280;
-              font-weight: 500;
+              font-weight: 600;
               text-transform: uppercase;
               letter-spacing: 1px;
-              margin-top: 0; /* Ensure no top margin */
+              margin-top: 0;
             }
-            
+
             .document-meta {
               text-align: right;
               color: #4b5563;
-              font-size: 9px;
+              font-size: 11px;
               line-height: 1.4;
             }
-            
+
+            /* removed page-number display - footer will show generated-by account */
+
             .report-title-section {
               text-align: center;
-              margin: 24px 0;
+              margin: 28px 0;
             }
-            
+
             .report-title {
-              font-size: 22px;
-              font-weight: 600;
+              font-size: 26px;
+              font-weight: 700;
               color: #111827;
               margin-bottom: 8px;
               letter-spacing: -0.3px;
             }
-            
+
             .report-subtitle {
-              font-size: 12px;
+              font-size: 13px;
               color: #6b7280;
-              font-weight: 500;
+              font-weight: 600;
             }
-            
+
             .report-parameters {
               background: #f8fafc;
               border: 1px solid #e2e8f0;
@@ -330,27 +372,27 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
               justify-content: space-between;
               align-items: center;
             }
-            
+
             .param-group {
               display: flex;
               gap: 24px;
             }
-            
+
             .param-item {
-              font-size: 10px;
+              font-size: 12px;
             }
-            
+
             .param-label {
               color: #6b7280;
-              font-weight: 500;
+              font-weight: 600;
               margin-right: 6px;
             }
-            
+
             .param-value {
               color: #1f2937;
-              font-weight: 600;
+              font-weight: 700;
             }
-            
+
             .data-table {
               width: 100%;
               border-collapse: collapse;
@@ -358,69 +400,47 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
               background: #ffffff;
               border: 1px solid #e5e7eb;
             }
-            
+
             .data-table thead th {
               background: #1e40af;
               color: #ffffff;
-              font-weight: 600;
-              padding: 14px 10px;
+              font-weight: 700;
+              padding: 16px 10px;
               text-align: left;
-              font-size: 9px;
+              font-size: 11px;
               text-transform: uppercase;
               letter-spacing: 0.8px;
               border-bottom: 1px solid #1d4ed8;
             }
-            
+
             .data-table thead th.text-right {
               text-align: right;
             }
-            
+
             .data-table tbody td {
-              padding: 12px 10px;
+              padding: 14px 10px;
               border-bottom: 1px solid #f3f4f6;
-              font-size: 9px;
+              font-size: 11px;
               color: #374151;
             }
-            
+
             .data-table tbody tr:nth-child(even) {
               background: #f9fafb;
             }
-            
+
             .data-table tbody tr:hover {
               background: #f3f4f6;
             }
-            
-            .text-right {
-              text-align: right;
-            }
-            
-            .text-center {
-              text-align: center;
-            }
-            
-            .font-medium {
-              font-weight: 500;
-            }
-            
-            .font-semibold {
-              font-weight: 600;
-            }
-            
-            .awb-number {
-              font-weight: 600;
-              color: #1e40af;
-            }
-            
-            .currency {
-              font-weight: 500;
-              color: #374151;
-            }
-            
-            .total-currency {
-              font-weight: 600;
-              color: #1e40af;
-            }
-            
+
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .font-medium { font-weight: 600; }
+            .font-semibold { font-weight: 700; }
+
+            .awb-number { font-weight: 700; color: #1e40af; }
+            .currency { font-weight: 600; color: #374151; }
+            .total-currency { font-weight: 700; color: #1e40af; }
+
             .summary-section {
               background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
               border: 1px solid #cbd5e1;
@@ -428,70 +448,30 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
               margin-top: 32px;
               page-break-inside: avoid;
               break-inside: avoid;
+              /* Try to avoid breaking immediately after the summary so footer stays with it */
+              page-break-after: avoid;
+              break-after: avoid;
             }
-            
+
             .summary-title {
-              font-size: 14px;
-              font-weight: 600;
+              font-size: 16px;
+              font-weight: 700;
               color: #1e40af;
               margin-bottom: 20px;
               text-align: center;
               text-transform: uppercase;
               letter-spacing: 1px;
             }
-            
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 16px;
-              margin-bottom: 20px;
-            }
-            
-            .summary-item {
-              background: #ffffff;
-              padding: 16px;
-              border: 1px solid #e5e7eb;
-              text-align: center;
-            }
-            
-            .summary-label {
-              font-size: 9px;
-              color: #6b7280;
-              font-weight: 500;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              margin-bottom: 6px;
-            }
-            
-            .summary-value {
-              font-size: 12px;
-              font-weight: 600;
-              color: #1f2937;
-            }
-            
-            .grand-total-section {
-              background: #1e40af;
-              color: #ffffff;
-              padding: 20px;
-              text-align: center;
-              margin-top: 16px;
-            }
-            
-            .grand-total-label {
-              font-size: 11px;
-              font-weight: 500;
-              margin-bottom: 6px;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              color: #bfdbfe;
-            }
-            
-            .grand-total-value {
-              font-size: 18px;
-              font-weight: 700;
-              color: #ffffff;
-            }
-            
+
+            .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+            .summary-item { background: #ffffff; padding: 16px; border: 1px solid #e5e7eb; text-align: center; }
+            .summary-label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+            .summary-value { font-size: 14px; font-weight: 700; color: #1f2937; }
+
+            .grand-total-section { background: #1e40af; color: #ffffff; padding: 20px; text-align: center; margin-top: 16px; }
+            .grand-total-label { font-size: 12px; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; color: #bfdbfe; }
+            .grand-total-value { font-size: 20px; font-weight: 800; color: #ffffff; }
+
             .document-footer {
               margin-top: 40px;
               padding-top: 20px;
@@ -499,32 +479,42 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 8px;
+              font-size: 10px;
               color: #9ca3af;
+              /* Prevent footer from being orphaned on its own page */
+              page-break-before: avoid;
+              break-before: avoid;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
-            
-            .footer-left {
-              font-weight: 500;
-            }
-            
-            .footer-right {
-              text-align: right;
-            }
-            
+
+            .footer-left { font-weight: 600; }
+            .footer-right { text-align: right; }
+
+            /* Print-specific tweaks: make print even more legible */
             @media print {
               body {
                 -webkit-print-color-adjust: exact !important;
                 color-adjust: exact !important;
+                font-size: 13px !important;
+                line-height: 1.6 !important;
               }
-              
-              .no-print {
-                display: none !important;
-              }
-              
-              .summary-section {
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-              }
+
+              .report-title { font-size: 28px !important; }
+              .data-table thead th { font-size: 12px !important; padding: 14px 8px !important; }
+              .data-table tbody td { font-size: 12px !important; padding: 12px 8px !important; }
+              .summary-value { font-size: 15px !important; }
+              .grand-total-value { font-size: 22px !important; }
+
+              .no-print { display: none !important; }
+
+              .summary-section { page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; break-after: avoid !important; }
+              .document-footer { page-break-before: avoid !important; break-before: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+
+              /* Improve handling of short blocks to keep footer with preceding summary */
+              .summary-section, .document-footer { orphans: 3; widows: 3; }
+
+              /* no page counter - omitted by design */
             }
           </style>
         </head>
@@ -654,15 +644,14 @@ export default function OutstandingReport({ userRole, branchOrigin }) {
             </div>
           </div>
           
-          <div class="document-footer">
+            <div class="document-footer">
             <div class="footer-left">
               <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
               <div>This report contains business information</div>
               <div>Periksa kembali data yang tercantum dalam laporan ini</div>
             </div>
             <div class="footer-right">
-              <div>Page 1 of 1</div>
-              <div>Generated by BCE Management System v2.0</div>
+              <div>Generated by ${currentUserName || 'BCE Management System v2.0'}</div>
             </div>
           </div>
         </body>

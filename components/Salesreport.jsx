@@ -26,6 +26,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [agentList, setAgentList] = useState([]);
+  const [currentUserName, setCurrentUserName] = useState('');
 
   // Enhanced agent lists with email mappings
   const agentListBangka = getEnhancedAgentList(baseAgentListBangka);
@@ -46,6 +47,33 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     fetchAgents();
     fetchData();
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch current logged-in user (for print footer)
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      try {
+        let user = null;
+        if (supabaseClient.auth && typeof supabaseClient.auth.getUser === 'function') {
+          const { data } = await supabaseClient.auth.getUser();
+          user = data?.user;
+        } else if (supabaseClient.auth && typeof supabaseClient.auth.user === 'function') {
+          user = supabaseClient.auth.user();
+        } else if (supabaseClient.auth && supabaseClient.auth.user) {
+          user = supabaseClient.auth.user;
+        }
+        if (user) {
+          let rawName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || user.id || '';
+          let displayName = rawName;
+            if (rawName.includes('@')) displayName = rawName.split('@')[0];
+            else if (rawName.trim().includes(' ')) displayName = rawName.trim().split(/\s+/)[0];
+          setCurrentUserName(displayName);
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    fetchCurrentUser();
+  }, []);
 
   // Tambahkan useEffect untuk mengambil daftar agen saat komponen dimuat
   useEffect(() => {
@@ -427,141 +455,201 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert('Popup diblokir. Mohon izinkan popup di browser Anda.')
-      return
-    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('Popup diblokir. Mohon izinkan popup di browser Anda.'); return; }
 
-    // Dynamic header and field based on branch - use Kecamatan for Bangka branch
     const destinationHeader = (isBranchMode && branchOrigin === 'bangka') ? 'KECAMATAN' : 'DESTINATION';
-    // build grouped HTML for print (reuse CSS above)
+
     const groupedHtml = Object.keys(groupedByAgent).map(agentKey => {
       const rows = groupedByAgent[agentKey];
       const subtotal = rows.reduce((s, it) => ({
         berat: s.berat + (it.berat_kg || 0),
-        harga: s.harga + (it.harga_ongkir || 0),
+        shipping: s.shipping + (it.harga_ongkir || 0),
         admin: s.admin + (it.biaya_admin || 0),
         pack: s.pack + (it.biaya_packaging || 0),
+        transit: s.transit + (it.biaya_transit || 0),
         total: s.total + (it.total_fix || 0)
-      }), { berat: 0, harga: 0, admin: 0, pack: 0, total: 0 });
+      }), { berat: 0, shipping: 0, admin: 0, pack: 0, transit: 0, total: 0 });
 
-    const rowsHtml = rows.map((item, idx) => `
+      const rowsHtml = rows.map((item, idx) => `
         <tr>
           <td class="text-center font-medium">${idx + 1}</td>
           <td class="awb-number">${item.awb_no}</td>
           <td class="font-medium">${new Date(item.awb_date).toLocaleDateString('en-GB')}</td>
-          <td class="font-medium">${(isBranchMode && branchOrigin === 'bangka') ? item.kecamatan : item.kota_tujuan}</td>
+          <td class="font-medium">${(isBranchMode && branchOrigin === 'bangka') ? (item.kecamatan || '') : (item.kota_tujuan || '')}</td>
           <td class="text-center font-medium">${(item.kirim_via || '').toString().toUpperCase()}</td>
           <td>${item.nama_pengirim || ''}</td>
           <td>${item.nama_penerima || ''}</td>
           <td class="text-right font-medium">${(item.berat_kg || 0).toLocaleString('id-ID')} kg</td>
           <td class="text-right currency">${(item.harga_ongkir || 0).toLocaleString('id-ID')}</td>
           <td class="text-right currency">${(item.biaya_admin || 0).toLocaleString('id-ID')}</td>
-      <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
-      <td class="text-right currency">${(item.biaya_transit || 0).toLocaleString('id-ID')}</td>
-      <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
-        </tr>
-      `).join('');
+          <td class="text-right currency">${(item.biaya_packaging || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right currency">${(item.biaya_transit || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right total-currency">${(item.total_fix || 0).toLocaleString('id-ID')}</td>
+        </tr>`).join('');
 
       return `
-        <div style="margin-bottom:18px; border:1px solid #e5e7eb;">
-          <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
-            <div style="font-weight:700; color:#1e40af;">${agentKey}</div>
-            <div style="text-align:right;">
-              <div style="font-size:12px;">${rows.length} AWB</div>
-              <div style="font-weight:700; color:#1e40af;">Total: Rp ${subtotal.total.toLocaleString('id-ID')}</div>
-            </div>
+      <section class="agent-section">
+        <div class="agent-header">
+          <div class="agent-name">${agentKey}</div>
+          <div class="agent-metrics">
+            <div class="metric"><span class="metric-label">Shipments</span><span class="metric-value">${rows.length} AWB</span></div>
+            <div class="metric"><span class="metric-label">Subtotal</span><span class="metric-value">Rp ${subtotal.total.toLocaleString('id-ID')}</span></div>
           </div>
-          <table style="width:100%; border-collapse:collapse;">
-            <thead>
-          <tr style="background:#ffffff;">
-                <th style="padding:8px; text-align:left; font-size:10px;">#</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">AWB</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">Date</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">${destinationHeader}</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">Via</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">Sender</th>
-                <th style="padding:8px; text-align:left; font-size:10px;">Recipient</th>
-                <th style="padding:8px; text-align:right; font-size:10px;">Kg</th>
-                <th style="padding:8px; text-align:right; font-size:10px;">Rate</th>
-                <th style="padding:8px; text-align:right; font-size:10px;">Admin</th>
-            <th style="padding:8px; text-align:right; font-size:10px;">Pack</th>
-            <th style="padding:8px; text-align:right; font-size:10px;">Transit</th>
-            <th style="padding:8px; text-align:right; font-size:10px;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
         </div>
-      `;
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>AWB</th>
+              <th>Date</th>
+              <th>${destinationHeader}</th>
+              <th>Via</th>
+              <th>Sender</th>
+              <th>Recipient</th>
+              <th class="text-right">Kg</th>
+              <th class="text-right">Rate</th>
+              <th class="text-right">Admin</th>
+              <th class="text-right">Pack</th>
+              <th class="text-right">Transit</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr class="subtotal-row">
+              <td colspan="7" class="text-right subtotal-label">SUBTOTAL</td>
+              <td class="text-right font-medium">${subtotal.berat.toLocaleString('id-ID')} kg</td>
+              <td class="text-right font-medium">${subtotal.shipping.toLocaleString('id-ID')}</td>
+              <td class="text-right font-medium">${subtotal.admin.toLocaleString('id-ID')}</td>
+              <td class="text-right font-medium">${subtotal.pack.toLocaleString('id-ID')}</td>
+              <td class="text-right font-medium">${subtotal.transit.toLocaleString('id-ID')}</td>
+              <td class="text-right font-semibold">${subtotal.total.toLocaleString('id-ID')}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>`;
     }).join('');
 
-    // write the full document reusing previous CSS + groupedHtml inserted in body
+    const totalWeight = filteredData.reduce((s,i)=>s+(i.berat_kg||0),0);
+    const totalShipping = filteredData.reduce((s,i)=>s+(i.harga_ongkir||0),0);
+    const totalAdmin = filteredData.reduce((s,i)=>s+(i.biaya_admin||0),0);
+    const totalPack = filteredData.reduce((s,i)=>s+(i.biaya_packaging||0),0);
+    const totalTransit = filteredData.reduce((s,i)=>s+(i.biaya_transit||0),0);
+    const grandTotal = filteredData.reduce((s,i)=>s+(i.total_fix||0),0);
+
     printWindow.document.write(`
-      <html>
-        <head>
-          <title>Sales Report</title>
-          <style>
-            @page { margin: 20mm; size: A4; }
-            body { font-family: 'Inter', Arial, sans-serif; font-size: 10px; color: #1f2937; }
-            .document-header { border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 16px; }
-            .company-name { font-size: 20px; font-weight:700; color:#1e40af }
-            .report-title { font-size:18px; font-weight:600; text-align:center; margin:6px 0 10px }
-            .report-parameters { background:#f8fafc; padding:10px; border:1px solid #e2e8f0; margin-bottom:12px }
-            table { width:100%; border-collapse:collapse }
-            th, td { padding:6px 8px; border-bottom:1px solid #eee; font-size:10px }
-            .text-right { text-align:right }
-            .summary-section { margin-top:16px }
-          </style>
-        </head>
-        <body>
-          <div class="document-header">
-            <div class="company-name">BCE EXPRESS</div>
-            <div style="text-align:center;">SALES REPORT${agent ? ` - ${agent}` : ''}</div>
-          </div>
-          <div class="report-parameters">
-            <div>PERIOD: ${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</div>
-            ${agent ? `<div>AGENT: ${agent}</div>` : ''}
-            <div>TOTAL RECORDS: ${filteredData.length}</div>
-          </div>
-
-          ${groupedHtml}
-
-          <div class="summary-section" style="margin-top:16px; display:flex; justify-content:flex-end;">
-            <div style="width:360px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border:1px solid #cbd5e1; padding:12px;">
-              <div style="font-weight:600; margin-bottom:8px; text-align:center; text-transform:uppercase; color:#1e40af">SUMMARY</div>
-              <table style="width:100%; border-collapse:collapse; font-size:11px;">
-                <tr>
-                  <td style="padding:6px 4px; color:#6b7280">Total Weight</td>
-                  <td style="padding:6px 4px; text-align:right; font-weight:600">${filteredData.reduce((sum, item) => sum + (item.berat_kg || 0), 0).toLocaleString('id-ID')} kg</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 4px; color:#6b7280">Total Shipping</td>
-                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.harga_ongkir || 0), 0).toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 4px; color:#6b7280">Total Admin</td>
-                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_admin || 0), 0).toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 4px; color:#6b7280">Total Packaging</td>
-                  <td style="padding:6px 4px; text-align:right;">Rp ${filteredData.reduce((sum, item) => sum + (item.biaya_packaging || 0), 0).toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 4px; font-weight:700; border-top:1px solid #e5e7eb">TOTAL SALES</td>
-                  <td style="padding:10px 4px; text-align:right; font-weight:700; border-top:1px solid #e5e7eb">Rp ${filteredData.reduce((sum, item) => sum + (item.total_fix || 0), 0).toLocaleString('id-ID')}</td>
-                </tr>
-              </table>
+    <html>
+      <head>
+        <title>Sales Report</title>
+        <style>
+          @page { margin:20mm; size:A4; }
+          * { box-sizing:border-box; }
+          body { font-family:'Inter','Helvetica Neue',Arial,sans-serif; font-size:11px; line-height:1.55; color:#1f2937; background:#ffffff; }
+          .document-header { border-bottom:2px solid #e5e7eb; padding-bottom:20px; margin-bottom:28px; }
+          .header-top { display:flex; justify-content:space-between; align-items:flex-start; }
+          .company-info { display:block; }
+          .company-name { font-size:30px; font-weight:700; color:#1e40af; letter-spacing:-0.5px; margin-bottom:4px; }
+          .company-tagline { font-size:12px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:1px; }
+          .document-meta { text-align:right; font-size:10px; color:#4b5563; line-height:1.4; }
+          .report-title-section { text-align:center; margin-top:18px; }
+          .report-title { font-size:24px; font-weight:700; letter-spacing:-0.3px; color:#111827; }
+          .report-subtitle { font-size:12px; font-weight:600; color:#6b7280; margin-top:4px; }
+          .report-parameters { background:#f8fafc; border:1px solid #e2e8f0; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; }
+          .param-group { display:flex; gap:28px; flex-wrap:wrap; }
+          .param-item { font-size:11px; }
+          .param-label { color:#6b7280; font-weight:600; margin-right:6px; }
+          .param-value { font-weight:700; color:#1f2937; }
+          /* Allow page to start listing immediately; don't force whole large section to next page */
+          .agent-section { margin-bottom:30px; border:1px solid #e2e8f0; }
+          .agent-header { page-break-after:avoid; break-after:avoid; }
+          .agent-header { background:linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 100%); padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+          .agent-name { font-weight:700; font-size:14px; color:#1e40af; letter-spacing:0.5px; }
+          .agent-metrics { display:flex; gap:22px; }
+          .metric { text-align:right; }
+          .metric-label { display:block; font-size:9px; text-transform:uppercase; letter-spacing:0.7px; color:#64748b; font-weight:600; }
+          .metric-value { display:block; font-size:11px; font-weight:700; color:#1f2937; }
+          .data-table { width:100%; border-collapse:collapse; background:#ffffff; }
+          .data-table thead th { background:#1e40af; color:#ffffff; font-weight:600; padding:10px 8px; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; border-bottom:1px solid #1d4ed8; }
+          .data-table tbody td { padding:9px 8px; border-bottom:1px solid #f1f5f9; font-size:10px; }
+          .data-table tbody tr:nth-child(even) { background:#f9fafb; }
+          .data-table tfoot td { background:#f1f5f9; font-size:10px; }
+          .subtotal-row td { padding:10px 8px; font-weight:600; }
+          .subtotal-label { font-weight:700; color:#1e3a8a; letter-spacing:0.5px; }
+          .awb-number { font-weight:600; color:#1e40af; }
+          .currency { font-weight:500; }
+          .total-currency { font-weight:700; color:#1e40af; }
+          .summary-wrapper { background:linear-gradient(135deg,#f8fafc 0%, #f1f5f9 100%); border:1px solid #cbd5e1; padding:24px; page-break-inside:avoid; break-inside:avoid; }
+          .summary-title { font-size:15px; font-weight:700; color:#1e40af; text-align:center; margin-bottom:18px; letter-spacing:1px; text-transform:uppercase; }
+          .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:18px; }
+          .summary-item { background:#ffffff; border:1px solid #e2e8f0; padding:14px; text-align:center; }
+          .summary-label { font-size:9px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:#64748b; margin-bottom:6px; }
+          .summary-value { font-size:13px; font-weight:700; color:#1f2937; }
+          .grand-total { margin-top:22px; background:#1e40af; color:#ffffff; text-align:center; padding:20px 10px; }
+          .grand-total-label { font-size:10px; letter-spacing:1px; font-weight:600; color:#bfdbfe; text-transform:uppercase; margin-bottom:6px; }
+          .grand-total-value { font-size:20px; font-weight:800; }
+          .document-footer { margin-top:38px; padding-top:16px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between; font-size:9px; color:#9ca3af; }
+          .footer-left { font-weight:600; }
+          .footer-right { text-align:right; }
+          @media print { body {-webkit-print-color-adjust:exact !important; color-adjust:exact !important;} .agent-section { page-break-inside:auto !important; break-inside:auto !important; } .data-table { page-break-inside:auto; } .data-table tr { page-break-inside:avoid; } }
+        </style>
+      </head>
+      <body>
+        <div class="document-header">
+          <div class="header-top">
+            <div class="company-info">
+              <div class="company-name">BCE EXPRESS</div>
+              <div class="company-tagline">BETTER CARGO EXPERIENCE</div>
+            </div>
+            <div class="document-meta">
+              <div><strong>Document ID:</strong> SR-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.random().toString(36).substr(2,5).toUpperCase()}</div>
+              <div><strong>Generated:</strong> ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
             </div>
           </div>
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
-    printWindow.print()
+          <div class="report-title-section">
+            <div class="report-title">SALES REPORT${agent ? ` - ${agent}` : ''}</div>
+            <div class="report-subtitle">Transactional Summary</div>
+          </div>
+        </div>
+        <div class="report-parameters">
+          <div class="param-group">
+            <div class="param-item"><span class="param-label">PERIOD:</span><span class="param-value">${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</span></div>
+            ${agent ? `<div class="param-item"><span class="param-label">AGENT:</span><span class="param-value">${agent}</span></div>` : ''}
+          </div>
+          <div class="param-item"><span class="param-label">RECORDS:</span><span class="param-value">${filteredData.length}</span></div>
+        </div>
+        ${groupedHtml}
+        <div class="summary-wrapper">
+          <div class="summary-title">SUMMARY</div>
+          <div class="summary-grid">
+            <div class="summary-item"><div class="summary-label">Total Weight</div><div class="summary-value">${totalWeight.toLocaleString('id-ID')} kg</div></div>
+            <div class="summary-item"><div class="summary-label">Shipping</div><div class="summary-value">Rp ${totalShipping.toLocaleString('id-ID')}</div></div>
+            <div class="summary-item"><div class="summary-label">Admin Fees</div><div class="summary-value">Rp ${totalAdmin.toLocaleString('id-ID')}</div></div>
+            <div class="summary-item"><div class="summary-label">Packaging</div><div class="summary-value">Rp ${totalPack.toLocaleString('id-ID')}</div></div>
+            <div class="summary-item"><div class="summary-label">Transit</div><div class="summary-value">Rp ${totalTransit.toLocaleString('id-ID')}</div></div>
+            <div class="summary-item"><div class="summary-label">Total Shipments</div><div class="summary-value">${filteredData.length} AWB</div></div>
+            <div class="summary-item"><div class="summary-label">Avg Per AWB</div><div class="summary-value">Rp ${filteredData.length>0?Math.round(grandTotal/filteredData.length).toLocaleString('id-ID'):'0'}</div></div>
+            <div class="summary-item"><div class="summary-label">Processing Date</div><div class="summary-value">${new Date().toLocaleDateString('en-GB')}</div></div>
+          </div>
+          <div class="grand-total">
+            <div class="grand-total-label">TOTAL SALES</div>
+            <div class="grand-total-value">Rp ${grandTotal.toLocaleString('id-ID')}</div>
+          </div>
+        </div>
+        <div class="document-footer">
+          <div class="footer-left">
+            <div>BCE EXPRESS - BUSINESS DOCUMENT</div>
+            <div>This report contains business information</div>
+            <div>Periksa kembali data yang tercantum dalam laporan ini</div>
+          </div>
+          <div class="footer-right">
+            <div>Generated by ${currentUserName || 'BCE'}</div>
+          </div>
+        </div>
+      </body>
+    </html>`);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   return (
