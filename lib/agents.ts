@@ -13,6 +13,7 @@ export const baseAgentListBangka: string[] = [
   "ACHUANG KOBA",
   "BCE TONI WEN",
   "BAYAR BANGKA DARAT",
+  "BAYAR JKT DARAT",
   "7FUN SLT",
   "ASIONG SAUCU",
   "AFUK BOM2 SAUCU",
@@ -80,7 +81,7 @@ export const baseAgentListBangka: string[] = [
   "ALUN AGEN",
   "ALING BINTANG",
   "NINA SARJU",
-  // Additional requested agents
+  "NONOCO RESTO",
   "GETAS PIALA",
   "BAKPAO AHON",
   "BAKPAO ABUN",
