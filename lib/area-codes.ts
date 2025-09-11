@@ -77,6 +77,7 @@ export const areaCodes: Record<string, string> = {
   'JAKARTA TIMUR': 'GLC',
   'JAKARTA UTARA': 'GLC',
   'JATIASIH': 'KMY',
+  'JATISAMPURNA': 'KMY',
   'JATINEGARA': 'KMY',
   'JATIUWUNG': 'GLC',
   'JOHAR BARU': 'KMY',
