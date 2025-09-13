@@ -18,6 +18,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   // ===========================================================
 
   const [agent, setAgent] = useState('');
+  const [viaFilter, setViaFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [data, setData] = useState([]);
@@ -152,7 +153,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
   };
 
   const handleFilter = () => {
-    if (!agent && !fromDate && !toDate) {
+    if (!agent && !fromDate && !toDate && !viaFilter) {
       alert('Please fill in at least one filter.');
       return;
     }
@@ -160,7 +161,19 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     const filtered = data.filter(item => {
       const matchesAgent = agent ? doesAgentMatch(item.agent_customer, agent) : true;  // Use enhanced agent matching
       const matchesDateRange = fromDate && toDate ? new Date(item.awb_date) >= new Date(fromDate) && new Date(item.awb_date) <= new Date(toDate) : true;
-      return matchesAgent && matchesDateRange;
+      // Normalize kirim_via to compare with viaFilter. Accept partial case-insensitive matching.
+      let kirimVia = (item.kirim_via || '').toString().toLowerCase();
+      let viaMatch = true;
+      if (viaFilter) {
+        if (viaFilter === 'udara') {
+          viaMatch = kirimVia.includes('udara') || kirimVia.includes('ud') || kirimVia.includes('air');
+        } else if (viaFilter === 'darat') {
+          viaMatch = kirimVia.includes('darat') || kirimVia.includes('truck') || kirimVia.includes('truk') || kirimVia.includes('land');
+        } else {
+          viaMatch = kirimVia === viaFilter;
+        }
+      }
+      return matchesAgent && matchesDateRange && viaMatch;
     });
 
     // Map data agar kolom Harga (Ongkir) dan Total benar
@@ -440,6 +453,10 @@ const SalesReport = ({ userRole, branchOrigin }) => {
     if (agent) {
       dateRange = dateRange ? `${dateRange} - ${agent}` : agent
     }
+    if (viaFilter) {
+      const viaLabel = viaFilter.charAt(0).toUpperCase() + viaFilter.slice(1);
+      dateRange = dateRange ? `${dateRange} - Via: ${viaLabel}` : `Via: ${viaLabel}`;
+    }
 
     createStyledExcelWithHTML({
       title: 'Sales Report',
@@ -615,6 +632,7 @@ const SalesReport = ({ userRole, branchOrigin }) => {
           <div class="param-group">
             <div class="param-item"><span class="param-label">PERIOD:</span><span class="param-value">${fromDate && toDate ? `${new Date(fromDate).toLocaleDateString('en-GB')} - ${new Date(toDate).toLocaleDateString('en-GB')}` : 'ALL PERIODS'}</span></div>
             ${agent ? `<div class="param-item"><span class="param-label">AGENT:</span><span class="param-value">${agent}</span></div>` : ''}
+            ${viaFilter ? `<div class="param-item"><span class="param-label">VIA:</span><span class="param-value">${viaFilter.toUpperCase()}</span></div>` : ''}
           </div>
           <div class="param-item"><span class="param-label">RECORDS:</span><span class="param-value">${filteredData.length}</span></div>
         </div>
@@ -668,6 +686,18 @@ const SalesReport = ({ userRole, branchOrigin }) => {
               {agentOption}
             </option>
           ))}
+        </select>
+      </div>
+      <div className="mb-4 no-print">
+        <label className="block mb-2 text-gray-700 dark:text-gray-300">Filter Via (Pengiriman):</label>
+        <select
+          value={viaFilter}
+          onChange={(e) => setViaFilter(e.target.value)}
+          className="border p-2 w-full rounded-md dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Semua</option>
+          <option value="udara">Udara</option>
+          <option value="darat">Darat</option>
         </select>
       </div>
       <div className="mb-4 no-print">
