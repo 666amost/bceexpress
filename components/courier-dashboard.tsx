@@ -5,6 +5,8 @@ interface User {
   id: string;
   name?: string;
   email?: string;
+  role?: string;
+  branch?: string; // Optional branch field
 }
 
 interface Shipment {
@@ -34,6 +36,7 @@ import { Camera, Box, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { ContinuousScanModal } from "./continuous-scan-modal"
+import { CourierPickupForm } from "./courier-pickup-form"
 import { PushNotification } from "./push-notification"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
@@ -132,6 +135,7 @@ export function CourierDashboard() {
   const [expandCompleted, setExpandCompleted] = useState(false);
   const [showAllAssignments, setShowAllAssignments] = useState(false);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [isPickupFormOpen, setIsPickupFormOpen] = useState(false);
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
@@ -545,6 +549,13 @@ export function CourierDashboard() {
     }
   }
 
+  const handlePickupSuccess = () => {
+    if (currentUser) {
+      // Refresh data after successful pickup
+      loadShipmentData(currentUser)
+    }
+  }
+
   const handleContinuousScanSuccess = () => {
     if (currentUser) {
       // Immediate refresh untuk scan success agar lebih responsif
@@ -836,6 +847,9 @@ export function CourierDashboard() {
         <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsBulkModalOpen(true)}>
           <FontAwesomeIcon icon={faEye} className="h-5 w-5" /> Update Manual
         </Button>
+        <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsPickupFormOpen(true)}>
+          <Box className="h-5 w-5" /> Pickup AWB
+        </Button>
       </div>
 
       {/* Floating DLVD Scan Button (mobile only) */}
@@ -950,6 +964,16 @@ export function CourierDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Pickup Form Modal */}
+      {isPickupFormOpen && (
+        <CourierPickupForm
+          onClose={() => setIsPickupFormOpen(false)}
+          onSuccess={handlePickupSuccess}
+          currentUser={currentUser}
+          branchOrigin={null} // Default to pusat branch for couriers
+        />
+      )}
     </div>
   )
 }
