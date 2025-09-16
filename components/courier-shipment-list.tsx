@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Oval } from 'react-loading-icons';
 import { DeliveryParcel as DeliveryParcelIcon, Package as PackageIcon, Checkmark as CheckCircleIcon, Warning as AlertTriangleIcon, Time as ClockIcon, LocationFilled as LocationPointIcon } from '@carbon/icons-react';
-import { Bell } from 'lucide-react';
+import { Bell, Trash } from 'lucide-react';
 import { supabaseClient } from "@/lib/auth";
 
 interface CourierShipmentListProps {
@@ -243,6 +243,43 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange, is
   }, [shipments]); // Jalankan effect ini setiap kali state 'shipments' berubah
   // === Akhir Effect hitung jumlah ===
 
+  // Hapus AWB dari DB (shipment_history lalu shipments) dan update state
+  const handleDeleteAwb = useCallback(async (awbNumber: string): Promise<void> => {
+    const confirmed: boolean = typeof window !== 'undefined' ? window.confirm(`Hapus AWB ${awbNumber}?`) : false;
+    if (!confirmed) return;
+
+    try {
+      // Hapus riwayat terlebih dahulu
+      const { error: historyError } = await supabaseClient
+        .from('shipment_history')
+        .delete()
+        .eq('awb_number', awbNumber);
+      if (historyError) {
+        alert(`Gagal menghapus shipment_history: ${historyError.message}`);
+        return;
+      }
+
+      // Lalu hapus master shipment
+      const { error: shipmentError } = await supabaseClient
+        .from('shipments')
+        .delete()
+        .eq('awb_number', awbNumber);
+      if (shipmentError) {
+        alert(`Gagal menghapus shipments: ${shipmentError.message}`);
+        return;
+      }
+
+      // Update state lokal agar kartu hilang tanpa refresh
+      setShipments((prev: Shipment[]) => prev.filter((s) => s.awb_number !== awbNumber));
+      if (onDeleteShipment) onDeleteShipment(awbNumber);
+      alert(`AWB ${awbNumber} berhasil dihapus.`);
+    } catch (err) {
+      // Pastikan pesan error aman
+      const message: string = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Terjadi error saat menghapus AWB: ${message}`);
+    }
+  }, [onDeleteShipment]);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "processed":
@@ -328,6 +365,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange, is
             formatStatus={formatStatus}
             isAdminView={isAdminView}
             sendPushNotification={sendPushNotification}
+            onDeleteAwb={handleDeleteAwb}
           />
         </TabsContent>
 
@@ -338,6 +376,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange, is
             formatStatus={formatStatus}
             isAdminView={isAdminView}
             sendPushNotification={sendPushNotification}
+            onDeleteAwb={handleDeleteAwb}
           />
         </TabsContent>
 
@@ -349,6 +388,7 @@ export function CourierShipmentList({ courierId, onDeleteShipment, dataRange, is
             formatStatus={formatStatus}
             isAdminView={isAdminView}
             sendPushNotification={sendPushNotification}
+            onDeleteAwb={handleDeleteAwb}
           />
         </TabsContent>
         {/* === Akhir Bagian TabsContent === */}
@@ -372,12 +412,14 @@ function ShipmentList({
   formatStatus,
   isAdminView = false,
   sendPushNotification,
+  onDeleteAwb,
 }: {
   shipments: Shipment[];
   getStatusIcon: (status: string) => React.ReactNode;
   formatStatus: (status: string) => string;
   isAdminView?: boolean;
   sendPushNotification?: (awbNumber: string) => void;
+  onDeleteAwb?: (awbNumber: string) => void;
 }) {
   const [expandedShipments, setExpandedShipments] = useState<Set<string>>(new Set());
 
@@ -472,6 +514,21 @@ function ShipmentList({
                     <p className="font-bold text-gray-800 dark:text-gray-200">{shipment.receiver_name || "N/A"}</p>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{shipment.receiver_address || "N/A"}</p>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{shipment.receiver_phone || "N/A"}</p>
+
+                    {/* Delete AWB button - only in admin view */}
+                    {isAdminView && (
+                      <div className="mt-3">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => onDeleteAwb && onDeleteAwb(shipment.awb_number)}
+                          className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-700 dark:text-red-200"
+                          title="Hapus AWB dari database"
+                        >
+                          <Trash className="h-3 w-3 mr-2" /> Delete
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
