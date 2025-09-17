@@ -13,6 +13,7 @@ import { supabaseClient } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { airportCodes as airportCodesLib, areaCodes as areaCodesLib } from "@/lib/area-codes"
 import PrintLayout from "./PrintLayout"
+import CustomerSelector from "./CustomerSelector"
 
 interface AwbFormData {
   awb_no: string
@@ -27,14 +28,14 @@ interface AwbFormData {
   nama_penerima: string
   nomor_penerima: string
   alamat_penerima: string
-  coli: number
-  berat_kg: number
-  harga_per_kg: number
-  sub_total: number
-  biaya_admin: number
-  biaya_packaging: number
-  biaya_transit: number
-  total: number
+  coli: number | ''
+  berat_kg: number | ''
+  harga_per_kg: number | ''
+  sub_total: number | ''
+  biaya_admin: number | ''
+  biaya_packaging: number | ''
+  biaya_transit: number | ''
+  total: number | ''
   isi_barang: string
   kecamatan?: string
   origin_branch?: string
@@ -148,6 +149,7 @@ function generateAwbNo(originBranch?: string | null): string {
 export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigin }: CourierPickupFormProps) {
   const { toast } = useToast()
   const printFrameRef = useRef<HTMLDivElement>(null)
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false)
 
   // Helper to get local date string in Asia/Jakarta timezone
   function getLocalDateString(): string {
@@ -205,15 +207,51 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
 
   // Calculate totals
   useEffect(() => {
-    const sub_total = Number(form.berat_kg) * Number(form.harga_per_kg)
-    const total = sub_total + Number(form.biaya_admin) + Number(form.biaya_packaging) + Number(form.biaya_transit)
+    const berat = form.berat_kg === '' ? 0 : Number(form.berat_kg)
+    const harga = form.harga_per_kg === '' ? 0 : Number(form.harga_per_kg)
+    const admin = form.biaya_admin === '' ? 0 : Number(form.biaya_admin)
+    const pack = form.biaya_packaging === '' ? 0 : Number(form.biaya_packaging)
+    const transit = form.biaya_transit === '' ? 0 : Number(form.biaya_transit)
+    const sub_total = berat * harga
+    const total = sub_total + admin + pack + transit
     setForm(f => ({ ...f, sub_total, total }))
   }, [form.berat_kg, form.harga_per_kg, form.biaya_admin, form.biaya_packaging, form.biaya_transit])
 
+  const numericFields = new Set([
+    'coli', 'berat_kg', 'harga_per_kg', 'sub_total', 'biaya_admin', 'biaya_packaging', 'biaya_transit', 'total'
+  ])
+
+  const handleNumericFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Select entire value so typing replaces immediately
+    requestAnimationFrame(() => e.target.select())
+  }
+
+  const handleNumericBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    if (value.trim() === '') {
+      setForm(f => ({ ...f, [name]: '' }))
+    }
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setForm(f => ({ ...f, [name]: value }))
+    if (numericFields.has(name)) {
+      if (value === '') {
+        setForm(f => ({ ...f, [name]: '' }))
+        return
+      }
+      const num = Number(value)
+      setForm(f => ({ ...f, [name]: isNaN(num) ? '' : num }))
+    } else {
+      setForm(f => ({ ...f, [name]: value }))
+    }
   }
+
+  const sanitizedNumeric = (v: number | '' , fallback: number) => {
+    if (v === '' || isNaN(Number(v))) return fallback
+    return Number(v)
+  }
+
 
   const handleSelectChange = (name: string, value: string) => {
     setForm(f => ({ ...f, [name]: value }))
@@ -221,6 +259,47 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
 
   const handleGenerateAwb = () => {
     setForm(f => ({ ...f, awb_no: generateAwbNo(branchOrigin) }))
+  }
+
+  // Handle customer selection and populate form (similar to AwbForm)
+  const handleCustomerSelect = (customer: {
+    nama_pengirim?: string
+    nomor_pengirim?: string | null
+    nama_penerima?: string
+    nomor_penerima?: string | null
+    alamat_penerima?: string | null
+    kota_tujuan?: string | null
+    wilayah?: string | null
+    kirim_via?: string | null
+    metode_pembayaran?: string | null
+    agent_customer?: string | null
+    isi_barang?: string | null
+  }) => {
+    setForm(prev => ({
+      ...prev,
+      nama_pengirim: customer.nama_pengirim || '',
+      nomor_pengirim: customer.nomor_pengirim || '',
+      nama_penerima: customer.nama_penerima || '',
+      nomor_penerima: customer.nomor_penerima || '',
+      alamat_penerima: customer.alamat_penerima || '',
+      kota_tujuan: customer.kota_tujuan || '',
+      wilayah: customer.wilayah || '',
+      kirim_via: customer.kirim_via || '',
+      metode_pembayaran: customer.metode_pembayaran || '',
+      agent_customer: customer.agent_customer || '',
+      isi_barang: customer.isi_barang || ''
+    }))
+
+    // Update harga_per_kg if wilayah maps to a price
+    if (customer.wilayah && currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg]) {
+      setForm(prev => ({
+        ...prev,
+        harga_per_kg: currentHargaPerKg[customer.wilayah as keyof typeof currentHargaPerKg],
+      }))
+    }
+
+    toast({ title: 'Customer diimport', description: 'Data customer berhasil dimasukkan ke form.', variant: 'default' })
+    setShowCustomerSelector(false)
   }
 
   const formatCurrency = (amount: number | string): string => {
@@ -233,17 +312,40 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
     }).format(num)
   }
 
+  // Validate required fields and focus the first missing one.
+  const validateRequired = (): boolean => {
+    const requiredMap: Array<{ key: keyof AwbFormData; selector: string }> = [
+      { key: 'awb_no', selector: '#awb_no' },
+      { key: 'kota_tujuan', selector: '#select-kota_tujuan' },
+      { key: 'wilayah', selector: '#select-wilayah' },
+      { key: 'agent_customer', selector: '#select-agent_customer' },
+      { key: 'nama_pengirim', selector: '#nama_pengirim' },
+      { key: 'nama_penerima', selector: '#nama_penerima' },
+    ]
+    for (const item of requiredMap) {
+      const value = form[item.key]
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        // Show toast once
+        toast({
+          title: 'Data Tidak Lengkap',
+          description: 'Mohon lengkapi semua field yang wajib diisi.',
+          variant: 'destructive',
+        })
+        const el = document.querySelector<HTMLInputElement | HTMLElement>(item.selector)
+        if (el) {
+          // For shadcn Select trigger, focus the trigger button
+          if ('focus' in el) el.focus()
+        }
+        return false
+      }
+    }
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
-      toast({
-        title: "Data Tidak Lengkap",
-        description: "Mohon lengkapi semua field yang wajib diisi.",
-        variant: "destructive",
-      })
-      return
-    }
+    if (!validateRequired()) return
 
     setIsSubmitting(true)
 
@@ -251,10 +353,21 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
       // Use exact same logic as AwbForm.tsx - always save to 'manifest' table for couriers
       const targetTable = 'manifest'
       
-      // Save to database first
+      // Prepare sanitized payload & save to database first
+      const payload = {
+        ...form,
+        coli: sanitizedNumeric(form.coli, 1),
+        berat_kg: sanitizedNumeric(form.berat_kg, 1),
+        harga_per_kg: sanitizedNumeric(form.harga_per_kg, 0),
+        sub_total: sanitizedNumeric(form.sub_total, 0),
+        biaya_admin: sanitizedNumeric(form.biaya_admin, 0),
+        biaya_packaging: sanitizedNumeric(form.biaya_packaging, 0),
+        biaya_transit: sanitizedNumeric(form.biaya_transit, 0),
+        total: sanitizedNumeric(form.total, 0),
+      }
       const { error } = await supabaseClient
         .from(targetTable)
-        .insert([form])
+        .insert([payload])
 
       if (error) throw error
 
@@ -296,19 +409,23 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
   }
 
   const handleDownloadPDF = async () => {
-    if (!form.awb_no || !form.kota_tujuan || !form.wilayah || !form.nama_pengirim || !form.nama_penerima) {
-      toast({
-        title: "Data Tidak Lengkap",
-        description: "Mohon lengkapi semua field yang wajib diisi.",
-        variant: "destructive",
-      })
-      return
-    }
+    if (!validateRequired()) return
 
     try {
       // Save to database first (same flow as /branch)
       const targetTable = 'manifest'
-      const { error: sbError } = await supabaseClient.from(targetTable).insert([form])
+      const payload = {
+        ...form,
+        coli: sanitizedNumeric(form.coli, 1),
+        berat_kg: sanitizedNumeric(form.berat_kg, 1),
+        harga_per_kg: sanitizedNumeric(form.harga_per_kg, 0),
+        sub_total: sanitizedNumeric(form.sub_total, 0),
+        biaya_admin: sanitizedNumeric(form.biaya_admin, 0),
+        biaya_packaging: sanitizedNumeric(form.biaya_packaging, 0),
+        biaya_transit: sanitizedNumeric(form.biaya_transit, 0),
+        total: sanitizedNumeric(form.total, 0),
+      }
+      const { error: sbError } = await supabaseClient.from(targetTable).insert([payload])
       if (sbError) {
         toast({ title: "Error", description: `Gagal menyimpan data: ${sbError.message}`, variant: "destructive" })
         return
@@ -432,33 +549,50 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* AWB Number Generation */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label htmlFor="awb_no" className="text-sm font-medium">No. AWB</Label>
-                <Input
-                  id="awb_no"
-                  name="awb_no"
-                  value={form.awb_no}
-                  onChange={handleChange}
-                  placeholder="Generate AWB Number"
-                  readOnly
-                  className="font-mono"
-                />
+            <div>
+              <Label htmlFor="awb_no" className="text-sm font-medium">No. AWB</Label>
+              <div className="flex flex-row gap-2 items-center mt-1">
+                <div className="min-w-0 max-w-[220px]">
+                  <Input
+                    id="awb_no"
+                    name="awb_no"
+                    value={form.awb_no}
+                    onChange={handleChange}
+                    placeholder="Generate AWB Number"
+                    readOnly
+                    className="font-mono h-10 w-full"
+                  />
+                </div>
+                <div className="flex-shrink-0">
+                  <Button
+                    type="button"
+                    onClick={handleGenerateAwb}
+                    aria-label="Generate AWB"
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <Button
-                type="button"
-                onClick={handleGenerateAwb}
-                className="mt-6 bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
             </div>
 
             {/* Sender Information */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <User className="h-4 w-4" />
-                Pengirim
+              <div className="flex items-center justify-between gap-2 text-sm font-semibold text-gray-700">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Pengirim
+                </div>
+                <div>
+                  <Button
+                    type="button"
+                    onClick={() => setShowCustomerSelector(true)}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Import Customer
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-3">
                 <div>
@@ -535,7 +669,7 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                 <div>
                   <Label htmlFor="kota_tujuan" className="text-sm">Kota Tujuan</Label>
                   <Select value={form.kota_tujuan} onValueChange={(value) => handleSelectChange("kota_tujuan", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger id="select-kota_tujuan">
                       <SelectValue placeholder="Pilih kota" />
                     </SelectTrigger>
                     <SelectContent>
@@ -550,7 +684,7 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                 <div>
                   <Label htmlFor="wilayah" className="text-sm">Wilayah</Label>
                   <Select value={form.wilayah} onValueChange={(value) => handleSelectChange("wilayah", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger id="select-wilayah">
                       <SelectValue placeholder="Pilih wilayah" />
                     </SelectTrigger>
                     <SelectContent>
@@ -592,6 +726,8 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                       min="1"
                       value={form.coli}
                       onChange={handleChange}
+                      onFocus={handleNumericFocus}
+                      onBlur={handleNumericBlur}
                     />
                   </div>
                   <div>
@@ -604,6 +740,8 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                       min="0.1"
                       value={form.berat_kg}
                       onChange={handleChange}
+                      onFocus={handleNumericFocus}
+                      onBlur={handleNumericBlur}
                     />
                   </div>
                 </div>
@@ -645,7 +783,7 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                 <div>
                   <Label htmlFor="agent_customer" className="text-sm">Agent</Label>
                   <Select value={form.agent_customer} onValueChange={(value) => handleSelectChange("agent_customer", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger id="select-agent_customer">
                       <SelectValue placeholder="Pilih agent" />
                     </SelectTrigger>
                     <SelectContent>
@@ -660,23 +798,66 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
               </div>
             </div>
 
+            {/* Additional Fees */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <CreditCard className="h-4 w-4" />
+                Biaya Tambahan
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="biaya_admin" className="text-xs">Admin</Label>
+                  <Input
+                    id="biaya_admin"
+                    name="biaya_admin"
+                    type="number"
+                    min="0"
+                    value={form.biaya_admin}
+                    onChange={handleChange}
+                    onFocus={handleNumericFocus}
+                    onBlur={handleNumericBlur}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="biaya_packaging" className="text-xs">Packaging</Label>
+                  <Input
+                    id="biaya_packaging"
+                    name="biaya_packaging"
+                    type="number"
+                    min="0"
+                    value={form.biaya_packaging}
+                    onChange={handleChange}
+                    onFocus={handleNumericFocus}
+                    onBlur={handleNumericBlur}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="biaya_transit" className="text-xs">Transit</Label>
+                  <Input
+                    id="biaya_transit"
+                    name="biaya_transit"
+                    type="number"
+                    min="0"
+                    value={form.biaya_transit}
+                    onChange={handleChange}
+                    onFocus={handleNumericFocus}
+                    onBlur={handleNumericBlur}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Cost Summary */}
-            {form.harga_per_kg > 0 && (
+            {(typeof form.harga_per_kg === 'number' ? form.harga_per_kg : Number(form.harga_per_kg || 0)) > 0 && (
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <h3 className="font-semibold text-sm">Ringkasan Biaya</h3>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Harga per kg:</span>
-                    <span>{formatCurrency(form.harga_per_kg)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Sub total ({form.berat_kg} kg):</span>
-                    <span>{formatCurrency(form.sub_total)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2 font-semibold">
-                    <span>Total:</span>
-                    <span>{formatCurrency(form.total)}</span>
-                  </div>
+                  <div className="flex justify-between"><span>Harga per kg:</span><span>{formatCurrency(form.harga_per_kg)}</span></div>
+                  <div className="flex justify-between"><span>Sub total ({form.berat_kg} kg):</span><span>{formatCurrency(form.sub_total)}</span></div>
+                  <div className="flex justify-between"><span>Biaya admin:</span><span>{formatCurrency(form.biaya_admin)}</span></div>
+                  <div className="flex justify-between"><span>Biaya packaging:</span><span>{formatCurrency(form.biaya_packaging)}</span></div>
+                  <div className="flex justify-between"><span>Biaya transit:</span><span>{formatCurrency(form.biaya_transit)}</span></div>
+                  <div className="flex justify-between border-t pt-2 font-semibold"><span>Total:</span><span>{formatCurrency(form.total)}</span></div>
                 </div>
               </div>
             )}
@@ -697,6 +878,16 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
         </CardContent>
       </Card>
       
+      {/* Customer Selector Modal */}
+      {showCustomerSelector && (
+        <CustomerSelector
+          onCustomerSelect={handleCustomerSelect}
+          onClose={() => setShowCustomerSelector(false)}
+          branchOrigin={branchOrigin}
+          userRole={currentUser?.role}
+        />
+      )}
+
       {/* Off-screen Print container (rendered, not display:none) */}
       {/* Keep the print DOM attached and measurable; hide visually without display:none */}
       <div

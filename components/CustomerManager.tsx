@@ -707,7 +707,35 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
 
       {/* Customer List */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile: stacked cards to avoid horizontal scrolling */}
+        <div className="md:hidden">
+          {filteredCustomers.map((customer) => (
+            <div key={customer.id} className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{customer.customer_name || customer.nama_pengirim}</div>
+                {customer.customer_phone && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{customer.customer_phone}</div>
+                )}
+                <div className="mt-2 text-sm text-gray-700 dark:text-gray-200 truncate">Pengirim: {customer.nama_pengirim} • {customer.nomor_pengirim}</div>
+                <div className="text-sm text-gray-700 dark:text-gray-200 truncate">Penerima: {customer.nama_penerima} • {customer.nomor_penerima}</div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Tujuan: {customer.kota_tujuan} {customer.wilayah ? (<span className="ml-1">{customer.wilayah}</span>) : null}</div>
+
+                <div className="mt-3 flex flex-col gap-2">
+                  {mode === 'select' && (
+                    <button onClick={() => handleSelect(customer)} className="w-full px-3 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700">Pilih</button>
+                  )}
+                  <div className="flex items-center justify-end gap-4">
+                    <button onClick={() => handleEdit(customer)} className="text-indigo-600 hover:underline text-sm">Edit</button>
+                    <button onClick={() => handleDelete(customer)} className="text-red-600 hover:underline text-sm">Hapus</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop/tablet: original table visible on md+ */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
