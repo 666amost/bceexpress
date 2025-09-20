@@ -744,6 +744,20 @@ export function CourierPickupForm({ onClose, onSuccess, currentUser, branchOrigi
                       onBlur={handleNumericBlur}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="harga_per_kg" className="text-sm">Harga per kg</Label>
+                    <Input
+                      id="harga_per_kg"
+                      name="harga_per_kg"
+                      type="number"
+                      min="0"
+                      value={form.harga_per_kg}
+                      onChange={handleChange}
+                      onFocus={handleNumericFocus}
+                      onBlur={handleNumericBlur}
+                      placeholder="Harga per kg"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
