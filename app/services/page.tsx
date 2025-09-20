@@ -216,8 +216,10 @@ export default function ServicesPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 dark:bg-blue-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <PlaneIcon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white dark:bg-card rounded-full p-2 sm:p-3">
+                <PlaneIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary dark:text-primary-foreground" style={{ fontWeight: 'bold' }} />
+              </div>
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">One Day</span>
             <span className="text-2xl sm:text-4xl font-black text-blue-600 dark:text-blue-400">1</span>
@@ -225,8 +227,10 @@ export default function ServicesPage() {
           </div>
           
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-teal-100 dark:bg-teal-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <BoatIcon className="h-6 w-6 sm:h-8 sm:w-8 text-teal-600 dark:text-teal-400" style={{ fontWeight: 'bold' }} />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-secondary-50 dark:bg-secondary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white dark:bg-card rounded-full p-2 sm:p-3">
+                <BoatIcon className="h-5 w-5 sm:h-6 sm:w-6 text-secondary-foreground dark:text-secondary-foreground" style={{ fontWeight: 'bold' }} />
+              </div>
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Sea Cargo</span>
             <span className="text-2xl sm:text-4xl font-black text-teal-600 dark:text-teal-400">∞</span>
@@ -234,8 +238,10 @@ export default function ServicesPage() {
           </div>
           
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-yellow-100 dark:bg-yellow-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <FlashIcon className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-accent-50 dark:bg-accent-900/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white dark:bg-card rounded-full p-2 sm:p-3">
+                <FlashIcon className="h-5 w-5 sm:h-6 sm:w-6 text-accent-foreground dark:text-accent-foreground" style={{ fontWeight: 'bold' }} />
+              </div>
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">SANGKILAT</span>
             <span className="text-2xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400">3</span>
@@ -243,8 +249,10 @@ export default function ServicesPage() {
           </div>
           
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-green-200 dark:border-green-700 p-4 sm:p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-100 dark:bg-green-900/60 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <ShieldIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-destructive-50 dark:bg-destructive-900/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white dark:bg-card rounded-full p-2 sm:p-3">
+                <ShieldIcon className="h-5 w-5 sm:h-6 sm:w-6 text-destructive dark:text-destructive-foreground" style={{ fontWeight: 'bold' }} />
+              </div>
             </div>
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 block mb-1">Asuransi</span>
             <span className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400">100%</span>
@@ -345,10 +353,13 @@ export default function ServicesPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
             Mengapa Memilih BCE Express?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <ShieldIcon className="h-8 w-8 text-green-600 dark:text-green-400" style={{ fontWeight: 'bold' }} />
+              <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-8 w-8 text-primary dark:text-primary-foreground" aria-hidden="true" fill="none">
+                  <path d="M12 2l6 3v5c0 5-3.8 9.8-6 11-2.2-1.2-6-6-6-11V5l6-3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M9.5 12.5l1.75 1.75L15 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
               <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Keamanan Terjamin</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -356,8 +367,11 @@ export default function ServicesPage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <TimeIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
+              <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-8 w-8 text-primary dark:text-primary-foreground" aria-hidden="true" fill="none">
+                  <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
               <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Selalu Tepat Waktu</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -365,8 +379,10 @@ export default function ServicesPage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <StarIcon className="h-8 w-8 text-yellow-600 dark:text-yellow-400" style={{ fontWeight: 'bold' }} />
+              <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-8 w-8 text-primary dark:text-primary-foreground" aria-hidden="true" fill="currentColor">
+                  <path d="M12 17.3l6.18 3.7-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.73L5.82 21z" />
+                </svg>
               </div>
               <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">Pelayanan Terbaik</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">

@@ -9,8 +9,8 @@ import Link from "next/link"
 // Import komponen UI yang sudah ada
 import { Navbar } from "@/components/navbar"
 import { Hero } from "@/components/hero" // Asumsikan komponen ini ada dan berisi form input AWB
+import CekOngkir from '@/components/cek-ongkir'
 import { Footer } from "@/components/footer"
-import { Camera } from "lucide-react"
 import { QRScanner } from "@/components/qr-scanner"
 import gsap from "gsap"
 
@@ -82,17 +82,7 @@ export default function Home() {
         {/* Hero Section in a large card */}
         {!showScanner && (
           <div className="w-full mx-auto bg-card rounded-2xl shadow-xl p-10 flex flex-col items-center gap-6">
-            <Hero />
-            <div className="w-full text-center mt-4">
-              <p className="text-muted-foreground mb-2">or</p>
-              <button
-                onClick={() => setShowScanner(true)}
-                className="w-full md:max-w-xs mx-auto bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-4 rounded-lg font-semibold text-lg shadow hover:scale-105 transition flex items-center justify-center gap-2"
-              >
-                <Camera className="h-6 w-6" />
-                <span>Scan QR Code Instead</span>
-              </button>
-            </div>
+            <Hero onScanClickAction={() => setShowScanner(true)} />
           </div>
         )}
         {/* Scanner Section in a separate card */}
@@ -102,6 +92,16 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Cek Ongkir Section - standalone card under Track */}
+      <section className="py-6">
+        <div className="container mx-auto px-4">
+          <div className="w-full max-w-xl mx-auto">
+            <CekOngkir />
+          </div>
+        </div>
+      </section>
+
 
       {/* Kombinasi Bagian Konten Tambahan (Total Pengiriman, Pickup, Siap Kirim) */}
       <section className="py-12 bg-background">
