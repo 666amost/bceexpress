@@ -139,14 +139,19 @@ function cleanName(name?: string | null) {
 
 const DELIVERED_TEMPLATES = [
   (awb: string, name?: string) =>
-    `Halo${name ? ` ${name}` : ''}, kiriman Anda (AWB ${awb}) telah diterima. Terima kasih sudah mempercayakan pengiriman pada kami.`,
+    `Halo${name ? ` ${name}` : ''}, kiriman Anda dari BCE Express ${awb} telah diterima. Terima kasih sudah mempercayakan pengiriman pada kami.`,
   (awb: string, name?: string) =>
-    `Hai${name ? ` ${name}` : ''}! Paket dengan AWB ${awb} statusnya *DELIVERED*. Lihat detail tracking di bcexp.id.`,
+    `Hai${name ? ` ${name}` : ''}! Paket dengan AWB ${awb} statusnya DELIVERED. Lihat detail tracking di bcexp.id.`,
   (awb: string, name?: string) =>
     `Hello${name ? ` ${name}` : ''}, Paket AWB ${awb} sudah sampai tujuan. Jika ada pertanyaan cek bcexp.id`,
   (awb: string, name?: string) =>
     `Salam${name ? ` ${name}` : ''}, paket Anda (AWB ${awb}) telah terkirim. Terima kasih!`
+  ,(awb: string, name?: string) =>
+    `Terima kasih${name ? ` ${name}` : ''} sudah menggunakan BCE Express, paket dengan nomor AWB ${awb} sudah diterima. Mohon simpan bukti penerimaan ini untuk referensi.`,
+  (awb: string, name?: string) =>
+    `Pemberitahuan: Paket AWB ${awb}${name ? ` untuk ${name}` : ''} telah berhasil dikirim dan diterima. Untuk pertanyaan terkait pengiriman hubungi admin pengiriman.`,
 ];
+
 
 function buildDeliveredMsg(awb: string, rawName?: string) {
   const name = cleanName(rawName) || undefined;
@@ -253,4 +258,3 @@ function randomDelay(min: number, max: number) {
   return new Promise(r => setTimeout(r, Math.floor(Math.random() * (max - min + 1)) + min));
 }
 
-// End of file

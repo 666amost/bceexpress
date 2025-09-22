@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
     let replyText: string;
     if (userData.count === 1) {
       // First reply - original message
-      replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan input no AWB.\n\nTERIMA KASIH.`;
+      replyText = `Terima kasih telah menggunakan BCE EXPRESS\nWhatsApp ini adalah konfirmasi penerima paket\n\nuntuk informasi yang penting seperti melihat bukti POD bisa cek web bcexp.id\nuntuk soal pengiriman bisa hubungi admin pengiriman\n\nMohon jangan telpon, karena ini adalah sistem\n\nTERIMA KASIH.`;
     } else {
       // Second and subsequent replies - new message
-      replyText = `Terima kasih telah menggunakan BCE EXPRESS\nWhatsApp ini adalah konfirmasi penerima paket\n\nuntuk informasi yang penting bisa cek web bcexp.id\nuntuk soal pengiriman bisa hubungi admin pengiriman\n\nMohon jangan telpon, karena ini adalah sistem\n\nTERIMA KASIH.`;
+      replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan memasukan no RESI.\n\nTERIMA KASIH.`;
     }
 
     try {
