@@ -1003,6 +1003,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
           onSave={handleSaveEdit}
           onCancel={handleCancelEdit}
           saving={saving}
+          userRole={userRole}
         />
       );
     }

@@ -33,11 +33,15 @@ interface ManifestData {
   status_pelunasan?: string;
 }
 
+type UserRole = 'admin' | 'cabang' | 'couriers' | 'branch';
+
 interface BangkaHistoryEditFormProps {
   selectedItem: ManifestData;
   onSave: (data: ManifestData) => void;
   onCancel: () => void;
   saving: boolean;
+  /** current user's role from parent so we can lock fields for non-admins */
+  userRole: UserRole;
 }
 
 // Data wilayah untuk Bangka dengan struktur kecamatan
@@ -143,7 +147,8 @@ export default function BangkaHistoryEditForm({
   selectedItem: initialSelectedItem, 
   onSave, 
   onCancel, 
-  saving 
+  saving,
+  userRole
 }: BangkaHistoryEditFormProps) {
   const [selectedItem, setSelectedItem] = useState<ManifestData>(initialSelectedItem);
 
@@ -365,8 +370,10 @@ export default function BangkaHistoryEditForm({
               step="0.1"
               value={selectedItem.berat_kg || ""}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedItem({ ...selectedItem, berat_kg: parseFloat(e.target.value) || 0 })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+              disabled={userRole !== 'admin'}
+              className={`w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 ${userRole !== 'admin' ? 'bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400`}
             />
+            {/* Note removed: berat (KG) remains disabled for non-admins but no explanatory note shown */}
           </div>
 
           {/* Harga Per KG */}
