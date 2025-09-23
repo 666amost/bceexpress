@@ -32,7 +32,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle, faBarcode } from '@fortawesome/free-solid-svg-icons'
-import { Camera, Box, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Box, ChevronDown, ChevronUp, X, Search } from 'lucide-react'
+import { ScanAlt } from "@carbon/icons-react"
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { ContinuousScanModal } from "./continuous-scan-modal"
@@ -43,6 +44,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Badge } from "@/components/ui/badge"
 import { useExternalLinks } from "@/hooks/use-external-links"
 import { isInCapacitor, handleCapacitorLogout } from "@/lib/capacitor-utils"
+import { Input } from "@/components/ui/input"
 
 // Component for WhatsApp button
 const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumber: string; recipientName: string; courierName: string }) => {
@@ -136,6 +138,12 @@ export function CourierDashboard() {
   const [showAllAssignments, setShowAllAssignments] = useState(false);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [isPickupFormOpen, setIsPickupFormOpen] = useState(false);
+
+  // Header search state
+  const [awbQuery, setAwbQuery] = useState<string>("")
+  const [isSearching, setIsSearching] = useState<boolean>(false)
+  const [awbSearchResults, setAwbSearchResults] = useState<Shipment[]>([])
+  const [showSearchResults, setShowSearchResults] = useState<boolean>(false)
 
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
@@ -361,6 +369,40 @@ export function CourierDashboard() {
     }
   }, [loadShipmentData, router, toast, checkFirstDeliveryStatus]);
 
+  const runAwbSearch = useCallback(async (query: string, courierId: string) => {
+    const q = query.trim()
+    if (q.length < 4) {
+      setAwbSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+    setIsSearching(true)
+    try {
+      // Search by AWB number or receiver name for current courier
+      const { data, error } = await supabaseClient
+        .from("shipments")
+        .select("awb_number, current_status, receiver_name, receiver_phone, receiver_address, created_at, updated_at")
+        .eq("courier_id", courierId)
+        .or(`awb_number.ilike.%${q}%,receiver_name.ilike.%${q}%,receiver_address.ilike.%${q}%`)
+        .order("updated_at", { ascending: false })
+        .limit(20)
+
+      if (error) {
+        setAwbSearchResults([])
+        setShowSearchResults(false)
+        toast({ title: "Search failed", description: error.message, variant: "destructive" })
+        return
+      }
+      setAwbSearchResults(data || [])
+      setShowSearchResults(true)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      toast({ title: "Search error", description: msg, variant: "destructive" })
+    } finally {
+      setIsSearching(false)
+    }
+  }, [toast])
+
   // Geolocation update logic
   const updateCourierLocation = useCallback(async (userId: string) => {
     if ("geolocation" in navigator) {
@@ -507,6 +549,8 @@ export function CourierDashboard() {
       }
     };
   }, [hasCompletedFirstDelivery, updateCourierLocation]);
+
+  // Cari manual: Hanya mulai saat user menekan Enter (tidak auto-search saat mengetik)
 
   const handleLogout = async () => {
     // Check if running in Capacitor iframe context
@@ -665,27 +709,105 @@ export function CourierDashboard() {
           </div>
         ))}
       </div>
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-4 bg-white/70 backdrop-blur rounded-b-2xl shadow-md border-b border-gray-200 sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
+      {/* Header with AWB search and scan icon */}
+      <header className="px-4 py-3 bg-white/70 backdrop-blur rounded-b-2xl shadow-md border-b border-gray-200 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
+          </div>
+          <div className="flex-1 text-center">
+            <span className="font-bold text-lg text-gray-900">{displayName}</span>
+            {lastCompletedAwb && (
+              <div className="text-xs text-blue-600 mt-1">
+                Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
+              </div>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="h-8 px-2 text-xs font-bold text-gray-700"
+          >
+            <FontAwesomeIcon icon={faSignOutAlt} className="h-5 w-5" />
+          </Button>
         </div>
-        <div className="flex-1 text-center">
-          <span className="font-bold text-lg text-gray-900">{displayName}</span>
-          {lastCompletedAwb && (
-            <div className="text-xs text-blue-600 mt-1">
-              Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
-            </div>
-          )}
+        {/* Search row */}
+        <div className="mt-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Input
+              value={awbQuery}
+              onChange={(e) => setAwbQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && currentUser) {
+                  const q = awbQuery.trim()
+                  if (q.length >= 4) {
+                    runAwbSearch(q, currentUser.id)
+                  }
+                }
+                if (e.key === 'Escape') {
+                  setAwbQuery("")
+                  setAwbSearchResults([])
+                  setShowSearchResults(false)
+                }
+              }}
+              placeholder="Cari AWB / nama penerima"
+              className="pl-12 pr-10 h-10 py-2 text-[13px] leading-5 bg-white/80 border-gray-300 placeholder:text-gray-500 placeholder:text-[13px]"
+              inputMode="search"
+              enterKeyHint="search"
+            />
+            <button
+              type="button"
+              aria-label="Scan Resi (Delivered)"
+              title="Scan Resi (Delivered)"
+              onClick={() => setIsDeliveredScanOpen(true)}
+              className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-md text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <ScanAlt size={16} aria-hidden="true" className="pointer-events-none" />
+              <span className="sr-only">Scan</span>
+            </button>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          onClick={handleLogout}
-          className="h-8 px-2 text-xs font-bold text-gray-700"
-        >
-          <FontAwesomeIcon icon={faSignOutAlt} className="h-5 w-5" />
-        </Button>
       </header>
+
+      {/* Search results */}
+      {showSearchResults && (
+        <div className="px-3 pt-3">
+          <Card className="border border-blue-200">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-semibold text-gray-700">Hasil Pencarian ({awbSearchResults.length})</div>
+                <Button variant="ghost" size="sm" onClick={() => { setShowSearchResults(false); setAwbQuery(""); }} className="h-7 px-2 text-xs">Tutup</Button>
+              </div>
+              {isSearching ? (
+                <div className="text-sm text-gray-500">Mencari...</div>
+              ) : awbSearchResults.length === 0 ? (
+                <div className="text-sm text-gray-400">Tidak ada hasil.</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {awbSearchResults.map((s) => (
+                    <div key={s.awb_number} className="flex items-center justify-between bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="font-mono font-bold text-blue-700 text-sm">{s.awb_number}</div>
+                        <div className="text-xs text-gray-600 truncate">{s.receiver_name}</div>
+                        <div className={`text-[11px] ${s.current_status === 'delivered' ? 'text-green-600' : s.current_status === 'out_for_delivery' ? 'text-yellow-600' : 'text-gray-500'}`}>{s.current_status}</div>
+                        <div className="text-[11px] text-gray-500 truncate">{s.receiver_address}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md ml-2 h-8 px-3 text-xs"
+                        onClick={() => router.push(`/courier/update?awb=${s.awb_number}`)}
+                      >
+                        Update
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Quick Stats as Accordions */}
       <div className="flex flex-col gap-3 px-3 py-4">
@@ -720,7 +842,11 @@ export function CourierDashboard() {
                           <MapsButton address={shipment.receiver_address} />
                         </div>
                       </div>
-                      <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg ml-2" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md ml-2 h-8 px-3 text-xs"
+                        onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}
+                      >
                         Update
                       </Button>
                     </div>
@@ -828,7 +954,11 @@ export function CourierDashboard() {
                         <MapsButton address={shipment.receiver_address} />
                       </div>
                     </div>
-                    <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-lg" onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}>
+                    <Button
+                      size="sm"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-md h-8 px-3 text-xs"
+                      onClick={() => router.push(`/courier/update?awb=${shipment.awb_number}`)}
+                    >
                       Update
                     </Button>
                   </div>
@@ -852,10 +982,7 @@ export function CourierDashboard() {
         </Button>
       </div>
 
-      {/* Floating DLVD Scan Button (mobile only) */}
-      <Button onClick={() => setIsDeliveredScanOpen(true)} className="fixed bottom-5 right-5 z-50 bg-black hover:bg-gray-900 text-white rounded-full shadow-lg p-0 w-16 h-16 flex items-center justify-center sm:hidden">
-        <FontAwesomeIcon icon={faBarcode} className="h-10 w-10 text-white" />
-      </Button>
+      {/* Floating DLVD Scan Button removed and replaced with header icon */}
 
             {/* Pending Details Modal */}
       {showPendingDetails && (
@@ -918,7 +1045,11 @@ export function CourierDashboard() {
                     <MapsButton address={shipment.receiver_address} />
                   </div>
                 </div>
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg" onClick={() => { setShowAllAssignments(false); router.push(`/courier/update?awb=${shipment.awb_number}`); }}>
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md h-8 px-3 text-xs"
+                  onClick={() => { setShowAllAssignments(false); router.push(`/courier/update?awb=${shipment.awb_number}`); }}
+                >
                   Update
                 </Button>
               </div>

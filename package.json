@@ -1,6 +1,6 @@
 {
   "name": "bce-express",
-  "version": "5.5.6",
+  "version": "5.5.7",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
