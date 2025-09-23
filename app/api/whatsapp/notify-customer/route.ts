@@ -149,7 +149,7 @@ const DELIVERED_TEMPLATES = [
   ,(awb: string, name?: string) =>
     `Terima kasih${name ? ` ${name}` : ''} sudah menggunakan BCE Express, paket dengan nomor AWB ${awb} sudah diterima. Mohon simpan bukti penerimaan ini untuk referensi.`,
   (awb: string, name?: string) =>
-    `Pemberitahuan: Paket AWB ${awb}${name ? ` untuk ${name}` : ''} telah berhasil dikirim dan diterima. Untuk pertanyaan terkait pengiriman hubungi admin pengiriman.`,
+    `Paket BCE Express Resi ${awb}${name ? ` untuk ${name}` : ''} telah berhasil dikirim dan diterima. Untuk pertanyaan terkait pengiriman hubungi admin pengiriman.`,
 ];
 
 

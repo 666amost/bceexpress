@@ -63,6 +63,7 @@ export const baseAgentListBangka: string[] = [
   "HELDA ASIAT",
   "HANS KOKO DURIAN",
   "KIM NYUN AGEN",
+  "KONG2",
   "AFAT SUBUR",
   "MR ADOX",
   "IN IN",
