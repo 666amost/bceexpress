@@ -35,9 +35,11 @@ const calculateTotalBreakdown = (data) => {
 export default function DailyReport({ userRole, branchOrigin }) {
   // ================== BRANCH / ROLE SWITCH ==================
   const BRANCH_USING_CABANG_TABLE = ["bangka", "tanjung_pandan"]; // tambah branch lain bila perlu
+  // normalize branchOrigin for consistent comparisons / DB queries
+  const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
   const isBranchMode =
-    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin)) ||
-    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(branchOrigin));
+    (userRole === "cabang" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin)) ||
+    (userRole === "admin" && BRANCH_USING_CABANG_TABLE.includes(normalizedBranchOrigin));
   // ===========================================================
 
   const [data, setData] = useState([])  // State untuk menyimpan data laporan
@@ -141,7 +143,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
           q = supabaseClient
             .from("manifest_cabang")
             .select("*")
-            .eq('origin_branch', branchOrigin)
+            .eq('origin_branch', normalizedBranchOrigin)
             .order("awb_date", { ascending: false })
         } else {
           q = supabaseClient
@@ -355,7 +357,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
         }
         
         // Additional verification steps if needed
-        if (verificationActive && isBranchMode && branchOrigin === 'bangka') {
+        if (verificationActive && isBranchMode && normalizedBranchOrigin === 'bangka') {
           setIsVerifying(true)
           // Any additional verification logic can go here
           setIsVerifying(false)
@@ -366,24 +368,24 @@ export default function DailyReport({ userRole, branchOrigin }) {
     } finally {
       setLoading(false)
     }
-  }, [isBranchMode, branchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode, verificationActive, computeAwbVerification]);
+  }, [isBranchMode, normalizedBranchOrigin, selectedDateFrom, selectedDateTo, selectedKirimVia, selectedAgentCustomer, selectedKotaTujuan, selectedWilayah, selectedAreaCode, verificationActive, computeAwbVerification]);
 
   // Use centralized agent lists
   const agentList = isBranchMode
-    ? (branchOrigin === 'bangka'
+    ? (normalizedBranchOrigin === 'bangka'
         ? getEnhancedAgentList(baseAgentListBangka)
         : getEnhancedAgentList(baseAgentListTanjungPandan))
   : getEnhancedAgentList(baseAgentListCentral);
 
   const kotaTujuan = isBranchMode
-    ? (branchOrigin === 'bangka'
+    ? (normalizedBranchOrigin === 'bangka'
         ? ["JAKARTA BARAT", "JAKARTA PUSAT", "JAKARTA SELATAN", "JAKARTA TIMUR", "JAKARTA UTARA", "TANGERANG", "TANGERANG SELATAN", "TANGERANG KABUPATEN", "BEKASI KOTA", "BEKASI KABUPATEN", "DEPOK", "BOGOR KOTA", "BOGOR KABUPATEN"]
         : ["jakarta", "tangerang", "bekasi", "depok", "bogor"])
     : ["bangka", "kalimantan barat", "belitung", "bali"];
 
   const kotaWilayah = useMemo(() => {
     return isBranchMode
-      ? (branchOrigin === 'bangka'
+      ? (normalizedBranchOrigin === 'bangka'
           ? {
               "JAKARTA BARAT": ["Cengkareng", "Grogol", "Kebon jeruk", "Kali deres", "Pal merah", "Kembangan", "Taman sari", "Tambora"],
               "JAKARTA PUSAT": ["Cempaka putih", "Gambir", "Johar baru", "Kemayoran", "Menteng", "Sawah besar", "Senen", "Tanah abang"],
@@ -412,7 +414,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
           belitung: ["Tj Pandan"],
           bali: ["Denpasar"]
         };
-  }, [isBranchMode, branchOrigin]);
+  }, [isBranchMode, normalizedBranchOrigin]);
 
   const wilayahOptions = useMemo(() => {
     // Jika kedua filter dipilih: area code dan kota tujuan
@@ -883,7 +885,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
       </div>
       
       {/* Verifikasi Data Toggle khusus Bangka branch - Simplified */}
-      {branchOrigin === 'bangka' && isBranchMode && (
+      {normalizedBranchOrigin === 'bangka' && isBranchMode && (
         <div className="mb-4 no-print">
           <label className="inline-flex items-center">
             <input

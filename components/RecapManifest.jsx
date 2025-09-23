@@ -57,8 +57,9 @@ export default function RecapManifest({ userRole, branchOrigin }) {
           .order("awb_date", { ascending: false })
       }
       
+      // Match DailyReport behavior: use case-insensitive match for kirim_via
       if (selectedKirimVia) {
-        query = query.eq("kirim_via", selectedKirimVia)
+        query = query.ilike("kirim_via", selectedKirimVia)
       }
       if (selectedTujuan) {
         query = query.eq("kota_tujuan", selectedTujuan)
@@ -83,7 +84,8 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             return Number.isNaN(n) ? 0 : n;
           };
 
-          // Compute totals using same logic as SalesReport: total_fix = (berat_kg * harga_per_kg) + biaya_admin + biaya_packaging
+          // Compute totals prioritizing DB-provided `total` (as used by DailyReport)
+          // Fallback to computed value when `total` is missing/invalid
 
           const groupedData = fetchedData.reduce((acc, item) => {
             const date = item.awb_date;
@@ -103,16 +105,19 @@ export default function RecapManifest({ userRole, branchOrigin }) {
                 count: 0
               };
             }
-            const coli = toNumber(item.coli);
-            const berat = toNumber(item.berat_kg);
-            const hargaPerKg = toNumber(item.harga_per_kg);
-            const adm = toNumber(item.biaya_admin);
-            const pack = toNumber(item.biaya_packaging);
-            const transit = toNumber(item.biaya_transit);
+    const coli = toNumber(item.coli);
+    const berat = toNumber(item.berat_kg);
+    const hargaPerKg = toNumber(item.harga_per_kg);
+    const adm = toNumber(item.biaya_admin);
+    const pack = toNumber(item.biaya_packaging);
+    const transit = toNumber(item.biaya_transit);
 
-      // compute total consistent with SalesReport (include transit)
-      const totalFixWithoutTransit = (berat * hargaPerKg) + adm + pack;
-      const totalWithTransit = totalFixWithoutTransit + transit;
+    // Prefer DB-calculated `total` (consistent with DailyReport's calculateTotalBreakdown)
+    const dbTotal = toNumber(item.total);
+    // compute total consistent with SalesReport when dbTotal not available
+    const fallbackWithoutTransit = (berat * hargaPerKg) + adm + pack;
+    const fallbackWithTransit = fallbackWithoutTransit + transit;
+    const lineTotal = dbTotal > 0 ? dbTotal : fallbackWithTransit;
 
             acc[date].totalAWB += 1;
             acc[date].totalColi += coli;
@@ -121,12 +126,12 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             acc[date].totalPackaging += pack;
             acc[date].totalOngkir += berat * hargaPerKg;
             acc[date].totalTransit += transit;
-            acc[date].totalFix += totalWithTransit;
+            acc[date].totalFix += lineTotal;
 
             const metode = (item.metode_pembayaran || '').toString().toLowerCase();
-            if (metode === 'cash') acc[date].cash += totalWithTransit;
-            if (metode === 'transfer') acc[date].transfer += totalWithTransit;
-            if (metode === 'cod') acc[date].cod += totalWithTransit;
+            if (metode === 'cash') acc[date].cash += lineTotal;
+            if (metode === 'transfer') acc[date].transfer += lineTotal;
+            if (metode === 'cod') acc[date].cod += lineTotal;
 
             acc[date].count += 1;
             return acc;
@@ -196,7 +201,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
       'Cash': item.cash,
       'Transfer': item.transfer,
       'COD': item.cod,
-      'Total Payment': item.cash + item.transfer + item.cod
+      'Total Payment': (item.totalFix ?? (item.cash + item.transfer + item.cod))
     }))
 
     // Create date range string if filters are applied
@@ -658,7 +663,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
             
             <div class="grand-total-section">
               <div class="grand-total-label">TOTAL REVENUE</div>
-              <div class="grand-total-value">Rp ${data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('id-ID')}</div>
+              <div class="grand-total-value">Rp ${data.reduce((sum, item) => sum + (item.totalFix || ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0))), 0).toLocaleString('id-ID')}</div>
             </div>
           </div>
           
@@ -794,7 +799,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.cash || 0).toLocaleString('en-US')}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.transfer || 0).toLocaleString('en-US')}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-100 dark:bg-blue-800 text-gray-900 dark:text-gray-100">Rp. {(item.cod || 0).toLocaleString('en-US')}</td>
-                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Rp. {((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">Rp. {(item.totalFix || ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0))).toLocaleString('en-US')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -811,7 +816,7 @@ export default function RecapManifest({ userRole, branchOrigin }) {
               <p className="text-gray-800 dark:text-gray-200">Total Cash: Rp. {data.reduce((sum, item) => sum + (item.cash || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total Transfer: Rp. {data.reduce((sum, item) => sum + (item.transfer || 0), 0).toLocaleString('en-US')}</p>
               <p className="text-gray-800 dark:text-gray-200">Total COD: Rp. {data.reduce((sum, item) => sum + (item.cod || 0), 0).toLocaleString('en-US')}</p>
-              <p className="text-gray-800 dark:text-gray-200">Total Pembayaran: Rp. {data.reduce((sum, item) => sum + ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0)), 0).toLocaleString('en-US')}</p>
+              <p className="text-gray-800 dark:text-gray-200">Total Pembayaran: Rp. {data.reduce((sum, item) => sum + (item.totalFix || ((item.cash || 0) + (item.transfer || 0) + (item.cod || 0))), 0).toLocaleString('en-US')}</p>
             </div>
           )}
         </>
