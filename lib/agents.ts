@@ -52,7 +52,6 @@ export const baseAgentListBangka: string[] = [
   "AFUI SPX P3",
   "ASUN OTAK OTAK",
   "BANGKA CITRA SNACK",
-  "BANGKA BULIONG SNACK",
   "BILLY JNE",
   "TOKO BINTANG 5",
   "CE NIE NIE",
