@@ -244,7 +244,7 @@ export default function CustomerManager({ branchOrigin, userRole, onCustomerSele
           { value: "JESS DOT", label: "JESS DOT" },
           { value: "SEPIRING RASA BASO", label: "SEPIRING RASA BASO" },
           { value: "CHRISTINE PADEMANGAN", label: "CHRISTINE PADEMANGAN" },
-          { value: "Amertha / Holai Resto", label: "Amertha / Holai Resto" }
+          { value: "AMERTHA / HOLAI RESTO", label: "AMERTHA / HOLAI RESTO" }
         ],
         kotaWilayahMapping: kotaWilayahPusat,
         destinations: Object.keys(kotaWilayahPusat),

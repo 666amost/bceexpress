@@ -178,7 +178,29 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
 
   // If branch is bangka, merge with centralized Bangka list so new agents are guaranteed
   const additions = branchOrigin === 'bangka' ? baseAgentListBangka : [];
-  const merged = Array.from(new Set([...distinctAgents, ...additions]));
+  
+  // Case-insensitive deduplication: create a map to track lowercase versions
+  // Always convert to uppercase for consistency
+  const seenLowercase = new Map<string, string>();
+  
+  // First, add distinct agents from database (convert to uppercase)
+  distinctAgents.forEach(agent => {
+    const lowerAgent = agent.toLowerCase();
+    if (!seenLowercase.has(lowerAgent)) {
+      seenLowercase.set(lowerAgent, agent.toUpperCase());
+    }
+  });
+  
+  // Then, add additions only if not already present (case-insensitive)
+  additions.forEach(agent => {
+    const lowerAgent = agent.toLowerCase();
+    if (!seenLowercase.has(lowerAgent)) {
+      seenLowercase.set(lowerAgent, agent.toUpperCase());
+    }
+  });
+  
+  // Extract the final merged list
+  const merged = Array.from(seenLowercase.values());
 
   // Enhance agent list with email mappings
   const enhancedAgents = getEnhancedAgentList(merged);

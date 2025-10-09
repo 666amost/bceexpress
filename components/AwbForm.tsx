@@ -93,7 +93,7 @@ const agentList = [
   "JESS DOT",
   "SEPIRING RASA BASO",
   "CHRISTINE PADEMANGAN",
-  "Amertha / Holai Resto"
+  "AMERTHA / HOLAI RESTO"
 ]
 
 const metodePembayaran = ["cash", "transfer", "cod"]
