@@ -108,7 +108,8 @@ export const baseAgentListBangka: string[] = [
   "Ahap Walet",
   "Kuliner Bangka",
   "Vita Agen",
-  "Ko Ate"
+  "Ko Ate",
+  "BOS AKIM"
 ];
 
 export const baseAgentListTanjungPandan: string[] = [
