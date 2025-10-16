@@ -12,6 +12,7 @@ export const baseAgentListBangka: string[] = [
   "MENTOK (LILY)",
   "ACHUANG KOBA",
   "BCE TONI WEN",
+  "BAYAR JAKARTA INCOMING",
   "BAYAR BANGKA DARAT",
   "BAYAR JKT DARAT",
   "7FUN SLT",
