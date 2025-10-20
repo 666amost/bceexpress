@@ -2,30 +2,20 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabaseClient } from "../lib/auth";
-import { FaTruck, FaUser, FaMapMarkerAlt, FaCalendarDay, FaCalendarWeek, FaHistory, FaPlus, FaBox, FaChartLine, FaSearch, FaQrcode } from "react-icons/fa";
+import { FaTruck, FaUser, FaMapMarkerAlt, FaCalendarWeek, FaHistory, FaPlus, FaBox, FaSearch } from "react-icons/fa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
-
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import AwbForm from "./AwbForm";
 import BulkAwbForm from "./BulkAwbForm";
 import BangkaAwbForm from "./BangkaAwbForm";
 import BangkaBulkAwbForm from "./BangkaBulkAwbForm";
-// REMOVED: QuickQRScanner, BookingVerification - tidak diperlukan lagi
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 interface RecentAwbItem {
   awb_no: string;
@@ -77,20 +67,29 @@ interface BranchDashboardProps {
 }
 
 export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm }: BranchDashboardProps) {
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ totalAWB: 0, totalAgents: 0, totalWilayah: 0, totalAWBToday: 0, totalAWBThisWeek: 0, recentAWBs: [], awbPerKotaChartData: null, awbPerAgentChartData: null, awbPerDayChartData: null, awbPerViaChartData: null });
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ 
+    totalAWB: 0, 
+    totalAgents: 0, 
+    totalWilayah: 0, 
+    totalAWBToday: 0, 
+    totalAWBThisWeek: 0, 
+    recentAWBs: [], 
+    awbPerKotaChartData: null, 
+    awbPerAgentChartData: null, 
+    awbPerDayChartData: null, 
+    awbPerViaChartData: null 
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [allManifestData, setAllManifestData] = useState<RecentAwbItem[]>([]);
   const [activeChart, setActiveChart] = useState<'kota' | 'agent' | 'trend'>('kota');
   const [showBulkAwbForm, setShowBulkAwbForm] = useState(false);
   const [showAwbForm, setShowAwbForm] = useState(false);
-  // REMOVED: showQuickQRScanner, showBookingVerification - tidak diperlukan lagi
-  let delayed = false;
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const delayedRef = useRef<boolean>(false);
+  let delayed = false;
 
   const { toast } = useToast();
-
-  const delayedRef = useRef<boolean>(false);
 
   // Fetch user information
   useEffect(() => {
@@ -146,11 +145,23 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
           selectFields = 'awb_no, awb_date, kota_tujuan, nama_penerima, agent_customer, kecamatan, kirim_via';
         }
         
+        const today = new Date();
+        const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
         let query = supabaseClient.from(targetTable).select(selectFields);
         
         if (isCabangTable && branchOrigin) {
           query = query.eq('origin_branch', branchOrigin);
         }
+        
+        query = query.order('awb_date', { ascending: false }).limit(10000);
+        
+        let countQuery = supabaseClient.from(targetTable).select('*', { count: 'exact', head: true });
+        if (isCabangTable && branchOrigin) {
+          countQuery = countQuery.eq('origin_branch', branchOrigin);
+        }
+        
+        const { count: totalCount, error: countError } = await countQuery;
         
         const { data: manifestData, error } = await query as { data: RecentAwbItem[] | null, error: Error | null };
         
@@ -165,16 +176,13 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
         if (manifestData) {
           setAllManifestData(manifestData);
           
-          const uniqueAWB = Array.from(new Set(manifestData.map(item => item.awb_no).filter(Boolean))).length;
+          const totalAWB = totalCount || manifestData.length;
           const uniqueAgents = Array.from(new Set(manifestData.map(item => item.agent_customer).filter(Boolean))).length;
           
-          // Perhitungan total wilayah berdasarkan cabang
           let uniqueWilayah = 0;
           if (branchOrigin === 'bangka') {
-            // Untuk cabang bangka, gunakan field kecamatan
             uniqueWilayah = Array.from(new Set(manifestData.map(item => item.kecamatan).filter(Boolean))).length;
           } else {
-            // Untuk cabang lain, gunakan field wilayah
             uniqueWilayah = Array.from(new Set(manifestData.map(item => item.wilayah).filter(Boolean))).length;
           }
           
@@ -187,23 +195,21 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
             return `${year}-${month}-${day}`;
           };
 
-          const today = new Date();
-          const todayString = getLocalYYYYMMDD(today);
-
-          const startOfWeek = new Date(today);
-          const dayOfWeek = today.getDay();
+          const totalAWBToday = manifestDataWithDate.filter(item => item.awb_date === todayString).length;
+          
+          const todayDate = new Date();
+          const startOfWeek = new Date(todayDate);
+          const dayOfWeek = todayDate.getDay();
           const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          startOfWeek.setDate(today.getDate() - diff);
+          startOfWeek.setDate(todayDate.getDate() - diff);
           startOfWeek.setHours(0, 0, 0, 0);
           
-          const totalAWBToday = manifestDataWithDate.filter(item => item.awb_date === todayString).length;
-
           const totalAWBThisWeek = manifestDataWithDate.filter(item => {
             const parts = item.awb_date.split('-');
             const itemDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
             itemDate.setHours(0, 0, 0, 0);
             
-            return itemDate >= startOfWeek && itemDate <= today;
+            return itemDate >= startOfWeek && itemDate <= todayDate;
           }).length;
 
           const sortedManifestData = [...manifestData].sort((a, b) => new Date(b.awb_date).getTime() - new Date(a.awb_date).getTime());
@@ -229,6 +235,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
             ],
           };
 
+          // Untuk chart: hitung AWB per agent (CATATAN: dari 10000 data terakhir saja)
           const awbCountsPerAgent = manifestData.reduce((acc, item) => {
             if (item.agent_customer) {
               acc[item.agent_customer] = (acc[item.agent_customer] || 0) + 1;
@@ -291,7 +298,7 @@ export default function BranchDashboard({ userRole, branchOrigin, onShowAwbForm 
 
           setDashboardStats(prevStats => ({
             ...prevStats,
-            totalAWB: uniqueAWB,
+            totalAWB: totalAWB,
             totalAgents: uniqueAgents,
             totalWilayah: uniqueWilayah,
             totalAWBToday,
