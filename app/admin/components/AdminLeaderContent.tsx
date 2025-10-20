@@ -132,6 +132,8 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   const [liveShipments, setLiveShipments] = useState<LiveShipmentActivityItem[]>([]);
   const [displayedShipments, setDisplayedShipments] = useState<LiveShipmentActivityItem[]>([]);
   const liveListRef = useRef<HTMLDivElement>(null);
+  const [courierDailySummary, setCourierDailySummary] = useState<Array<{id:string; name:string; delivered:number; total:number; otd:number; lastAwbs:string[]}>>([]);
+  const [courierSummarySort, setCourierSummarySort] = useState<'best'|'worst'>('best');
 
   const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
     setLastMapUpdateTime(lastUpdate);
@@ -229,7 +231,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         return;
       }
 
-      const shipmentsData = recentShipments || [];
+  const shipmentsData = recentShipments || [];
 
       const [totalCountResult, completedCountResult] = await Promise.all([
         supabaseClient
@@ -245,22 +247,15 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           .lte("created_at", endDate)
       ]);
 
-      const stats: Record<string, { total: number; completed: number; pending: number }> = {};
-      const allPendingShipments: Shipment[] = [];
+  const stats: Record<string, { total: number; completed: number; pending: number }> = {};
+  const allPendingShipments: Shipment[] = [];
       let totalShipmentCount = totalCountResult.count || 0;
       let totalCompletedCount = completedCountResult.count || 0;
       let totalPendingCount = 0;
 
-      const shipmentsByCourier = shipmentsData.reduce((acc, shipment) => {
-        if (!acc[shipment.courier_id]) {
-          acc[shipment.courier_id] = [];
-        }
-        acc[shipment.courier_id].push(shipment);
-        return acc;
-      }, {} as Record<string, Shipment[]>);
-
       courierData.forEach((courier) => {
-        const courierShipments = shipmentsByCourier[courier.id] || [];
+        // Cocokkan baik berdasarkan users.id maupun users.email karena data lama bisa menyimpan email di kolom courier_id
+        const courierShipments = shipmentsData.filter((s) => s.courier_id === courier.id || s.courier_id === courier.email);
         const total = courierShipments.length;
         const completed = courierShipments.filter((s) => s.current_status === "delivered").length;
         const pendingShipmentsList = courierShipments.filter((s) => s.current_status !== "delivered");
@@ -276,11 +271,38 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
       });
 
       setCouriers(courierData);
-      setCourierStats(stats);
+  setCourierStats(stats);
       setTotalShipments(totalShipmentCount);
       setTotalCompleted(totalCompletedCount);
       setTotalPending(totalPendingCount);
       setPendingShipments(allPendingShipments.slice(0, 100));
+
+      // Build per-courier summary for the SELECTED RANGE using updated_at window so delivered dalam rentang terhitung walau created lebih lama
+      const { data: shipmentsUpdatedInRange } = await supabaseClient
+        .from('shipments')
+        .select('awb_number, current_status, courier_id, created_at, updated_at')
+        .gte('updated_at', startDate)
+        .lte('updated_at', endDate)
+        .order('updated_at', { ascending: false });
+  // Gabungkan shipments yang masuk range via updated_at dan created_at untuk menghindari kosong pada kasus tertentu
+  const shipmentsUpdMap = new Map<string, Shipment & { updated_at: string }>();
+  (shipmentsData || []).forEach((s: Shipment) => shipmentsUpdMap.set(s.awb_number, s as Shipment & { updated_at: string }));
+  (shipmentsUpdatedInRange || []).forEach((s: Shipment) => shipmentsUpdMap.set(s.awb_number, s as Shipment & { updated_at: string }));
+  const shipmentsUpd = Array.from(shipmentsUpdMap.values());
+      const byCourierToday: Array<{id:string; name:string; delivered:number; total:number; otd:number; lastAwbs:string[]}> = [];
+      courierData.forEach(c => {
+        // Lagi-lagi cocokkan id ATAU email
+        const all = shipmentsUpd.filter(s => s.courier_id === c.id || s.courier_id === c.email);
+        const delivered = all.filter(s => s.current_status === 'delivered').length;
+        const total = all.length; // total aktifitas update dalam rentang
+        const otd = total > 0 ? Math.round((delivered / total) * 100) : 0;
+        const lastAwbs = all
+          .sort((a,b)=> new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
+          .slice(0,3)
+          .map(s=> s.awb_number);
+        byCourierToday.push({ id: c.id, name: c.name, delivered, total, otd, lastAwbs });
+      });
+      setCourierDailySummary(byCourierToday);
 
       // Fetch daily target (total shipments for today)
       const { startDate: todayStart, endDate: todayEnd } = getDateRange(1);
@@ -650,6 +672,48 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
               View Manifest ({manifestTotal})
             </Button>
           </div>
+        </div>
+
+        {/* Courier daily summary (delivered/total/otd) */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-blue-900 dark:text-white">Courier Summary (Today)</h3>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant={courierSummarySort==='best'?'default':'outline'} onClick={()=>setCourierSummarySort('best')}>Best</Button>
+              <Button size="sm" variant={courierSummarySort==='worst'?'default':'outline'} onClick={()=>setCourierSummarySort('worst')}>Worst</Button>
+              <Button size="sm" variant="outline" onClick={()=> { setSortOption('completed'); setSortOrder(courierSummarySort==='best'?'desc':'asc'); onTabChange('couriers'); }}>View All</Button>
+            </div>
+          </div>
+          {courierDailySummary.length === 0 ? (
+            <p className="text-sm text-gray-500">No data today.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {courierDailySummary
+                .sort((a,b)=> courierSummarySort==='best' ? b.otd - a.otd : a.otd - b.otd)
+                .slice(0,12)
+                .map(c => (
+                <div key={c.id} className="rounded-lg border border-blue-100 dark:border-gray-700 p-3 flex items-center justify-between hover:bg-blue-50/40 dark:hover:bg-blue-900/20 transition">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-blue-900 dark:text-white truncate">{c.name}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">Delivered {c.delivered} / {c.total}</div>
+                    {c.lastAwbs.length>0 && (
+                      <div className="text-[11px] text-gray-500 mt-1">
+                        Last AWB:
+                        <span className="ml-1 font-mono">{c.lastAwbs.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-green-600 dark:text-green-400">{c.otd}%</div>
+                    <Button size="sm" variant="outline" className="mt-1 text-xs"
+                      onClick={() => { setSelectedCourier(c.id); onTabChange('shipments'); }}>
+                      View
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Mobile Live Activity Section - only visible on mobile */}

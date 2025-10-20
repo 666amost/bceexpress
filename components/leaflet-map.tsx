@@ -1,11 +1,15 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabaseClient } from '@/lib/auth'
 import React from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js';
+import 'leaflet.heat';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+// Marker clustering for performance when many couriers
+import 'leaflet.markercluster';
 
 interface IconPrototype extends L.Icon.Default {
   _getIconUrl?: string;
@@ -25,6 +29,28 @@ interface Courier {
   name: string;
 }
 
+interface ShipmentHistoryLocation {
+  awb_number: string;
+  status?: string | null;
+  created_at: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string | null;
+  location?: string | null;
+}
+
+interface CourierRouteSummary {
+  awbNumber: string;
+  deliveredAt: string;
+  // Coordinates can be missing if no history row stored lat/lng for this AWB
+  latitude?: number;
+  longitude?: number;
+  locationLabel?: string;
+  notes?: string;
+  receiverName?: string;
+  receiverAddress?: string;
+}
+
 // Fix for default icon issues with Leaflet and Webpack/Next.js
 delete (L.Icon.Default.prototype as IconPrototype)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -36,14 +62,15 @@ L.Icon.Default.mergeOptions({
 // Define default coordinates
 const DEFAULT_LAT = -6.1791898249760635;
 const DEFAULT_LNG = 106.71296491328197;
+const INACTIVITY_MINUTES_GLOBAL = Number(process.env.NEXT_PUBLIC_COURIER_INACTIVE_MINUTES ?? '30');
 
 // Define a custom icon for couriers using L.divIcon
-const createCourierIcon = (courierName: string) => {
+const createCourierIcon = (courierName: string, borderColor: string) => {
   const imageUrl = '/leaflet/images/courier_map.png'; // Corrected path
   return L.divIcon({
     html: `
       <div class="courier-marker-container">
-        <div class="courier-marker-icon">
+        <div class="courier-marker-icon" style="border-color:${borderColor};">
           <img src="${imageUrl}" alt="${courierName}" />
         </div>
         <div class="courier-marker-label">${courierName}</div>
@@ -79,6 +106,14 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
 
   const mapRef = React.useRef<L.Map | null>(null)
   const markersRef = React.useRef<Record<string, L.Marker>>({})
+  const clusterGroupRef = React.useRef<L.MarkerClusterGroup | null>(null)
+  const pathLayerRef = React.useRef<L.LayerGroup | null>(null)
+  const activeCourierIdRef = React.useRef<string | null>(null)
+  const playbackLayerRef = React.useRef<L.LayerGroup | null>(null)
+  const playbackTimerRef = React.useRef<number | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState<string>("")
+  const heatLayerRef = React.useRef<L.Layer | null>(null)
+  const [clusterEnabled, setClusterEnabled] = React.useState<boolean>(true)
 
   // Add CSS styles to the document head for better marker rendering
   React.useEffect(() => {
@@ -94,7 +129,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         background-color: white;
         border-radius: 50%;
         padding: 4px;
-        border: 2px solid #3b82f6;
+        border: 2px solid #3b82f6; /* overridden inline by freshness color */
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         width: 40px;
         height: 40px;
@@ -129,6 +164,96 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
       .leaflet-marker-icon {
         filter: drop-shadow(0 0 1px rgba(0,0,0,0.5));
       }
+      .courier-path-line {
+        stroke-dasharray: 12 10;
+        animation: courier-path-dash 1.2s linear infinite;
+      }
+      @keyframes courier-path-dash {
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: 44; }
+      }
+      .courier-path-origin {
+        filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.5));
+      }
+      .courier-popup {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        min-width: 200px;
+        max-width: 100%;
+      }
+      .courier-popup__title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 4px;
+        color: #1d4ed8;
+      }
+      .courier-popup__subtitle {
+        font-size: 0.75rem;
+        color: #374151;
+        margin-bottom: 6px;
+      }
+      .courier-popup__coords {
+        font-size: 0.72rem;
+        color: #4b5563;
+        margin-bottom: 6px;
+      }
+      .courier-popup__section {
+        background: rgba(59, 130, 246, 0.08);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        border-radius: 6px;
+        padding: 6px;
+        margin-bottom: 6px;
+      }
+      .courier-popup__section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #1d4ed8;
+        margin-bottom: 4px;
+      }
+      .courier-popup__awb {
+        font-family: 'Roboto Mono', 'Courier New', monospace;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #111827;
+      }
+      .courier-popup__meta {
+        font-size: 0.72rem;
+        color: #374151;
+        line-height: 1.25;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .courier-popup__hint {
+        font-size: 0.7rem;
+        color: #2563eb;
+        font-weight: 600;
+        margin-top: 4px;
+      }
+      .courier-popup__note {
+        font-size: 0.7rem;
+        color: #1f2937;
+        margin-top: 4px;
+        line-height: 1.25;
+        white-space: normal;
+        word-break: break-word;
+      }
+      .courier-popup__empty {
+        font-size: 0.72rem;
+        color: #6b7280;
+        margin-top: 4px;
+      }
+      /* Make Leaflet popup wrapper responsive */
+      .leaflet-popup-content-wrapper {
+        max-width: 320px;
+        border-radius: 10px;
+      }
+      .leaflet-popup-content {
+        margin: 8px 10px;
+      }
+      @media (max-width: 640px) {
+        .leaflet-popup-content-wrapper { max-width: 84vw; }
+        .courier-popup { min-width: 0; }
+      }
     `;
     document.head.appendChild(style);
     
@@ -145,8 +270,9 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
   ], []);
 
   const processLocations = React.useCallback(async (locations: Location[], couriers: Courier[]) => {
-    // Define an inactivity threshold (e.g., 30 minutes for active couriers - diperpanjang)
-    const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+    // Inactivity threshold (minutes) can be configured via NEXT_PUBLIC_COURIER_INACTIVE_MINUTES, default 30
+    const INACTIVITY_MINUTES = Number(process.env.NEXT_PUBLIC_COURIER_INACTIVE_MINUTES ?? '30');
+    const INACTIVITY_THRESHOLD_MS = Math.max(1, INACTIVITY_MINUTES) * 60 * 1000;
     const currentTime = Date.now();
 
     // Filter out locations older than the inactivity threshold and map to include courier names
@@ -307,6 +433,41 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     return intervalId;
   }, [fetchCourierLocations]);
 
+  const fetchHeatmapPoints = React.useCallback(async (): Promise<Array<[number, number, number]>> => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabaseClient
+      .from('shipment_history')
+      .select('latitude, longitude, created_at')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .gte('created_at', twoHoursAgo)
+      .order('created_at', { ascending: true })
+      .limit(2000);
+    if (error || !data) return [];
+    const now = Date.now();
+    return (data as Array<{latitude:number; longitude:number; created_at:string}>).map(r => {
+      const t = new Date(r.created_at).getTime();
+      const ageMin = Math.max(0, (now - t) / 60000);
+      const weight = Math.max(0.3, 1 - ageMin / 120);
+      return [r.latitude as number, r.longitude as number, weight];
+    });
+  }, []);
+
+  const toggleHeatmap = React.useCallback(async () => {
+    if (!mapRef.current) return;
+    if (heatLayerRef.current) {
+      mapRef.current.removeLayer(heatLayerRef.current);
+      heatLayerRef.current = null;
+      return;
+    }
+    const pts = await fetchHeatmapPoints();
+    if (pts.length === 0) return;
+  const heat = (L as unknown as { heatLayer: (points: Array<[number, number, number]>, options: Record<string, unknown>) => L.Layer }).heatLayer;
+  const hl = heat(pts, { radius: 18, blur: 16, maxZoom: 17, minOpacity: 0.25, gradient: {0.2:'#93c5fd',0.5:'#3b82f6',0.8:'#1d4ed8',1:'#0b3ea1'} });
+    hl.addTo(mapRef.current);
+    heatLayerRef.current = hl;
+  }, [fetchHeatmapPoints]);
+
   // Fungsi untuk membersihkan semua marker
   const clearAllMarkers = React.useCallback(() => {
     if (mapRef.current) {
@@ -316,6 +477,367 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
       markersRef.current = {};
     }
   }, []);
+
+  const escapeHtml = React.useCallback((value: string): string => {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }, []);
+
+  const getFreshnessBorderColor = React.useCallback((updatedAtIso: string): string => {
+    const t = new Date(updatedAtIso).getTime();
+    const diffMin = Math.max(0, Math.floor((Date.now() - t) / 60000));
+    if (diffMin <= 5) return '#10b981'; // green
+    if (diffMin <= INACTIVITY_MINUTES_GLOBAL) return '#f59e0b'; // amber (<= inactive threshold)
+    return '#9ca3af'; // gray (should be filtered out but keep safe default)
+  }, []);
+
+  const formatTimestamp = React.useCallback((isoDate: string | null | undefined): string => {
+    if (!isoDate) {
+      return '-';
+    }
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) {
+      return '-';
+    }
+    return date.toLocaleString('id-ID', {
+      hour12: false,
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, []);
+
+  const formatRelativeMinutes = React.useCallback((isoDate: string | null | undefined): string => {
+    if (!isoDate) return '-';
+    const now = Date.now();
+    const t = new Date(isoDate).getTime();
+    if (Number.isNaN(t)) return '-';
+    const diffMin = Math.max(0, Math.floor((now - t) / 60000));
+    if (diffMin < 1) return 'baru saja';
+    if (diffMin < 60) return `${diffMin} menit yang lalu`;
+    const hours = Math.floor(diffMin / 60);
+    const minutes = diffMin % 60;
+    return minutes === 0 ? `${hours} jam yang lalu` : `${hours} jam ${minutes} menit yang lalu`;
+  }, []);
+
+  const getDefaultPopupContent = React.useCallback((location: CourierLocation): string => {
+    const courierName = escapeHtml(location.courier_name ?? 'Kurir');
+    const rel = formatRelativeMinutes(location.updated_at);
+    return `
+      <div class="courier-popup">
+        <div class="courier-popup__title">${courierName}</div>
+        <div class="courier-popup__subtitle">Update terakhir ${formatTimestamp(location.updated_at)} · ${rel}</div>
+        <div class="courier-popup__coords">Lat ${location.latitude.toFixed(4)}, Lng ${location.longitude.toFixed(4)}</div>
+        <div class="courier-popup__hint">Klik marker untuk perjalanan & AWB terakhir. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+      </div>
+    `;
+  }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
+
+  const getLoadingPopupContent = React.useCallback((courierName: string): string => {
+    return `
+      <div class="courier-popup">
+        <div class="courier-popup__title">${escapeHtml(courierName)}</div>
+        <div class="courier-popup__meta">Memuat perjalanan terakhir...</div>
+      </div>
+    `;
+  }, [escapeHtml]);
+
+  const getNoHistoryPopupContent = React.useCallback((location: CourierLocation): string => {
+    const base = getDefaultPopupContent(location).replace('Klik marker untuk perjalanan & AWB terakhir.', 'Belum ada histori perjalanan dengan lokasi.');
+    return base;
+  }, [getDefaultPopupContent]);
+
+  const getLatestAwbPopupContent = React.useCallback((location: CourierLocation, summary: CourierRouteSummary): string => {
+    // Popup when latest delivered AWB has no lat/lng yet; still show AWB details but no path
+    const courierName = escapeHtml(location.courier_name ?? 'Kurir');
+    const deliveredAt = formatTimestamp(summary.deliveredAt);
+    const rel = formatRelativeMinutes(location.updated_at);
+    const receiverBlock = summary.receiverName
+      ? `<div class="courier-popup__meta">Penerima: ${escapeHtml(summary.receiverName)}${summary.receiverAddress ? `, ${escapeHtml(summary.receiverAddress)}` : ''}</div>`
+      : '';
+    const notesBlock = summary.notes ? `<div class="courier-popup__note">Catatan: ${escapeHtml(summary.notes)}</div>` : '';
+
+    return `
+      <div class="courier-popup">
+        <div class="courier-popup__title">${courierName}</div>
+        <div class="courier-popup__subtitle">Update terakhir ${formatTimestamp(location.updated_at)} · ${rel}</div>
+        <div class="courier-popup__coords">Lat ${location.latitude.toFixed(4)}, Lng ${location.longitude.toFixed(4)}</div>
+        <div class="courier-popup__section">
+          <div class="courier-popup__section-title">AWB selesai terbaru</div>
+          <div class="courier-popup__awb">${escapeHtml(summary.awbNumber)}</div>
+          <div class="courier-popup__meta">Selesai: ${deliveredAt}</div>
+          ${receiverBlock}
+          ${notesBlock}
+          <div class="courier-popup__empty">Belum ada titik lokasi pada histori AWB ini.</div>
+        </div>
+        <div class="courier-popup__hint">Klik marker lagi untuk menutup. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+      </div>
+    `;
+  }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
+
+  const getRoutePopupContent = React.useCallback((location: CourierLocation, route: CourierRouteSummary): string => {
+    const courierName = escapeHtml(location.courier_name ?? 'Kurir');
+    const deliveredAt = formatTimestamp(route.deliveredAt);
+    const rel = formatRelativeMinutes(location.updated_at);
+    const routeLocation = route.locationLabel ? `<div class="courier-popup__meta">Lokasi: ${escapeHtml(route.locationLabel)}</div>` : '';
+    const receiverBlock = route.receiverName
+      ? `<div class="courier-popup__meta">Penerima: ${escapeHtml(route.receiverName)}${route.receiverAddress ? `, ${escapeHtml(route.receiverAddress)}` : ''}</div>`
+      : '';
+    const notesBlock = route.notes ? `<div class="courier-popup__note">Catatan: ${escapeHtml(route.notes)}</div>` : '';
+
+    return `
+      <div class="courier-popup">
+        <div class="courier-popup__title">${courierName}</div>
+        <div class="courier-popup__subtitle">Update terakhir ${formatTimestamp(location.updated_at)} · ${rel}</div>
+        <div class="courier-popup__coords">Lat ${location.latitude.toFixed(4)}, Lng ${location.longitude.toFixed(4)}</div>
+        <div class="courier-popup__section">
+          <div class="courier-popup__section-title">AWB selesai terbaru</div>
+          <div class="courier-popup__awb">${escapeHtml(route.awbNumber)}</div>
+          <div class="courier-popup__meta">Selesai: ${deliveredAt}</div>
+          ${routeLocation}
+          ${receiverBlock}
+          ${notesBlock}
+        </div>
+        <div class="courier-popup__hint">Klik marker lagi untuk sembunyikan perjalanan. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+      </div>
+    `;
+  }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
+
+  const clearPathLayer = React.useCallback(() => {
+    if (pathLayerRef.current) {
+      pathLayerRef.current.remove();
+      pathLayerRef.current = null;
+    }
+  }, []);
+
+  // wireReplayButton is defined after startPlayback; placeholder will be replaced below
+
+  const clearPlayback = React.useCallback(() => {
+    if (playbackTimerRef.current) {
+      window.clearInterval(playbackTimerRef.current);
+      playbackTimerRef.current = null;
+    }
+    if (playbackLayerRef.current) {
+      playbackLayerRef.current.remove();
+      playbackLayerRef.current = null;
+    }
+  }, []);
+
+  const fetchCourierPlaybackPoints = React.useCallback(async (courierId: string): Promise<Array<{lat:number; lng:number}>> => {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data, error } = await supabaseClient
+      .from('shipment_history')
+      .select('latitude, longitude, created_at')
+      .eq('courier_id', courierId)
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .gte('created_at', thirtyMinAgo)
+      .order('created_at', { ascending: true })
+      .limit(10);
+  if (error || !data) return [];
+  return (data as Array<{latitude:number; longitude:number}>).map((r) => ({ lat: r.latitude as number, lng: r.longitude as number }));
+  }, []);
+
+  const startPlayback = React.useCallback(async (courierId: string) => {
+    if (!mapRef.current) return;
+    clearPlayback();
+    const pts = await fetchCourierPlaybackPoints(courierId);
+    if (!pts || pts.length < 2) return;
+    const layer = L.layerGroup();
+    const line = L.polyline(pts.map(p => [p.lat, p.lng]) as L.LatLngExpression[], { color: '#10b981', weight: 3, opacity: 0.8 });
+    line.addTo(layer);
+    const mover = L.circleMarker([pts[0].lat, pts[0].lng], { radius: 6, color: '#10b981', fillColor: '#a7f3d0', fillOpacity: 0.9 });
+    mover.addTo(layer);
+    layer.addTo(mapRef.current);
+    playbackLayerRef.current = layer;
+    let i = 1;
+    playbackTimerRef.current = window.setInterval(() => {
+      if (i >= pts.length) {
+        clearPlayback();
+        return;
+      }
+      mover.setLatLng([pts[i].lat, pts[i].lng]);
+      i += 1;
+    }, 900);
+    // Fit view to playback line
+    mapRef.current.fitBounds(line.getBounds().pad(0.25));
+  }, [clearPlayback, fetchCourierPlaybackPoints]);
+
+  const wireReplayButton = React.useCallback((marker: L.Marker, courierId: string) => {
+    const popupEl = marker.getPopup()?.getElement();
+    if (popupEl) {
+      const btn = popupEl.querySelector<HTMLButtonElement>('button.replay-btn');
+      if (btn) {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          startPlayback(courierId);
+        };
+      }
+    }
+  }, [startPlayback]);
+
+  const fetchCourierRecentPath = React.useCallback(async (courierId: string): Promise<CourierRouteSummary | null> => {
+    try {
+      const { data: deliveredShipments, error: shipmentsError } = await supabaseClient
+        .from('shipments')
+        .select('awb_number, receiver_name, receiver_address, updated_at, current_status')
+        .eq('courier_id', courierId)
+        // Case-insensitive status filter to avoid mismatch (e.g., Delivered/delivered)
+        .in('current_status', ['delivered', 'Delivered', 'DELIVERED'])
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (shipmentsError || !deliveredShipments || deliveredShipments.length === 0) {
+        return null;
+      }
+
+      const shipment = deliveredShipments[0];
+      if (!shipment) {
+        return null;
+      }
+
+      // Try to find the latest history row WITH coordinates for this AWB
+      const { data: historyRows, error: historyError } = await supabaseClient
+        .from('shipment_history')
+        .select('awb_number, status, created_at, latitude, longitude, notes, location')
+        .eq('awb_number', shipment.awb_number)
+        .order('created_at', { ascending: false })
+        .limit(20); // check up to 20 recent entries to locate coordinates if exist
+
+      if (historyError || !historyRows || historyRows.length === 0) {
+        // Return summary WITHOUT coordinates so UI can still show the correct latest AWB
+        return {
+          awbNumber: shipment.awb_number,
+          deliveredAt: shipment.updated_at,
+          receiverName: shipment.receiver_name ?? undefined,
+          receiverAddress: shipment.receiver_address ?? undefined,
+        };
+      }
+
+      // Pick the first row that has lat/lng; otherwise fallback to first row (no coords)
+      const historyEntryWithCoords = (historyRows as ShipmentHistoryLocation[]).find(h => h.latitude != null && h.longitude != null);
+      const topEntry = historyEntryWithCoords ?? (historyRows[0] as ShipmentHistoryLocation);
+
+      return {
+        awbNumber: shipment.awb_number,
+        deliveredAt: topEntry.created_at,
+        latitude: topEntry.latitude ?? undefined,
+        longitude: topEntry.longitude ?? undefined,
+        locationLabel: topEntry.location ?? undefined,
+        notes: topEntry.notes ?? undefined,
+        receiverName: shipment.receiver_name ?? undefined,
+        receiverAddress: shipment.receiver_address ?? undefined,
+      };
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  const handleCourierMarkerClick = React.useCallback(async (location: CourierLocation) => {
+    const courierId = location.courier_id;
+    const marker = markersRef.current[courierId];
+    if (!marker) {
+      return;
+    }
+
+    if (activeCourierIdRef.current === courierId) {
+      clearPathLayer();
+      clearPlayback();
+      activeCourierIdRef.current = null;
+      marker.setPopupContent(getDefaultPopupContent(location));
+      marker.openPopup();
+      wireReplayButton(marker, courierId);
+      return;
+    }
+
+    activeCourierIdRef.current = courierId;
+
+    const courierName = location.courier_name ?? 'Kurir';
+    if (!marker.getPopup()) {
+      marker.bindPopup(getLoadingPopupContent(courierName));
+    } else {
+      marker.setPopupContent(getLoadingPopupContent(courierName));
+    }
+    marker.openPopup();
+
+    const routeSummary = await fetchCourierRecentPath(courierId);
+
+    if (activeCourierIdRef.current !== courierId) {
+      return;
+    }
+
+    clearPathLayer();
+
+    if (!mapRef.current) {
+      marker.setPopupContent(getDefaultPopupContent(location));
+      marker.openPopup();
+      wireReplayButton(marker, courierId);
+      return;
+    }
+
+    if (!routeSummary) {
+      marker.setPopupContent(getNoHistoryPopupContent(location));
+      marker.openPopup();
+      return;
+    }
+
+    // If the latest AWB has no coordinates, just show its info without drawing a path
+    if (routeSummary.latitude == null || routeSummary.longitude == null) {
+      marker.setPopupContent(getLatestAwbPopupContent(location, routeSummary));
+      marker.openPopup();
+      if (mapRef.current) {
+        // nudge view a bit to keep popup fully visible
+        const currentCenter = mapRef.current.getCenter();
+        mapRef.current.panTo(currentCenter, { animate: true });
+      }
+      wireReplayButton(marker, courierId);
+      return;
+    }
+
+    const pathGroup = L.layerGroup();
+    const routePoints: L.LatLngExpression[] = [
+      [routeSummary.latitude, routeSummary.longitude],
+      [location.latitude, location.longitude],
+    ];
+
+    const pathLine = L.polyline(routePoints, {
+      color: '#2563eb',
+      weight: 4,
+      opacity: 0.85,
+      dashArray: '12 10',
+      className: 'courier-path-line',
+    });
+    pathLine.addTo(pathGroup);
+
+    const originMarker = L.circleMarker([routeSummary.latitude, routeSummary.longitude], {
+      radius: 8,
+      color: '#1d4ed8',
+      weight: 2,
+      fillColor: '#bfdbfe',
+      fillOpacity: 0.95,
+      className: 'courier-path-origin',
+    });
+    originMarker.bindTooltip(`AWB ${escapeHtml(routeSummary.awbNumber)}`, { direction: 'top' });
+    originMarker.addTo(pathGroup);
+
+    pathGroup.addTo(mapRef.current);
+    pathLayerRef.current = pathGroup;
+
+    const bounds = L.latLngBounds(routePoints);
+    mapRef.current.fitBounds(bounds.pad(0.3));
+
+    marker.setPopupContent(getRoutePopupContent(location, routeSummary));
+    marker.openPopup();
+    // Wire replay button
+    wireReplayButton(marker, courierId);
+  // Ensure popup stays in view on small screens
+  mapRef.current.fitBounds(L.latLngBounds(routePoints).pad(0.25), { animate: true, padding: [32, 48] as unknown as L.PointExpression });
+  }, [clearPathLayer, escapeHtml, fetchCourierRecentPath, getDefaultPopupContent, getLoadingPopupContent, getNoHistoryPopupContent, getRoutePopupContent, getLatestAwbPopupContent, clearPlayback, wireReplayButton]);
 
   React.useEffect(() => {
     // Clean up existing map if it exists
@@ -328,15 +850,94 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     // Initialize map with new default coordinates
     mapRef.current = L.map('map-container', {
       attributionControl: true,
-      zoomControl: true,
+      zoomControl: false,
       minZoom: 5,
       maxZoom: 18,
     }).setView([DEFAULT_LAT, DEFAULT_LNG], 10);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
+      attribution: '© OpenStreetMap contributors · Leaflet × Amos',
       maxZoom: 18,
     }).addTo(mapRef.current);
+
+    // Add custom zoom control where '-' fits to all markers
+    const ZoomControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: () => {
+        const container = L.DomUtil.create('div', 'leaflet-bar');
+        const btnIn = L.DomUtil.create('a', '', container);
+        btnIn.innerHTML = '+';
+        btnIn.title = 'Zoom in';
+        btnIn.href = '#';
+        const btnOut = L.DomUtil.create('a', '', container);
+        btnOut.innerHTML = '−';
+        btnOut.title = 'Zoom out (fit)';
+        btnOut.href = '#';
+        L.DomEvent.on(btnIn, 'click', (e: Event) => {
+          L.DomEvent.stop(e);
+          mapRef.current?.zoomIn();
+        });
+        L.DomEvent.on(btnOut, 'click', (e: Event) => {
+          L.DomEvent.stop(e);
+          if (!mapRef.current) return;
+          const markers = Object.values(markersRef.current);
+          const b = new L.LatLngBounds([]);
+          markers.forEach(m => b.extend(m.getLatLng()));
+          if (markers.length > 0 && b.isValid()) {
+            mapRef.current.fitBounds(b.pad(0.2));
+          } else {
+            mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
+          }
+        });
+        return container;
+      }
+    });
+    new ZoomControl().addTo(mapRef.current);
+
+    // Add heatmap toggle control
+    const HeatControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: () => {
+        const container = L.DomUtil.create('div', 'leaflet-bar');
+        const btn = L.DomUtil.create('a', '', container);
+        btn.innerHTML = '🔥';
+        btn.title = 'Toggle Heatmap (2 jam)';
+        btn.href = '#';
+        L.DomEvent.on(btn, 'click', async (e: Event) => {
+          L.DomEvent.stop(e);
+          await toggleHeatmap();
+        });
+        return container;
+      }
+    });
+    new HeatControl().addTo(mapRef.current);
+
+    // Prepare cluster group
+    clusterGroupRef.current = L.markerClusterGroup({
+      disableClusteringAtZoom: 16,
+      maxClusterRadius: 60,
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true
+    });
+    clusterGroupRef.current.addTo(mapRef.current);
+
+    // Add cluster toggle control (CL)
+    const ClusterControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: () => {
+        const container = L.DomUtil.create('div', 'leaflet-bar');
+        const btn = L.DomUtil.create('a', '', container);
+        btn.innerHTML = 'CL';
+        btn.title = 'Toggle Clustering';
+        btn.href = '#';
+        L.DomEvent.on(btn, 'click', (e: Event) => {
+          L.DomEvent.stop(e);
+          setClusterEnabled((prev) => !prev);
+        });
+        return container;
+      }
+    });
+    new ClusterControl().addTo(mapRef.current);
 
     // Initial fetch
     fetchCourierLocations();
@@ -356,6 +957,13 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         supabaseClient.removeChannel(supabaseClient.channel(`realtime-${tableName}`));
       });
       
+      clearPathLayer();
+      activeCourierIdRef.current = null;
+      if (heatLayerRef.current && mapRef.current) {
+        mapRef.current.removeLayer(heatLayerRef.current);
+        heatLayerRef.current = null;
+      }
+      
       // Clean up map if needed
       if (mapRef.current) {
         clearAllMarkers();
@@ -363,15 +971,21 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         mapRef.current = null;
       }
     };
-  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers]);
+  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers, clearPathLayer, clearPlayback, toggleHeatmap]);
 
   React.useEffect(() => {
-    if (mapRef.current) {
+      if (mapRef.current) {
       // Clear existing markers
-      Object.values(markersRef.current).forEach(marker => {
-        mapRef.current?.removeLayer(marker);
-      });
+      if (clusterGroupRef.current) {
+        clusterGroupRef.current.clearLayers();
+      } else {
+        Object.values(markersRef.current).forEach(marker => {
+          mapRef.current?.removeLayer(marker);
+        });
+      }
       markersRef.current = {};
+      clearPathLayer();
+      activeCourierIdRef.current = null;
 
       let bounds = new L.LatLngBounds([]);
 
@@ -399,26 +1013,34 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
           const jitteredLat = loc.latitude + (Math.random() - 0.5) * jitter;
           const jitteredLng = loc.longitude + (Math.random() - 0.5) * jitter;
           
+          const borderColor = getFreshnessBorderColor(loc.updated_at);
           const newMarker = L.marker([jitteredLat, jitteredLng], { 
-            icon: createCourierIcon(loc.courier_name || 'Kurir'),
+            icon: createCourierIcon(loc.courier_name || 'Kurir', borderColor),
             riseOnHover: true, // Rise above other markers on hover
             zIndexOffset: 1000 // Ensure higher z-index
-          }).bindPopup(`
-            <div style="text-align: center;">
-              <b>${loc.courier_name}</b><br>
-              <span style="font-size: 0.8rem;">Lat: ${loc.latitude.toFixed(4)}<br>
-              Lon: ${loc.longitude.toFixed(4)}</span><br>
-              <span style="font-size: 0.8rem; color: #666;">
-                ${new Date(loc.updated_at).toLocaleTimeString()}
-              </span>
-            </div>
-          `);
-          
-          newMarker.addTo(mapRef.current!);
-          
-          // Add click listener to zoom in on the marker
+          });
+
+          newMarker.bindPopup(getDefaultPopupContent(loc), {
+            autoPan: true,
+            autoPanPadding: L.point(24, 24),
+            closeButton: true,
+            maxWidth: 360,
+            keepInView: true,
+          });
+          if (clusterGroupRef.current) {
+            clusterGroupRef.current.addLayer(newMarker);
+          } else {
+            newMarker.addTo(mapRef.current!);
+          }
+
+          // Add click listener to toggle detailed route
           newMarker.on('click', () => {
-            mapRef.current?.setView([loc.latitude, loc.longitude], 15); // Zoom to level 15
+            // On mobile, pan a bit above marker so popup isn't cut off
+            if (mapRef.current) {
+              const targetZoom = Math.max(mapRef.current.getZoom(), 15);
+              mapRef.current.setView([loc.latitude, loc.longitude], targetZoom, { animate: true });
+            }
+            handleCourierMarkerClick(loc);
           });
 
           markersRef.current[loc.courier_id] = newMarker;
@@ -434,9 +1056,58 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
       }
     }
-  }, [courierLocations]); // Rerun when courierLocations changes
+  }, [clearPathLayer, courierLocations, getDefaultPopupContent, handleCourierMarkerClick, getFreshnessBorderColor, clusterEnabled]); // Rerun when courierLocations or cluster setting changes
+
+  // React to cluster toggle by attaching/removing cluster layer
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    if (clusterEnabled) {
+      if (!clusterGroupRef.current) {
+        clusterGroupRef.current = L.markerClusterGroup({
+          disableClusteringAtZoom: 16,
+          maxClusterRadius: 60,
+          showCoverageOnHover: false,
+          spiderfyOnMaxZoom: true
+        });
+        clusterGroupRef.current.addTo(mapRef.current);
+      }
+    } else if (clusterGroupRef.current) {
+      clusterGroupRef.current.clearLayers();
+      mapRef.current.removeLayer(clusterGroupRef.current);
+      clusterGroupRef.current = null;
+    }
+  }, [clusterEnabled]);
 
   return (
-    <div key={mapKey} id="map-container" className="w-full h-full rounded-lg" />
+    <div className="relative w-full h-full">
+      <div key={mapKey} id="map-container" className="w-full h-full rounded-lg" />
+      {/* Search overlay - non intrusive */}
+      <div className="absolute top-2 left-2 z-[1000]">
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Cari kurir (nama/ID)"
+          className="px-3 py-2 text-sm bg-white/90 backdrop-blur rounded-md shadow border border-gray-300 w-[220px] focus:w-[260px] transition-all"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const q = searchQuery.trim().toLowerCase();
+              const found = Object.entries(markersRef.current).find(([id, marker]) => {
+                const loc = courierLocations.find(c => c.courier_id === id);
+                const name = (loc?.courier_name ?? '').toLowerCase();
+                return id.toLowerCase() === q || name.includes(q);
+              });
+              if (found && mapRef.current) {
+                const [id, marker] = found;
+                const loc = courierLocations.find(c => c.courier_id === id);
+                if (loc) {
+                  mapRef.current.setView([loc.latitude, loc.longitude], Math.max(mapRef.current.getZoom(), 15), { animate: true });
+                  marker.openPopup();
+                }
+              }
+            }
+          }}
+        />
+      </div>
+    </div>
   );
 }
