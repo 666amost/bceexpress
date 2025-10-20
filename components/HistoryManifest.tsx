@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 import { normalizeKecamatan } from "../lib/area-codes"
@@ -131,6 +131,8 @@ const kotaWilayahBangka = {
   }
 };
 
+const DEFAULT_HISTORY_DAYS = 3;
+
 interface ManifestData {
   id?: string;
   awb_no: string;
@@ -199,6 +201,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   const [selectedItem, setSelectedItem] = useState<ManifestData | null>(null)
   const [isInitialMount, setIsInitialMount] = useState(true)
   const printFrameRef = useRef<HTMLDivElement>(null)
+  const recentRangeLabel = `Showing last ${DEFAULT_HISTORY_DAYS} days`
 
   const normalizedBranchOrigin = (branchOrigin || '').toString().toLowerCase().trim();
 
@@ -220,6 +223,51 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                        (userRole === 'couriers' && (normalizedBranchOrigin === 'bangka' || normalizedBranchOrigin === 'tanjung_pandan'));
   const targetTable = isCabangTable ? 'manifest_cabang' : 'manifest';
 
+  const fetchRecentData = useCallback(async (options?: { showLoader?: boolean; requestId?: number }) => {
+    const shouldShowLoader = options?.showLoader ?? true;
+    const expectedRequestId = options?.requestId;
+
+    if (shouldShowLoader) {
+      setLoading(true);
+    }
+
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - DEFAULT_HISTORY_DAYS);
+    const recentDateIso = recentDate.toISOString().split('T')[0];
+
+    let query = supabaseClient
+      .from(targetTable)
+      .select('*')
+      .order('awb_date', { ascending: false })
+      .gte('awb_date', recentDateIso);
+
+    if (isCabangTable) {
+      query = query.eq('origin_branch', branchOrigin);
+    }
+
+    const { data: fetchedData, error } = await query;
+
+    if (expectedRequestId !== undefined && expectedRequestId !== requestIdRef.current) {
+      if (shouldShowLoader) {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (error) {
+      console.error('Failed to fetch manifest history', error.message);
+      if (shouldShowLoader) {
+        setLoading(false);
+      }
+      setIsInitialMount(false);
+      return;
+    }
+
+    setData(fetchedData || []);
+    setLoading(false);
+    setIsInitialMount(false);
+  }, [branchOrigin, isCabangTable, targetTable]);
+
   useEffect(() => {
     // Only trigger auto-calculation if we have a selectedItem and it's not the initial mount
     if (!selectedItem || isInitialMount) return;
@@ -233,70 +281,18 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
   }, [selectedItem?.berat_kg, selectedItem?.harga_per_kg, selectedItem?.biaya_admin, selectedItem?.biaya_packaging, selectedItem?.biaya_transit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setLoading(true)
-    // Limit to the last 7 days to keep the query light and table rendering fast
-    const oneWeekAgo = new Date()
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-    const oneWeekAgoIso = oneWeekAgo.toISOString().split('T')[0] // YYYY-MM-DD
-
-    let query
-    if (isCabangTable) {
-      query = supabaseClient
-        .from('manifest_cabang')
-        .select('*')
-        .eq('origin_branch', branchOrigin)
-        .gte('awb_date', oneWeekAgoIso)
-        .order('awb_date', { ascending: false })
-    } else {
-      query = supabaseClient
-        .from('manifest')
-        .select('*')
-        .gte('awb_date', oneWeekAgoIso)
-        .order('awb_date', { ascending: false })
-    }
-
-    query.then(({ data }) => {
-      setData(data || [])
-      setLoading(false)
-      setIsInitialMount(false) // Mark that initial data load is complete
-    })
-  }, [saving, userRole, branchOrigin, isCabangTable])
+    fetchRecentData();
+  }, [fetchRecentData]);
 
   // Function to handle search in entire database
   const handleSearch = async (searchTerm: string) => {
     const currentReq = ++requestIdRef.current
     if (!searchTerm.trim()) {
-      // If search is empty, reset to default view (1 week)
+      // If search is empty, reset to the recent view window
       setIsSearchMode(false)
       setSearching(false)
-      // Don't show loading if we're just clearing search and data already exists
-      if (data.length === 0) setLoading(true)
-      const oneWeekAgo = new Date()
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-      const oneWeekAgoIso = oneWeekAgo.toISOString().split('T')[0]
 
-      let query
-      if (isCabangTable) {
-        query = supabaseClient
-          .from('manifest_cabang')
-          .select('*')
-          .eq('origin_branch', branchOrigin)
-          .gte('awb_date', oneWeekAgoIso)
-          .order('awb_date', { ascending: false })
-      } else {
-        query = supabaseClient
-          .from('manifest')
-          .select('*')
-          .gte('awb_date', oneWeekAgoIso)
-          .order('awb_date', { ascending: false })
-      }
-
-      const { data: fetchedData } = await query
-      // Only apply if this is the latest request
-      if (currentReq === requestIdRef.current) {
-        setData(fetchedData || [])
-        setLoading(false)
-      }
+      await fetchRecentData({ showLoader: data.length === 0, requestId: currentReq });
       return
     }
 
@@ -860,13 +856,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
         alert("Gagal memperbarui data: " + error.message);
       } else {
         alert("Data berhasil diperbarui!");
-        supabaseClient
-          .from(targetTable)
-          .select("*")
-          .order("awb_date", { ascending: false })
-          .then(({ data }) => {
-            setData(data || []);
-          });
+        if (isSearchMode && committedSearch) {
+          await handleSearch(committedSearch);
+        } else {
+          await fetchRecentData({ showLoader: false });
+        }
         setShowEditForm(false);
         setSelectedItem(null);
       }
@@ -1285,7 +1279,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             )}
             {!isSearchMode && !searching && !isTyping && (
               <span className="text-gray-500 dark:text-gray-400 text-xs">
-                Showing last 7 days
+                {recentRangeLabel}
               </span>
             )}
           </div>
@@ -1370,14 +1364,11 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
                                       if (error) {
                                         alert("Gagal menghapus item: " + error.message);
                                       } else {
-                                        setData(data.filter((item) => item.awb_no !== m.awb_no));
-                                        supabaseClient
-                                          .from(targetTable)
-                                          .select("*")
-                                          .order("awb_date", { ascending: false })
-                                          .then(({ data: freshData }) => {
-                                            setData(freshData || []);
-                                          });
+                                        if (isSearchMode && committedSearch) {
+                                          await handleSearch(committedSearch);
+                                        } else {
+                                          await fetchRecentData({ showLoader: false });
+                                        }
                                       }
                                     } catch (err) {
                                       alert("Terjadi kesalahan saat menghapus item.");
@@ -1434,7 +1425,7 @@ export default function HistoryManifest({ mode, userRole, branchOrigin }: Histor
             )}
             {!isSearchMode && !searching && !isTyping && (
               <span className="text-gray-500 dark:text-gray-400 text-xs">
-                Showing last 7 days
+                {recentRangeLabel}
               </span>
             )}
           </div>
