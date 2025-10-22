@@ -1156,12 +1156,13 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
 
       {/* Modal: View Courier Locations (LeafletMap) */}
       <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
-        <DialogContent className="max-w-3xl w-full h-[70vh] p-0 overflow-hidden rounded-lg">
+        <DialogContent className="max-w-3xl w-full h-[70vh] p-0 overflow-hidden rounded-lg" aria-describedby="map-dialog-desc">
           <DialogHeader>
             <DialogTitle className="text-blue-900 dark:text-white font-bold flex items-center gap-2">
               <LocationPointIcon className="h-5 w-5" /> Courier Locations
             </DialogTitle>
           </DialogHeader>
+          <p id="map-dialog-desc" className="sr-only">Peta lokasi kurir dengan fitur cluster, heatmap, dan replay 30 menit.</p>
           <div className="w-full h-[55vh]">
             <LeafletMap />
           </div>
@@ -1173,7 +1174,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
 
       {/* Pending Modal */}
       <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
-        <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] rounded-lg shadow-xl">
+        <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] rounded-lg shadow-xl" aria-describedby="pending-dialog-desc">
           <DialogHeader>
             <DialogTitle className="text-red-600 font-bold flex items-center gap-2">
               <span className="relative">
@@ -1190,6 +1191,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
               )}
             </DialogTitle>
           </DialogHeader>
+          <p id="pending-dialog-desc" className="sr-only">Daftar pengiriman yang belum delivered untuk periode terpilih.</p>
           <div className="overflow-y-auto max-h-[50vh]">
             {pendingShipments.length > 0 ? (
               <div className="space-y-2">

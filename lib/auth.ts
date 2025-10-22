@@ -141,18 +141,26 @@ export async function getCachedSession() {
   return null;
 }
 
-// Create a separate client for server-side operations
-export const supabaseServerClient = createClient(formattedUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'bcexpress-server'
-    }
+// Create a separate client for server-side operations.
+// IMPORTANT: Do NOT create a second client in the browser to avoid the
+// "Multiple GoTrueClient instances" warning. In the browser, alias to supabaseClient.
+export const supabaseServerClient = ((): ReturnType<typeof createClient> => {
+  if (typeof window === 'undefined') {
+    return createClient(formattedUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'bcexpress-server'
+        }
+      }
+    })
   }
-})
+  // Browser: reuse the main client
+  return supabaseClient as unknown as ReturnType<typeof createClient>
+})()
 
 export type UserRole = "courier" | "admin" | "customer" | "branch"
 
