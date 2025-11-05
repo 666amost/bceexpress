@@ -51,7 +51,6 @@
     "@types/leaflet": "^1.9.18",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
-    "@whiskeysockets/baileys": "^6.7.18",
     "@zxing/browser": "^0.1.1",
     "@zxing/library": "^0.21.1",
     "axios": "^1.13.2",
