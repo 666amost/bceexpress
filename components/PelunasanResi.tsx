@@ -232,10 +232,12 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
   }
 
   const handleSelectAll = (checked: boolean) => {
+    const filteredIndexes = new Set(filteredUnpaidData.map(row => row.index))
+    
     setUnpaidData((prevData) =>
       prevData.map((row) => ({
         ...row,
-        selected: checked,
+        selected: filteredIndexes.has(row.index) ? checked : row.selected,
       })),
     )
   }
@@ -343,7 +345,7 @@ export default function PelunasanResi({ userRole, branchOrigin }: { userRole: st
 
   // Calculate the sum of selected items
   const calculateTotalSelected = () => {
-    return unpaidData.filter((row) => row.selected).reduce((sum, row) => sum + Number(row.discountedTotal || 0), 0)
+    return filteredUnpaidData.filter((row) => row.selected).reduce((sum, row) => sum + Number(row.discountedTotal || 0), 0)
   }
 
   // Enhanced downloadXLSXForDate function with guaranteed styling

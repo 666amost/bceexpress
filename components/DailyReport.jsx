@@ -46,6 +46,8 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [unfiltered, setUnfiltered] = useState([]) // State untuk menyimpan data tanpa filter (untuk verifikasi)
   const [selectedDateFrom, setSelectedDateFrom] = useState("") // State baru untuk filter tanggal Dari
   const [selectedDateTo, setSelectedDateTo] = useState("") // State baru untuk filter tanggal Sampai
+  const [tempDateFrom, setTempDateFrom] = useState("") // Temporary state untuk input tanggal Dari
+  const [tempDateTo, setTempDateTo] = useState("") // Temporary state untuk input tanggal Sampai
   const [selectedKirimVia, setSelectedKirimVia] = useState("")  // State untuk filter kirim via
   const [selectedAgentCustomer, setSelectedAgentCustomer] = useState("")  // State untuk filter Agent/Customer
   const [selectedKotaTujuan, setSelectedKotaTujuan] = useState("")  // State baru untuk filter kota tujuan
@@ -61,6 +63,7 @@ export default function DailyReport({ userRole, branchOrigin }) {
   const [paymentBreakdown, setPaymentBreakdown] = useState(null) // Payment breakdown and difference check
   const [awbVerification, setAwbVerification] = useState(null) // AWB verification across area codes
   const [showMissingAwb, setShowMissingAwb] = useState(false) // toggle detail list of missing AWB
+  const [highlightedAwbs, setHighlightedAwbs] = useState(new Set()) // AWBs to highlight in table
 
   // ================== LISTS ==================
 
@@ -459,10 +462,63 @@ export default function DailyReport({ userRole, branchOrigin }) {
     return s;
   }, [verificationActive, data]);
 
+  const problematicAwbList = useMemo(() => {
+    if (!verificationActive) return [];
+    return data.filter((item) => {
+      const key = item.awb_no || JSON.stringify(item);
+      return flaggedPaymentKeys.has(key);
+    }).map(item => ({
+      awb_no: item.awb_no,
+      awb_date: item.awb_date,
+      total: item.total,
+      metode_pembayaran: item.metode_pembayaran
+    }));
+  }, [verificationActive, data, flaggedPaymentKeys]);
+
+  const handleHighlightProblematicAwbs = () => {
+    const awbSet = new Set(problematicAwbList.map(item => item.awb_no || JSON.stringify(item)));
+    setHighlightedAwbs(awbSet);
+    
+    if (problematicAwbList.length > 0) {
+      setTimeout(() => {
+        const firstAwb = problematicAwbList[0];
+        const element = document.getElementById(`awb-row-${firstAwb.awb_no}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  };
+
   // useEffect hook to fetch data on component mount and when filters change
   useEffect(() => {
     fetchDailyReport();
   }, [fetchDailyReport]);
+
+  // Sync temp dates with selected dates when they change externally (like clear filters)
+  useEffect(() => {
+    setTempDateFrom(selectedDateFrom);
+    setTempDateTo(selectedDateTo);
+  }, [selectedDateFrom, selectedDateTo]);
+
+  // Function to apply date filters
+  const handleApplyDateFilter = () => {
+    setSelectedDateFrom(tempDateFrom);
+    setSelectedDateTo(tempDateTo);
+  };
+
+  // Function to clear all filters
+  const handleClearAllFilters = () => {
+    setSelectedDateFrom("");
+    setSelectedDateTo("");
+    setTempDateFrom("");
+    setTempDateTo("");
+    setSelectedKirimVia("");
+    setSelectedAgentCustomer("");
+    setSelectedKotaTujuan("");
+    setSelectedWilayah("");
+    setSelectedAreaCode("");
+  };
 
   // Reset area code untuk central mode (non-branch)
   useEffect(() => {
@@ -846,9 +902,28 @@ export default function DailyReport({ userRole, branchOrigin }) {
       <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-4">Daily Report</h2>
       <div className="mb-4 flex flex-wrap items-center gap-2 no-print">
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Date From:</label>
-        <input type="date" value={selectedDateFrom} onChange={(e) => setSelectedDateFrom(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400" />
+        <input 
+          type="date" 
+          value={tempDateFrom} 
+          onChange={(e) => setTempDateFrom(e.target.value)} 
+          onKeyDown={(e) => e.key === 'Enter' && handleApplyDateFilter()}
+          className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400" 
+        />
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Date To:</label>
-        <input type="date" value={selectedDateTo} onChange={(e) => setSelectedDateTo(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400" />
+        <input 
+          type="date" 
+          value={tempDateTo} 
+          onChange={(e) => setTempDateTo(e.target.value)} 
+          onKeyDown={(e) => e.key === 'Enter' && handleApplyDateFilter()}
+          className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400" 
+        />
+        <button 
+          onClick={handleApplyDateFilter}
+          disabled={loading}
+          className="px-3 py-1 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Loading...' : 'Cari'}
+        </button>
         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Kirim Via:</label>
         <select value={selectedKirimVia} onChange={(e) => setSelectedKirimVia(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400">
           <option value="">Semua</option>
@@ -937,12 +1012,13 @@ export default function DailyReport({ userRole, branchOrigin }) {
             onClick={() => {
               setSelectedDateFrom("");
               setSelectedDateTo("");
+              setTempDateFrom("");
+              setTempDateTo("");
               setSelectedKirimVia("");
               setSelectedAgentCustomer("");
               setSelectedKotaTujuan("");
               setSelectedWilayah("");
               setSelectedAreaCode("");
-              // Reset verification results
               setPaymentBreakdown(null);
               setAwbVerification(null);
             }}
@@ -968,8 +1044,18 @@ export default function DailyReport({ userRole, branchOrigin }) {
         <>
           <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 rounded shadow sm:overflow-visible border border-gray-200 dark:border-gray-700">
             {verificationActive && paymentBreakdown && paymentBreakdown.hasMismatch && (
-              <div className="mb-2 p-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 rounded">
-                Baris yang ditandai menandakan total &gt; 0 namun metode pembayaran kosong/unknown. Perbaiki metode pembayaran pada baris tersebut.
+              <div className="mb-2 p-2 text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 rounded flex justify-between items-center">
+                <span>
+                  Baris yang ditandai menandakan total &gt; 0 namun metode pembayaran kosong/unknown. Perbaiki metode pembayaran pada baris tersebut.
+                </span>
+                {highlightedAwbs.size > 0 && (
+                  <button
+                    onClick={() => setHighlightedAwbs(new Set())}
+                    className="ml-2 px-2 py-1 bg-gray-600 dark:bg-gray-700 text-white rounded hover:bg-gray-700 dark:hover:bg-gray-800 text-xs transition-colors"
+                  >
+                    Hapus Highlight
+                  </button>
+                )}
               </div>
             )}
             <table className="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
@@ -995,8 +1081,17 @@ export default function DailyReport({ userRole, branchOrigin }) {
                 {data.map((item, index) => {
                   const rowKey = item.awb_no || `item-${index}`;
                   const isFlagged = flaggedPaymentKeys.has(item.awb_no || JSON.stringify(item));
+                  const isHighlighted = highlightedAwbs.has(item.awb_no || JSON.stringify(item));
                   return (
-                  <tr key={rowKey} className={`${isFlagged ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'even:bg-gray-50 dark:even:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}>
+                  <tr 
+                    key={rowKey} 
+                    id={`awb-row-${item.awb_no}`}
+                    className={`
+                      ${isFlagged ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'even:bg-gray-50 dark:even:bg-gray-700'} 
+                      ${isHighlighted ? 'ring-2 ring-red-500 dark:ring-red-400' : ''}
+                      hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors
+                    `}
+                  >
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">{index + 1}</td>
                     <td className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100">
                       {item.awb_no}
@@ -1080,7 +1175,6 @@ export default function DailyReport({ userRole, branchOrigin }) {
                   const grandTotal = data.reduce((sum, item) => sum + (item.total || 0), 0);
                   const difference = Math.abs(grandTotal - sumPayments);
                   
-                  // Only show if there's a meaningful difference
                   if (difference > 0.01) {
                     return (
                       <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
@@ -1089,10 +1183,23 @@ export default function DailyReport({ userRole, branchOrigin }) {
                             ? `Ada Rp. ${difference.toLocaleString('en-US')} yang tidak tercatat di sumber dana (Cash/Transfer/COD).` 
                             : `Sumber dana (Cash+Transfer+COD) melebihi total sebesar Rp. ${difference.toLocaleString('en-US')}.`
                           }
+                          {problematicAwbList.length > 0 && (
+                            <span className="ml-2">
+                              ({problematicAwbList.length} AWB bermasalah)
+                            </span>
+                          )}
                         </p>
                         <p className="mt-1 text-gray-600 dark:text-gray-400">
                           Mohon periksa pembayaran yang tercatat untuk memastikan semua transaksi memiliki metode pembayaran yang benar.
                         </p>
+                        {problematicAwbList.length > 0 && (
+                          <button
+                            onClick={handleHighlightProblematicAwbs}
+                            className="mt-2 px-3 py-1 bg-yellow-600 dark:bg-yellow-700 text-white rounded hover:bg-yellow-700 dark:hover:bg-yellow-800 text-xs transition-colors"
+                          >
+                            Tampilkan AWB Bermasalah di Tabel
+                          </button>
+                        )}
                       </div>
                     )
                   }
