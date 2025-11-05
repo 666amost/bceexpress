@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabaseClient } from '../../../lib/auth';
+import { isAutoPaidAgent } from '../../../lib/agent-mapping';
 
 interface CustomerHistory {
   nama_pengirim: string;
@@ -413,7 +414,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         catatan: awbData.catatan || `Agent booking: ${currentAgent.email}`,
         origin_branch: currentAgent.branchOrigin,
         status_pelunasan: 'outstanding',
-        buktimembayar: false,
+        buktimembayar: isAutoPaidAgent(awbData.agent_customer),
         potongan: 0
       };
 

@@ -1,5 +1,10 @@
 // Centralized agent lists for branches
 
+// Agents that are automatically marked as paid (cash/COD transactions)
+export const autoPaidAgents: string[] = [
+  "BCE TONI WEN"
+];
+
 export const baseAgentListBangka: string[] = [
   "555 in2 PKP",
   "BELINYU AGEN",

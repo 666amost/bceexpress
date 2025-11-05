@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from "react"
 import { supabaseClient } from "../lib/auth"
-import { getEnhancedAgentList } from "../lib/agent-mapping"
+import { getEnhancedAgentList, isAutoPaidAgent } from "../lib/agent-mapping"
 import { baseAgentListBangka, baseAgentListTanjungPandan, baseAgentListCentral } from "../lib/agents"
 import PrintLayout from "./PrintLayout"
 import CustomerSelector from "./CustomerSelector"
@@ -667,15 +667,27 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
           }, 100);
         }
       } else {
+        const isAutoPaid = isAutoPaidAgent(form.agent_customer);
+        const dataToInsert = { 
+          ...form, 
+          origin_branch: branchOrigin,
+          buktimembayar: isAutoPaid,
+          potongan: 0
+        };
+
         const { error: sbError } = await supabaseClient
           .from('manifest_cabang')
-          .insert([{ ...form, origin_branch: branchOrigin }])
+          .insert([dataToInsert])
 
         if (sbError) {
           setError("Gagal menyimpan data: " + sbError.message)
           return
         } else {
-          setSuccess("Data berhasil disimpan!")
+          if (isAutoPaid) {
+            setSuccess("Data berhasil disimpan! (Auto-paid: BCE TONI WEN)")
+          } else {
+            setSuccess("Data berhasil disimpan!")
+          }
           setTimeout(() => {
             handlePrint(() => {
               setForm({
@@ -723,15 +735,27 @@ export default function BangkaAwbForm({ onSuccess, onCancel, initialData, isEdit
     }
 
     try {
+      const isAutoPaid = isAutoPaidAgent(form.agent_customer);
+      const dataToInsert = { 
+        ...form, 
+        origin_branch: branchOrigin,
+        buktimembayar: isAutoPaid,
+        potongan: 0
+      };
+
       const { error: sbError } = await supabaseClient
         .from('manifest_cabang')
-        .insert([{ ...form, origin_branch: branchOrigin }]);
+        .insert([dataToInsert]);
 
       if (sbError) {
         setError("Gagal menyimpan data: " + sbError.message);
         return;
       } else {
-        setSuccess("Data berhasil disimpan!");
+        if (isAutoPaid) {
+          setSuccess("Data berhasil disimpan! (Auto-paid: BCE TONI WEN)");
+        } else {
+          setSuccess("Data berhasil disimpan!");
+        }
         
         // Tunggu sebentar untuk memastikan PrintLayout ter-render
         setTimeout(async () => {

@@ -106,6 +106,21 @@ export function doesAgentMatch(agentCustomer: string | undefined | null, selecte
 }
 
 /**
+ * Check if an agent should be automatically marked as paid
+ * @param agentCustomer The agent_customer field from the data
+ * @returns true if this agent should be auto-paid
+ */
+export function isAutoPaidAgent(agentCustomer: string | undefined | null): boolean {
+  if (!agentCustomer) return false;
+  
+  const autoPaidAgents = ["BCE TONI WEN"];
+  
+  return autoPaidAgents.some(agent => 
+    agentCustomer.toUpperCase() === agent.toUpperCase()
+  );
+}
+
+/**
  * Get all possible agent identifiers for a given agent name (including mapped emails)
  * This is useful for database queries where you want to include all variations
  * @param agentName The agent name to get identifiers for
