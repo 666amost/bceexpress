@@ -1,5 +1,6 @@
 // app/api/whatsapp/auto-reply/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Add OPTIONS method to handle pre-flight checks
 export async function OPTIONS() {
@@ -34,6 +35,29 @@ interface WahaWebhookBody {
   payload: MessageData;
 }
 
+interface ShipmentData {
+  awb_number: string;
+  current_status: string;
+  notes: string | null;
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  origin: string | null;
+  destination: string | null;
+  created_at: string;
+}
+
+// ================== Supabase Client ==================
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
+  }
+  
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 // ================== Rate Limiting ==================
 // Simple in-memory store for tracking user message counts
 // In production, consider using Redis or database for persistence
@@ -61,11 +85,52 @@ export async function POST(req: NextRequest) {
     }
 
     const { from, fromMe } = body.payload;
+    const messageText = (body.payload.body || '').trim();
     
     // Skip messages from bot or group chats
     if (fromMe || from.endsWith('@g.us')) {
       return NextResponse.json({ ok: true, info: 'Message from bot or group chat, skipped' });
     }
+
+    // Check if message contains AWB number (BCE* or BE*)
+    const awbMatch = messageText.match(/\b(BCE|BE)[A-Z0-9]{8,}\b/i);
+    
+    if (awbMatch) {
+      const awbNumber = awbMatch[0].toUpperCase();
+      
+      try {
+        const shipmentData = await getShipmentByAWB(awbNumber);
+        
+        if (shipmentData) {
+          const replyText = formatShipmentInfo(shipmentData);
+          await sendTextSafe(from, replyText);
+          
+          return NextResponse.json({ 
+            ok: true, 
+            info: `Shipment info sent for AWB: ${awbNumber}` 
+          });
+        } else {
+          const notFoundText = `Nomor resi ${awbNumber} tidak ditemukan.\n\nPastikan nomor resi benar atau hubungi admin pengiriman untuk bantuan.`;
+          await sendTextSafe(from, notFoundText);
+          
+          return NextResponse.json({ 
+            ok: true, 
+            info: `AWB not found: ${awbNumber}` 
+          });
+        }
+      } catch (dbError) {
+        const errorText = `Maaf, terjadi kesalahan saat mengambil data resi ${awbNumber}.\n\nSilakan coba lagi atau hubungi admin pengiriman.`;
+        await sendTextSafe(from, errorText);
+        
+        return NextResponse.json({ 
+          ok: true, 
+          warning: 'Database error when fetching shipment',
+          error: dbError instanceof Error ? dbError.message : String(dbError)
+        });
+      }
+    }
+
+    // No AWB detected - send welcome message with rate limiting
 
     // Check and update user message count
     const normalizedFrom = normalizePhoneNumber(from.replace('@c.us', ''));
@@ -101,11 +166,27 @@ export async function POST(req: NextRequest) {
     // Choose reply text based on message count
     let replyText: string;
     if (userData.count === 1) {
-      // First reply - original message
-      replyText = `Terima kasih telah menggunakan BCE EXPRESS\nWhatsApp ini adalah konfirmasi penerima paket\n\nuntuk informasi yang penting seperti melihat bukti POD bisa cek web bcexp.id\nuntuk soal pengiriman bisa hubungi admin pengiriman\n\nMohon jangan telpon, karena ini adalah sistem\n\nTERIMA KASIH.`;
+      replyText = `Halo! Terima kasih telah menggunakan BCE EXPRESS 📦
+
+Untuk cek resi paket Anda, silakan ketik nomor resi (contoh: BCE12345678 atau BE12345678)
+
+Info penting:
+• Bukti POD & tracking: bcexp.id
+• Pertanyaan pengiriman: Hubungi admin di area pengiriman
+
+⚠️ Mohon jangan telepon, ini adalah sistem otomatis.
+
+TERIMA KASIH! 🙏`;
     } else {
-      // Second and subsequent replies - new message
-      replyText = `Untuk pertanyaan mengenai pengiriman bisa hubungi Admin di area pengiriman.\n\nWhatsapp ini hanya chat otomatis untuk laporan paket diterima.\n\nAkses bcexp.id untuk tracking paket dengan memasukan no RESI.\n\nTERIMA KASIH.`;
+      replyText = `Untuk pertanyaan pengiriman hubungi Admin di area pengiriman.
+
+WhatsApp ini hanya chat otomatis untuk:
+✅ Cek status resi (ketik nomor resi)
+✅ Laporan paket diterima
+
+Tracking paket lengkap: bcexp.id
+
+TERIMA KASIH! 🙏`;
     }
 
     try {
@@ -142,6 +223,66 @@ function normalizePhoneNumber(phone: string): string {
   if (digits.startsWith('08')) return '62' + digits.slice(1);
   if (digits.startsWith('8')) return '62' + digits;
   return digits;
+}
+
+// ================== Shipment Database Functions ==================
+async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null> {
+  const supabase = getSupabaseClient();
+  
+  const { data, error } = await supabase
+    .from('shipments')
+    .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
+    .eq('awb_number', awbNumber)
+    .single();
+  
+  if (error || !data) {
+    return null;
+  }
+  
+  return data as ShipmentData;
+}
+
+function formatShipmentInfo(shipment: ShipmentData): string {
+  const statusEmoji = getStatusEmoji(shipment.current_status);
+  const formattedStatus = shipment.current_status.toUpperCase();
+  
+  let message = `📦 *INFORMASI RESI*\n\n`;
+  message += `Nomor Resi: *${shipment.awb_number}*\n`;
+  message += `Status: ${statusEmoji} *${formattedStatus}*\n`;
+  
+  if (shipment.origin) {
+    message += `Asal: ${shipment.origin}\n`;
+  }
+  
+  if (shipment.destination) {
+    message += `Tujuan: ${shipment.destination}\n`;
+  }
+  
+  if (shipment.receiver_name && !shipment.receiver_name.toLowerCase().includes('auto generated')) {
+    message += `Penerima: ${shipment.receiver_name}\n`;
+  }
+  
+  if (shipment.notes) {
+    message += `\n📝 Catatan:\n${shipment.notes}\n`;
+  }
+  
+  message += `\n🌐 Tracking lengkap: bcexp.id`;
+  message += `\n\n💬 Pertanyaan? Hubungi admin pengiriman`;
+  
+  return message;
+}
+
+function getStatusEmoji(status: string): string {
+  const statusLower = status.toLowerCase();
+  
+  if (statusLower.includes('delivered')) return '✅';
+  if (statusLower.includes('transit') || statusLower.includes('in transit')) return '🚚';
+  if (statusLower.includes('picked') || statusLower.includes('pickup')) return '📥';
+  if (statusLower.includes('pending')) return '⏳';
+  if (statusLower.includes('returned')) return '↩️';
+  if (statusLower.includes('cancelled')) return '❌';
+  
+  return '📍';
 }
 
 /**

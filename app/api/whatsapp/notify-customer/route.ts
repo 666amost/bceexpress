@@ -2,6 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
+  // DISABLED: Mencegah spam WhatsApp - jangan chat duluan ke customer
+  // Return success immediately tanpa processing
+  return NextResponse.json({ 
+    ok: true, 
+    skipped: true, 
+    reason: 'customer_notification_disabled',
+    message: 'Customer notifications are disabled to prevent WhatsApp spam. Use auto-reply instead.'
+  });
+
+  /* ORIGINAL CODE - DISABLED
   try {
     // Untuk mencegah error bila webhook dipanggil tanpa body
     let body;
@@ -128,6 +138,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+  */
 }
 
 /* ================== Templates ================== */
