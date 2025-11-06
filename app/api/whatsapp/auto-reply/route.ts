@@ -1,6 +1,7 @@
 // app/api/whatsapp/auto-reply/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { ORIGINS, DESTINATIONS_BY_ORIGIN, calculatePrice, type OriginCode } from '@/lib/pricing';
 
 // Add OPTIONS method to handle pre-flight checks
 export async function OPTIONS() {
@@ -133,6 +134,63 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Check for "cek ongkir" keywords
+    const messageLower = messageText.toLowerCase();
+    
+    // Format: "ongkir jakarta bali 5" or "ongkir bangka bekasi 2.5"
+    const ongkirMatch = messageLower.match(/^(?:cek\s+)?ongkir\s+(\w+)\s+(.+?)\s+([\d.]+)$/i);
+    
+    if (ongkirMatch) {
+      const [, asalRaw, tujuanRaw, beratRaw] = ongkirMatch;
+      const berat = parseFloat(beratRaw);
+      
+      if (berat <= 0 || isNaN(berat)) {
+        await sendTextSafe(from, '❌ Berat harus lebih dari 0 kg');
+        return NextResponse.json({ ok: true, info: 'Invalid weight' });
+      }
+      
+      try {
+        const ongkirResult = await calculateOngkir(asalRaw, tujuanRaw, berat);
+        await sendTextSafe(from, ongkirResult);
+        return NextResponse.json({ ok: true, info: 'Ongkir calculated' });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        await sendTextSafe(from, errorMsg);
+        return NextResponse.json({ ok: true, info: 'Ongkir error', error: errorMsg });
+      }
+    }
+    
+    // Keyword "cek ongkir" tanpa format lengkap
+    if (messageLower.includes('cek ongkir') || messageLower.includes('ongkir') || messageLower.includes('harga kirim')) {
+      const ongkirText = `📦 CEK ONGKIR BCE EXPRESS
+
+Format: ongkir [asal] [tujuan] [berat]
+
+Contoh:
+• ongkir jakarta bangka 5
+• ongkir bangka bekasi 2.5
+• ongkir tanjung pandan jakarta 10
+
+Kota yang tersedia:
+📍 Asal: Jakarta, Bangka, Tanjung Pandan
+📍 Tujuan: Lihat di bcexp.id
+
+Atau kunjungi: https://bcexp.id
+
+TERIMA KASIH! 🙏`;
+      
+      try {
+        await sendTextSafe(from, ongkirText);
+        return NextResponse.json({ ok: true, info: 'Ongkir info sent' });
+      } catch (sendError) {
+        return NextResponse.json({ 
+          ok: true, 
+          warning: 'Failed to send ongkir info',
+          error: sendError instanceof Error ? sendError.message : String(sendError)
+        });
+      }
+    }
+
     // No AWB detected - send welcome message with rate limiting
 
     // Check and update user message count
@@ -169,23 +227,28 @@ export async function POST(req: NextRequest) {
     // Choose reply text based on message count
     let replyText: string;
     if (userData.count === 1) {
+      // PESAN PERTAMA - Welcome message
       replyText = `Halo! Terima kasih telah menggunakan BCE EXPRESS 📦
 
-Untuk cek resi paket Anda, silakan ketik nomor resi (contoh: BCE12345678 atau BE12345678)
+Untuk cek resi paket Anda, silakan ketik nomor resi.
+Contoh: BCE12345678 atau BE12345678
+
+Untuk cek ongkir, ketik: "cek ongkir"
 
 Info penting:
-• Bukti POD & tracking: bcexp.id
+• Bukti POD & tracking lengkap: bcexp.id
 • Pertanyaan pengiriman: Hubungi admin di area pengiriman
 
 ⚠️ Mohon jangan telepon, ini adalah sistem otomatis.
 
 TERIMA KASIH! 🙏`;
     } else {
+      // PESAN KEDUA/KETIGA - Reminder message
       replyText = `Untuk pertanyaan pengiriman hubungi Admin di area pengiriman.
 
 WhatsApp ini hanya chat otomatis untuk:
 ✅ Cek status resi (ketik nomor resi)
-✅ Laporan paket diterima
+✅ Cek ongkir (ketik "cek ongkir")
 
 Tracking paket lengkap: bcexp.id
 
@@ -226,6 +289,70 @@ function normalizePhoneNumber(phone: string): string {
   if (digits.startsWith('08')) return '62' + digits.slice(1);
   if (digits.startsWith('8')) return '62' + digits;
   return digits;
+}
+
+// ================== Ongkir Calculator ==================
+async function calculateOngkir(asalRaw: string, tujuanRaw: string, berat: number): Promise<string> {
+  // Normalize asal
+  const asalNormalized = asalRaw.toLowerCase().trim();
+  let originCode: OriginCode | null = null;
+  
+  if (asalNormalized.includes('jakarta')) {
+    originCode = 'DKI_JAKARTA';
+  } else if (asalNormalized.includes('bangka')) {
+    originCode = 'BANGKA';
+  } else if (asalNormalized.includes('tanjung') || asalNormalized.includes('pandan')) {
+    originCode = 'TANJUNG_PANDAN';
+  }
+  
+  if (!originCode) {
+    return `❌ Kota asal "${asalRaw}" tidak tersedia.
+
+Kota asal yang tersedia:
+• Jakarta
+• Bangka
+• Tanjung Pandan`;
+  }
+  
+  // Get destinations for origin
+  const destinations = DESTINATIONS_BY_ORIGIN[originCode];
+  const tujuanNormalized = tujuanRaw.toLowerCase().trim();
+  
+  // Find matching destination
+  const destination = destinations.find(d => 
+    d.label.toLowerCase().includes(tujuanNormalized) ||
+    d.code.toLowerCase().includes(tujuanNormalized.replace(/\s+/g, '_'))
+  );
+  
+  if (!destination) {
+    const availableCities = destinations
+      .map(d => d.label.split(' / ')[1] || d.label)
+      .slice(0, 5)
+      .join('\n• ');
+      
+    return `❌ Kota tujuan "${tujuanRaw}" tidak ditemukan.
+
+Beberapa kota tujuan tersedia:
+• ${availableCities}
+...
+
+Cek lengkap: bcexp.id`;
+  }
+  
+  // Calculate price
+  const calc = calculatePrice(destination.pricePerKg, berat);
+  const originLabel = ORIGINS.find(o => o.code === originCode)?.label || asalRaw;
+  const tujuanLabel = destination.label.split(' / ')[1] || destination.label;
+  
+  return `📦 ONGKIR ${originLabel} → ${tujuanLabel}
+
+Berat: ${calc.berat} kg
+Tarif/kg: Rp ${destination.pricePerKg.toLocaleString('id-ID')}
+Subtotal: Rp ${calc.subtotal.toLocaleString('id-ID')}
+${calc.adminFee > 0 ? `Admin: Rp ${calc.adminFee.toLocaleString('id-ID')}\n` : ''}
+💰 Total: Rp ${calc.total.toLocaleString('id-ID')}
+
+Detail lengkap: bcexp.id`;
 }
 
 // ================== Shipment Database Functions ==================
