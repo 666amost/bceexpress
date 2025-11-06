@@ -236,37 +236,40 @@ function normalizePhoneNumber(phone: string): string {
 async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null> {
   const supabase = getSupabaseClient();
   
-  // Try exact match first (fastest)
-  let { data, error } = await supabase
-    .from('shipments')
-    .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
-    .eq('awb_number', awbNumber)
-    .maybeSingle();
-  
-  // If not found, try case-insensitive search
-  if (!data && !error) {
-    const result = await supabase
-      .from('shipments')
+    // Try shipment_history first (latest status) - this is where webhook updates go
+    let { data, error } = await supabase
+      .from('shipment_history')
       .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
-      .ilike('awb_number', awbNumber)
-      .maybeSingle();
-    
-    data = result.data;
-    error = result.error;
-  }
-  
-  // If still not found, try partial match (for cases with extra spaces/characters)
-  if (!data && !error) {
-    const result = await supabase
-      .from('shipments')
-      .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
-      .ilike('awb_number', `%${awbNumber}%`)
+      .eq('awb_number', awbNumber)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+  
+    // If not found in history, try shipments table
+    if (!data && !error) {
+      const result = await supabase
+        .from('shipments')
+        .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
+        .eq('awb_number', awbNumber)
+        .maybeSingle();
     
-    data = result.data;
-    error = result.error;
-  }
+      data = result.data;
+      error = result.error;
+    }
+  
+    // If still not found, try case-insensitive search on both tables
+    if (!data && !error) {
+      const historyResult = await supabase
+        .from('shipment_history')
+        .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
+        .ilike('awb_number', awbNumber)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    
+      data = historyResult.data;
+      error = historyResult.error;
+    }
   
   if (error || !data) {
     return null;
@@ -276,46 +279,20 @@ async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null>
 }
 
 function formatShipmentInfo(shipment: ShipmentData): string {
-  const statusEmoji = getStatusEmoji(shipment.current_status);
-  const formattedStatus = shipment.current_status.toUpperCase();
+  const formattedStatus = shipment.current_status.charAt(0).toUpperCase() + shipment.current_status.slice(1);
   
-  let message = `📦 *INFORMASI RESI*\n\n`;
-  message += `Nomor Resi: *${shipment.awb_number}*\n`;
-  message += `Status: ${statusEmoji} *${formattedStatus}*\n`;
+  let message = `AWB: ${shipment.awb_number}\n`;
+  message += `Status: ${formattedStatus}\n`;
   
   if (shipment.origin) {
-    message += `Asal: ${shipment.origin}\n`;
-  }
-  
-  if (shipment.destination) {
-    message += `Tujuan: ${shipment.destination}\n`;
-  }
-  
-  if (shipment.receiver_name && !shipment.receiver_name.toLowerCase().includes('auto generated')) {
-    message += `Penerima: ${shipment.receiver_name}\n`;
+    message += `Lok: ${shipment.origin}\n`;
   }
   
   if (shipment.notes) {
-    message += `\n📝 Catatan:\n${shipment.notes}\n`;
+    message += `Note: ${shipment.notes}`;
   }
   
-  message += `\n🌐 Tracking lengkap: bcexp.id`;
-  message += `\n\n💬 Pertanyaan? Hubungi admin pengiriman`;
-  
   return message;
-}
-
-function getStatusEmoji(status: string): string {
-  const statusLower = status.toLowerCase();
-  
-  if (statusLower.includes('delivered')) return '✅';
-  if (statusLower.includes('transit') || statusLower.includes('in transit')) return '🚚';
-  if (statusLower.includes('picked') || statusLower.includes('pickup')) return '📥';
-  if (statusLower.includes('pending')) return '⏳';
-  if (statusLower.includes('returned')) return '↩️';
-  if (statusLower.includes('cancelled')) return '❌';
-  
-  return '📍';
 }
 
 /**
