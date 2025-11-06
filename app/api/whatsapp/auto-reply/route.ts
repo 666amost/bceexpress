@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if message contains AWB number (BCE* or BE*)
-    const awbMatch = messageText.match(/\b(BCE|BE)[A-Z0-9]{8,}\b/i);
+    // Match: BCE or BE followed by 5-15 digits/letters (case insensitive)
+    const awbMatch = messageText.match(/\b(BCE|BE)[A-Z0-9]{5,15}\b/i);
     
     if (awbMatch) {
       const awbNumber = awbMatch[0].toUpperCase();
@@ -229,11 +230,37 @@ function normalizePhoneNumber(phone: string): string {
 async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null> {
   const supabase = getSupabaseClient();
   
-  const { data, error } = await supabase
+  // Try exact match first (fastest)
+  let { data, error } = await supabase
     .from('shipments')
     .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
     .eq('awb_number', awbNumber)
-    .single();
+    .maybeSingle();
+  
+  // If not found, try case-insensitive search
+  if (!data && !error) {
+    const result = await supabase
+      .from('shipments')
+      .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
+      .ilike('awb_number', awbNumber)
+      .maybeSingle();
+    
+    data = result.data;
+    error = result.error;
+  }
+  
+  // If still not found, try partial match (for cases with extra spaces/characters)
+  if (!data && !error) {
+    const result = await supabase
+      .from('shipments')
+      .select('awb_number, current_status, notes, receiver_name, receiver_phone, origin, destination, created_at')
+      .ilike('awb_number', `%${awbNumber}%`)
+      .limit(1)
+      .maybeSingle();
+    
+    data = result.data;
+    error = result.error;
+  }
   
   if (error || !data) {
     return null;
