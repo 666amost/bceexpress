@@ -28,6 +28,7 @@ interface MessageData {
   from: string;
   fromMe: boolean;
   body?: string;
+  source?: string;
 }
 interface WahaWebhookBody {
   event: 'message' | 'ack' | 'presence' | string;
@@ -80,16 +81,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Ignore non-message events or messages without text
-    if (body.event !== 'message' || !body.payload?.body) {
+    if (!body.event || !body.event.startsWith('message') || !body.payload?.body) {
       return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored` });
     }
 
     const { from, fromMe } = body.payload;
     const messageText = (body.payload.body || '').trim();
     
-    // Skip messages from bot or group chats
-    if (fromMe || from.endsWith('@g.us')) {
-      return NextResponse.json({ ok: true, info: 'Message from bot or group chat, skipped' });
+    // Skip messages from bot, group chats, or API-sent messages
+    // IMPORTANT: source='api' means message was sent by bot via API
+    if (fromMe || from.endsWith('@g.us') || body.payload.source === 'api') {
+      return NextResponse.json({ 
+        ok: true, 
+        info: 'Message from bot/group/api, skipped',
+        debug: { fromMe, from, source: body.payload.source }
+      });
     }
 
     // Check if message contains AWB number (BCE* or BE*)
