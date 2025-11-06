@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { TrackingResults } from "@/components/tracking-results"
@@ -19,4 +20,17 @@ export default async function TrackPage(props: { params: Promise<{ awb: string }
       <Footer />
     </div>
   )
+}
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
 }

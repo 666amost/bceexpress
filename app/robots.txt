@@ -1,9 +1,15 @@
 User-agent: Googlebot
-Allow: /
-
-User-agent: *
-Allow: /
 Disallow: /admin
 Disallow: /branch
-Disallow: /courier 
-Disallow: /private/
+Disallow: /courier
+Disallow: /private
+Disallow: /track
+
+User-agent: *
+Disallow: /admin
+Disallow: /branch
+Disallow: /courier
+Disallow: /private
+Disallow: /track
+
+Sitemap: https://bcexp.id/sitemap.xml
