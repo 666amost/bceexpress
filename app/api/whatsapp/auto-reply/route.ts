@@ -38,17 +38,9 @@ interface WahaWebhookBody {
 
 interface ShipmentData {
   awb_number: string;
-  current_status?: string | null;
-  status?: string | null;
-  status_text?: string | null;
-  notes?: string | null;
-  note?: string | null;
-  receiver_name: string | null;
-  receiver_phone: string | null;
-  origin?: string | null;
-  location?: string | null;
-  destination: string | null;
-  created_at: string;
+  status: string;
+  location: string | null;
+  notes: string | null;
 }
 
 // ================== Supabase Client ==================
@@ -243,29 +235,17 @@ async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null>
     // Try shipment_history first (latest status) - this is where webhook updates go
     let { data, error } = await supabase
       .from('shipment_history')
-    .select('awb_number, current_status, status, status_text, notes, note, receiver_name, receiver_phone, origin, location, destination, created_at')
+      .select('awb_number, status, location, notes')
       .eq('awb_number', awbNumber)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
   
-    // If not found in history, try shipments table
-    if (!data && !error) {
-      const result = await supabase
-        .from('shipments')
-      .select('awb_number, current_status, status, status_text, notes, note, receiver_name, receiver_phone, origin, location, destination, created_at')
-        .eq('awb_number', awbNumber)
-        .maybeSingle();
-    
-      data = result.data;
-      error = result.error;
-    }
-  
-    // If still not found, try case-insensitive search on both tables
+    // If not found in history, try case-insensitive search
     if (!data && !error) {
       const historyResult = await supabase
         .from('shipment_history')
-      .select('awb_number, current_status, status, status_text, notes, note, receiver_name, receiver_phone, origin, location, destination, created_at')
+        .select('awb_number, status, location, notes')
         .ilike('awb_number', awbNumber)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -282,30 +262,18 @@ async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null>
   return data as ShipmentData;
 }
 
-function normalizeField<T>(...vals: Array<T | null | undefined>): T | null {
-  for (const v of vals) {
-    if (v !== undefined && v !== null && String(v).trim() !== '') return v as T;
-  }
-  return null;
-}
-
 function formatShipmentInfo(shipment: ShipmentData): string {
-  const statusRaw = normalizeField(shipment.current_status, shipment.status, shipment.status_text) || '';
-  const formattedStatus = String(statusRaw).length
-    ? String(statusRaw).charAt(0).toUpperCase() + String(statusRaw).slice(1)
-    : '-';
+  const formattedStatus = shipment.status.charAt(0).toUpperCase() + shipment.status.slice(1);
   
   let message = `AWB: ${shipment.awb_number}\n`;
   message += `Status: ${formattedStatus}\n`;
   
-  const lok = normalizeField(shipment.location, shipment.origin);
-  if (lok) {
-    message += `Lok: ${lok}\n`;
+  if (shipment.location) {
+    message += `Lok: ${shipment.location}\n`;
   }
   
-  const note = normalizeField(shipment.notes, shipment.note);
-  if (note) {
-    message += `Note: ${note}`;
+  if (shipment.notes) {
+    message += `Note: ${shipment.notes}`;
   }
   
   return message;
