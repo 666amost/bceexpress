@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +24,6 @@ import { Oval as LoadingIcon } from 'react-loading-icons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TrackingResults } from "@/components/tracking-results";
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { StatsCard } from './StatsCard';
 import { CourierCard } from './CourierCard';
 import { BulkUpdateModal } from './BulkUpdateModal';
 
@@ -94,8 +92,6 @@ interface AdminLeaderContentProps {
 }
 
 export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderContentProps) {
-  const router = useRouter();
-  
   const [isLoading, setIsLoading] = useState<boolean>(true);
   // State for shipment status update modal
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState<boolean>(false);
@@ -127,6 +123,8 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const [lastMapUpdateTime, setLastMapUpdateTime] = useState<string | null>(null);
   const [hasActiveCouriers, setHasActiveCouriers] = useState<boolean>(false);
+  type MapControls = { zoomIn: () => void; zoomOut: () => void; fitAll: () => void; toggleHeatmap: () => void; toggleCluster: () => void };
+  const [mapControls, setMapControls] = useState<MapControls | null>(null);
   
   // State untuk live shipment activity
   const [liveShipments, setLiveShipments] = useState<LiveShipmentActivityItem[]>([]);
@@ -142,9 +140,11 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   const [bulkUpdateError, setBulkUpdateError] = useState<string>('');
   const [totalPendingByCourier, setTotalPendingByCourier] = useState<Record<string, number>>({});
 
-  const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
+  const [activeCourierCount, setActiveCourierCount] = useState<number>(0);
+  const handleCouriersUpdated = useCallback((lastUpdate: string | null, activeCount: number) => {
     setLastMapUpdateTime(lastUpdate);
-    setHasActiveCouriers(hasCouriers);
+    setActiveCourierCount(activeCount);
+    setHasActiveCouriers(activeCount > 0);
   }, []);
 
   const fetchTotalPendingByCourier = useCallback(async () => {
@@ -238,7 +238,9 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         if (historyError) throw new Error(historyError.message);
       }
 
-      alert(`Successfully updated ${pendingShipmentsList.length} old pending shipments (>7 days) to ${bulkUpdateStatus}`);
+      const detailMessage = `Successfully updated ${pendingShipmentsList.length} old pending shipments (>7 days) to ${bulkUpdateStatus}\n\nFirst 10 AWB:\n${awbNumbers.slice(0, 10).join('\n')}\n${awbNumbers.length > 10 ? `\n...and ${awbNumbers.length - 10} more` : ''}`;
+      
+      alert(detailMessage);
       setIsBulkUpdateModalOpen(false);
       setBulkUpdateCourierId('');
       setBulkUpdateStatus('delivered');
@@ -536,6 +538,92 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     setIsLoading(true);
     loadDashboardData();
   };
+
+  const handleFixSync = async (mismatches: Array<{awb: string; shipmentStatus: string; historyStatus: string}>) => {
+    try {
+      const currentDate = new Date().toISOString();
+      let fixedCount = 0;
+
+      for (const mismatch of mismatches) {
+        const { error } = await supabaseClient
+          .from("shipments")
+          .update({
+            current_status: mismatch.historyStatus,
+            updated_at: currentDate
+          })
+          .eq("awb_number", mismatch.awb);
+
+        if (!error) {
+          fixedCount++;
+        }
+      }
+
+      alert(`✅ Sync Fixed!\n\nUpdated ${fixedCount} out of ${mismatches.length} shipments.\nShipments table now matches history table.`);
+      await loadDashboardData();
+    } catch (err) {
+      alert('Error fixing sync: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  const handleVerifySync = useCallback(async (courierId: string) => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
+      const { data: pendingShipments } = await supabaseClient
+        .from("shipments")
+        .select("awb_number, current_status")
+        .eq("courier_id", courierId)
+        .neq("current_status", "delivered")
+        .lt("created_at", sevenDaysAgoISO);
+
+      if (!pendingShipments || pendingShipments.length === 0) {
+        alert("✅ All synced! No old pending shipments found.");
+        return;
+      }
+
+      const mismatchList: Array<{awb: string; shipmentStatus: string; historyStatus: string}> = [];
+      
+      for (const ship of pendingShipments) {
+        const { data: historyData } = await supabaseClient
+          .from("shipment_history")
+          .select("status")
+          .eq("awb_number", ship.awb_number)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        const latestHistoryStatus = historyData?.[0]?.status;
+        if (latestHistoryStatus && latestHistoryStatus !== ship.current_status) {
+          mismatchList.push({
+            awb: ship.awb_number,
+            shipmentStatus: ship.current_status,
+            historyStatus: latestHistoryStatus
+          });
+        }
+      }
+
+      if (mismatchList.length > 0) {
+        const mismatchText = mismatchList.map(m => 
+          `${m.awb}: shipment=${m.shipmentStatus}, history=${m.historyStatus}`
+        ).join('\n');
+        
+        const userConfirm = confirm(
+          `⚠️ Found mismatches:\n\n${mismatchText}\n\nTotal old pending: ${pendingShipments.length}\n\n` +
+          `Do you want to FIX SYNC automatically?\n` +
+          `This will update shipments table to match history table.`
+        );
+
+        if (userConfirm) {
+          await handleFixSync(mismatchList);
+        }
+      } else {
+        alert(`✅ Status synced!\n\nOld pending shipments: ${pendingShipments.length}\nAll shipments and history are in sync.`);
+      }
+    } catch (err) {
+      alert('Error verifying sync: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }, [loadDashboardData]);
 
   const handleRangeChange = (days: number) => {
     setDataRange(days);
@@ -1233,9 +1321,25 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
               <LocationPointIcon className="h-5 w-5" /> Courier Locations
             </DialogTitle>
           </DialogHeader>
+          <div className="px-4 pb-2 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mr-2">Controls:</span>
+              <Button variant="outline" onClick={() => mapControls?.zoomIn()} aria-label="Zoom in" className="h-8 px-3 text-xs">Zoom +</Button>
+              <Button variant="outline" onClick={() => mapControls?.zoomOut?.()} aria-label="Zoom out" className="h-8 px-3 text-xs">Zoom −</Button>
+              <Button variant="outline" onClick={() => mapControls?.fitAll()} aria-label="Fit all" className="h-8 px-3 text-xs">Fit</Button>
+              <Button variant="outline" onClick={() => mapControls?.toggleHeatmap()} aria-label="Toggle heatmap" className="h-8 px-3 text-xs">Heat</Button>
+              <Button variant="outline" onClick={() => mapControls?.toggleCluster()} aria-label="Toggle clustering" className="h-8 px-3 text-xs">Cluster</Button>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className={"inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium " + (activeCourierCount>0?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500")}>{activeCourierCount} aktif</span>
+              {lastMapUpdateTime && (
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">Update: {new Date(lastMapUpdateTime).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
+              )}
+            </div>
+          </div>
           <p id="map-dialog-desc" className="sr-only">Peta lokasi kurir dengan fitur cluster, heatmap, dan replay 30 menit.</p>
           <div className="w-full h-[55vh]">
-            <LeafletMap />
+            <LeafletMap externalControls={(api) => setMapControls(api)} onCouriersUpdated={handleCouriersUpdated} autoFitOnLoad={false} />
           </div>
         </DialogContent>
       </Dialog>
@@ -1317,6 +1421,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         onStatusChange={setBulkUpdateStatus}
         onNotesChange={setBulkUpdateNotes}
         onSubmit={handleBulkUpdateSubmit}
+        onVerifySync={handleVerifySync}
       />
       </>
     );

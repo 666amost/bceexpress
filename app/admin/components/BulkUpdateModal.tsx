@@ -19,6 +19,7 @@ interface BulkUpdateModalProps {
   onStatusChange: (status: string) => void;
   onNotesChange: (notes: string) => void;
   onSubmit: () => void;
+  onVerifySync?: (courierId: string) => Promise<void>;
 }
 
 export function BulkUpdateModal({
@@ -35,7 +36,19 @@ export function BulkUpdateModal({
   onStatusChange,
   onNotesChange,
   onSubmit,
+  onVerifySync,
 }: BulkUpdateModalProps) {
+  const [isVerifying, setIsVerifying] = React.useState(false);
+
+  const handleVerifySync = async () => {
+    if (!selectedCourierId || !onVerifySync) return;
+    setIsVerifying(true);
+    try {
+      await onVerifySync(selectedCourierId);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md rounded-lg">
@@ -73,6 +86,18 @@ export function BulkUpdateModal({
               <p className="text-xs text-gray-600 mt-2">
                 Old pending shipments (&gt;7 days): <strong className="text-orange-600">{totalPendingByCourier[selectedCourierId]}</strong> shipments
               </p>
+            )}
+            {selectedCourierId && onVerifySync && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 text-xs"
+                onClick={handleVerifySync}
+                disabled={isVerifying}
+              >
+                {isVerifying ? 'Checking...' : 'Verify Sync Status'}
+              </Button>
             )}
           </div>
           

@@ -88,11 +88,21 @@ interface CourierLocation {
   courier_name?: string; // Add courier name for display
 }
 
-interface LeafletMapProps {
-    onCouriersUpdated?: (lastUpdate: string | null, hasCouriers: boolean) => void;
+interface MapExternalControlsApi {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  fitAll: () => void;
+  toggleHeatmap: () => void;
+  toggleCluster: () => void;
 }
 
-export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
+interface LeafletMapProps {
+  onCouriersUpdated?: (lastUpdate: string | null, activeCount: number) => void;
+  externalControls?: (api: MapExternalControlsApi) => void;
+  autoFitOnLoad?: boolean; // if true, map fits all markers first time
+}
+
+export function LeafletMap({ onCouriersUpdated, externalControls, autoFitOnLoad = false }: LeafletMapProps) {
   const [courierLocations, setCourierLocations] = React.useState<CourierLocation[]>([])
   const [mapKey, setMapKey] = React.useState<number>(Date.now()) // Add key to force re-render
   const lastFetchTime = React.useRef<number>(0) // Track last successful fetch time
@@ -109,6 +119,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
   const playbackLayerRef = React.useRef<L.LayerGroup | null>(null)
   const playbackTimerRef = React.useRef<number | null>(null)
   const [searchQuery, setSearchQuery] = React.useState<string>("")
+  const [suggestions, setSuggestions] = React.useState<Array<{ id: string; name: string; lat: number; lng: number }>>([])
   const heatLayerRef = React.useRef<L.Layer | null>(null)
   const [clusterEnabled, setClusterEnabled] = React.useState<boolean>(true)
   const hasInitialFitRef = React.useRef<boolean>(false)
@@ -118,6 +129,13 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     // Add custom CSS to document head
     const style = document.createElement('style');
     style.innerHTML = `
+      /* Hide all default Leaflet controls */
+      .leaflet-control-zoom,
+      .leaflet-control-container .leaflet-top.leaflet-left,
+      .leaflet-bar {
+        display: none !important;
+      }
+      
       .courier-marker-container {
         text-align: center;
         position: relative;
@@ -293,7 +311,7 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     setLastMapUpdateTime(currentUpdateTime);
 
     if (onCouriersUpdated) {
-      onCouriersUpdated(currentUpdateTime, mergedData.length > 0);
+      onCouriersUpdated(currentUpdateTime, mergedData.length);
     }
     
     lastFetchTime.current = Date.now();
@@ -910,58 +928,6 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
       maxZoom: 18,
     }).addTo(mapRef.current);
 
-    // Add custom zoom control where '-' fits to all markers
-    const ZoomControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: () => {
-        const container = L.DomUtil.create('div', 'leaflet-bar');
-        const btnIn = L.DomUtil.create('a', '', container);
-        btnIn.innerHTML = '+';
-        btnIn.title = 'Zoom in';
-        btnIn.href = '#';
-        const btnOut = L.DomUtil.create('a', '', container);
-        btnOut.innerHTML = '−';
-        btnOut.title = 'Zoom out (fit)';
-        btnOut.href = '#';
-        L.DomEvent.on(btnIn, 'click', (e: Event) => {
-          L.DomEvent.stop(e);
-          mapRef.current?.zoomIn();
-        });
-        L.DomEvent.on(btnOut, 'click', (e: Event) => {
-          L.DomEvent.stop(e);
-          if (!mapRef.current) return;
-          const markers = Object.values(markersRef.current);
-          const b = new L.LatLngBounds([]);
-          markers.forEach(m => b.extend(m.getLatLng()));
-          if (markers.length > 0 && b.isValid()) {
-            mapRef.current.fitBounds(b.pad(0.2));
-          } else {
-            mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
-          }
-        });
-        return container;
-      }
-    });
-    new ZoomControl().addTo(mapRef.current);
-
-    // Add heatmap toggle control
-    const HeatControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: () => {
-        const container = L.DomUtil.create('div', 'leaflet-bar');
-        const btn = L.DomUtil.create('a', '', container);
-        btn.innerHTML = '🔥';
-        btn.title = 'Toggle Heatmap (2 jam)';
-        btn.href = '#';
-        L.DomEvent.on(btn, 'click', async (e: Event) => {
-          L.DomEvent.stop(e);
-          await toggleHeatmap();
-        });
-        return container;
-      }
-    });
-    new HeatControl().addTo(mapRef.current);
-
     // Prepare cluster group
     clusterGroupRef.current = L.markerClusterGroup({
       disableClusteringAtZoom: 16,
@@ -971,23 +937,26 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     });
     clusterGroupRef.current.addTo(mapRef.current);
 
-    // Add cluster toggle control (CL)
-    const ClusterControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: () => {
-        const container = L.DomUtil.create('div', 'leaflet-bar');
-        const btn = L.DomUtil.create('a', '', container);
-        btn.innerHTML = 'CL';
-        btn.title = 'Toggle Clustering';
-        btn.href = '#';
-        L.DomEvent.on(btn, 'click', (e: Event) => {
-          L.DomEvent.stop(e);
-          setClusterEnabled((prev) => !prev);
-        });
-        return container;
-      }
-    });
-    new ClusterControl().addTo(mapRef.current);
+    // Provide external control API to parent
+    if (externalControls) {
+      externalControls({
+        zoomIn: () => { if (mapRef.current) mapRef.current.zoomIn(); },
+        zoomOut: () => { if (mapRef.current) mapRef.current.zoomOut(); },
+        fitAll: () => {
+          if (!mapRef.current) return;
+          const markers = Object.values(markersRef.current);
+            const b = new L.LatLngBounds([]);
+            markers.forEach(m => b.extend(m.getLatLng()));
+            if (markers.length > 0 && b.isValid()) {
+              mapRef.current.fitBounds(b.pad(0.2));
+            } else {
+              mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
+            }
+        },
+        toggleHeatmap: () => { toggleHeatmap(); },
+        toggleCluster: () => { setClusterEnabled(prev => !prev); }
+      });
+    }
 
     // Initial fetch
     fetchCourierLocations();
@@ -1100,8 +1069,8 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
         });
         
         // Fit map to bounds of all markers
-        if (bounds.isValid() && !hasInitialFitRef.current) {
-          mapRef.current.fitBounds(bounds, { padding: [50, 50] }); // Add some padding
+        if (autoFitOnLoad && bounds.isValid() && !hasInitialFitRef.current) {
+          mapRef.current.fitBounds(bounds, { padding: [50, 50] });
           hasInitialFitRef.current = true;
         }
       } else {
@@ -1131,16 +1100,34 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
     }
   }, [clusterEnabled]);
 
+  React.useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) { setSuggestions([]); return; }
+    const unique = new Map<string, CourierLocation>();
+    courierLocations.forEach(loc => {
+      const prev = unique.get(loc.courier_id);
+      if (!prev || new Date(loc.updated_at) > new Date(prev.updated_at)) {
+        unique.set(loc.courier_id, loc);
+      }
+    });
+    const list = Array.from(unique.values())
+      .filter(loc => loc.courier_id.toLowerCase().includes(q) || (loc.courier_name ?? '').toLowerCase().includes(q))
+      .slice(0, 8)
+      .map(loc => ({ id: loc.courier_id, name: loc.courier_name ?? 'Kurir', lat: loc.latitude, lng: loc.longitude }));
+    setSuggestions(list);
+  }, [searchQuery, courierLocations]);
+
   return (
     <div className="relative w-full h-full">
       <div key={mapKey} id="map-container" className="w-full h-full rounded-lg" />
-      {/* Search overlay - non intrusive */}
+
+      {/* Search input */}
       <div className="absolute top-2 left-2 z-[1000]">
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Cari kurir (nama/ID)"
-          className="px-3 py-2 text-sm bg-white/90 backdrop-blur rounded-md shadow border border-gray-300 w-[220px] focus:w-[260px] transition-all"
+          className="px-3 py-2 text-sm bg-white/90 backdrop-blur rounded-md shadow border border-gray-300 w-[220px] sm:w-[260px] focus:w-[260px] transition-all"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               const q = searchQuery.trim().toLowerCase();
@@ -1160,6 +1147,29 @@ export function LeafletMap({ onCouriersUpdated }: LeafletMapProps) {
             }
           }}
         />
+        {suggestions.length > 0 && (
+          <div className="mt-1 max-h-44 overflow-auto bg-white/95 backdrop-blur rounded-md shadow border border-gray-200 w-[220px] sm:w-[260px]">
+            {suggestions.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between"
+                onClick={() => {
+                  setSearchQuery(s.name);
+                  if (mapRef.current) {
+                    mapRef.current.setView([s.lat, s.lng], Math.max(mapRef.current.getZoom(), 15), { animate: true });
+                  }
+                  const m = markersRef.current[s.id];
+                  if (m) { try { m.openPopup(); } catch { /* noop */ } }
+                  setSuggestions([]);
+                }}
+              >
+                <span className="truncate mr-2">{s.name}</span>
+                <span className="text-[10px] text-gray-500">{s.id.slice(0,6)}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
