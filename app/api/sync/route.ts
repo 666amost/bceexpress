@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
           if (
             !shipment.awb_number ||
             shipment.awb_number.length < 12 ||
-            shipment.awb_number.length > 14
+            shipment.awb_number.length > 16
           ) {
             continue;
           }
