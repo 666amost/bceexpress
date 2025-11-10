@@ -1135,7 +1135,7 @@ export function LeaderDashboard() {
         </div>
 
         <Dialog open={isPendingModalOpen} onOpenChange={setIsPendingModalOpen}>
-          <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
+          <DialogContent className="max-w-md sm:max-w-2xl max-h-[80vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl" aria-describedby="pending-dialog-desc">
             <DialogHeader>
               <DialogTitle className="text-red-600 dark:text-red-400 font-bold flex items-center gap-2">
                 <div className="relative">
@@ -1152,6 +1152,7 @@ export function LeaderDashboard() {
                 )}
               </DialogTitle>
             </DialogHeader>
+            <p id="pending-dialog-desc" className="sr-only">Daftar pengiriman yang pending untuk segera diproses</p>
             <div className="overflow-auto max-h-[60vh]">
               <div className="space-y-3">
                 {pendingShipments.map((shipment) => (
@@ -1245,7 +1246,7 @@ export function LeaderDashboard() {
 
         {/* Live Location Map Modal */}
         <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
-          <DialogContent className="max-w-4xl sm:max-w-5xl max-h-[90vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
+          <DialogContent className="max-w-4xl sm:max-w-5xl max-h-[90vh] dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl" aria-describedby="location-map-desc">
             <DialogHeader>
               <DialogTitle className="text-gray-900 dark:text-white font-bold flex items-center gap-2 justify-between">
                 <div className="flex items-center gap-2">
@@ -1269,6 +1270,7 @@ export function LeaderDashboard() {
                 </div>
               </DialogTitle>
             </DialogHeader>
+            <p id="location-map-desc" className="sr-only">Peta lokasi real-time dari semua kurir aktif</p>
             <div className="h-[60vh] w-full">
               {isLocationMapOpen && <LeafletMap key={mapRefreshKey} onCouriersUpdated={handleCouriersUpdated} />}
             </div>
@@ -1291,13 +1293,14 @@ export function LeaderDashboard() {
 
         {/* Status Update Modal */}
         <Dialog open={isStatusUpdateModalOpen} onOpenChange={setIsStatusUpdateModalOpen}>
-          <DialogContent className="max-w-md sm:max-w-lg dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl">
+          <DialogContent className="max-w-md sm:max-w-lg dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl" aria-describedby="status-update-desc">
             <DialogHeader>
               <DialogTitle className="text-gray-900 dark:text-white font-bold flex items-center gap-2">
                 <BoxIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" style={{ fontWeight: 'bold' }} />
                 Update Shipment Status
               </DialogTitle>
             </DialogHeader>
+            <p id="status-update-desc" className="sr-only">Form untuk mengupdate status pengiriman</p>
             
             {selectedShipmentForUpdate && (
               <div className="space-y-4">

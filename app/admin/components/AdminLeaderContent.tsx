@@ -1153,10 +1153,11 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
         </div>
         {/* Modal Update Status Shipment - letakkan di luar map agar tidak menyebabkan error JSX */}
         <Dialog open={isStatusUpdateModalOpen} onOpenChange={setIsStatusUpdateModalOpen}>
-          <DialogContent className="max-w-md rounded-lg">
+          <DialogContent className="max-w-md rounded-lg" aria-describedby="status-update-desc">
             <DialogHeader>
               <DialogTitle>Update Shipment Status</DialogTitle>
             </DialogHeader>
+            <p id="status-update-desc" className="sr-only">Form untuk mengupdate status pengiriman</p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -1494,12 +1495,13 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-full rounded-lg">
+      <DialogContent className="max-w-2xl w-full rounded-lg" aria-describedby="manifest-dialog-desc">
         <DialogHeader>
           <DialogTitle className="text-green-700 dark:text-green-400 font-bold flex items-center gap-2">
             <ChartIcon className="h-5 w-5" /> Manifest Cabang
           </DialogTitle>
         </DialogHeader>
+        <p id="manifest-dialog-desc" className="sr-only">Daftar manifest cabang hari ini</p>
         <div className="overflow-x-auto max-h-[60vh]">
             {loading ? (
             <div className="text-center py-8 text-green-700 dark:text-green-400 font-semibold">Loading manifest...</div>
@@ -1562,10 +1564,11 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
 
     {/* Dialog to show full address on click (mobile-friendly) */}
     <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
-      <DialogContent className="max-w-md w-full rounded-lg">
+      <DialogContent className="max-w-md w-full rounded-lg" aria-describedby="address-dialog-desc">
         <DialogHeader>
           <DialogTitle className="text-sm font-bold text-gray-800 dark:text-gray-200">Alamat Penerima</DialogTitle>
         </DialogHeader>
+        <p id="address-dialog-desc" className="sr-only">Detail alamat penerima lengkap</p>
         <div className="p-4">
           <p className="text-sm text-gray-700 dark:text-gray-300 break-words">{selectedAddress ?? '-'}</p>
         </div>

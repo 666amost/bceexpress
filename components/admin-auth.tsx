@@ -168,6 +168,7 @@ export function AdminAuth() {
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
+                  autoComplete="username"
                 />
               </div>
               {/* Input Password - Dengan Fitur Show/Hide */}
@@ -183,6 +184,7 @@ export function AdminAuth() {
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
+                    autoComplete="current-password"
                     // Tambahkan padding kanan untuk memberi ruang ikon
                     // Sesuaikan nilai pr- jika ikon terpotong atau terlalu jauh
                     className="pr-10" // Contoh: pr-8, pr-10, pr-12

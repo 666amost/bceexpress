@@ -111,6 +111,8 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
   const [lastMapUpdateTime, setLastMapUpdateTime] = React.useState<string | null>(null); // Track when map data was last updated
   const [lastRealtimeUpdate, setLastRealtimeUpdate] = React.useState<string | null>(null); // Track realtime updates
   const subscriptionRef = React.useRef<RealtimeChannel | null>(null); // Reference to store subscription
+  const channelsRef = React.useRef<RealtimeChannel[]>([]);
+  const retryStateRef = React.useRef<{ attempts: number; timer: number | null }>({ attempts: 0, timer: null });
 
   const mapRef = React.useRef<L.Map | null>(null)
   const markersRef = React.useRef<Record<string, L.Marker>>({})
@@ -124,6 +126,7 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
   const heatLayerRef = React.useRef<L.Layer | null>(null)
   const [clusterEnabled, setClusterEnabled] = React.useState<boolean>(true)
   const hasInitialFitRef = React.useRef<boolean>(false)
+  const controlsApiRef = React.useRef<MapExternalControlsApi | null>(null)
 
   // Add CSS styles to the document head for better marker rendering
   React.useEffect(() => {
@@ -408,39 +411,83 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
 
   // Function to set up real-time subscription
   const setupRealtimeSubscription = React.useCallback(() => {
-    // Clean up any existing subscription first
-    if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
+    // Bersihkan semua channel existing terlebih dahulu
+    if (channelsRef.current.length > 0) {
+      channelsRef.current.forEach((ch) => {
+        try { supabaseClient.removeChannel(ch); } catch { /* noop */ }
+      });
+      channelsRef.current = [];
     }
 
-    // Coba setup subscription untuk semua tabel yang mungkin
-    possibleTableNames.forEach(tableName => {
-      const channel = supabaseClient.channel(`realtime-${tableName}`);
-      
-      channel
-        .on('postgres_changes', {
-          event: '*', // Listen for all events (insert, update, delete)
-          schema: 'public',
-          table: tableName
-        }, (payload) => {
-          // Update status
-          const currentTime = new Date().toISOString();
-          setLastRealtimeUpdate(currentTime);
-          
-          // Force refresh lokasi
-          fetchCourierLocations();
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            // console.log(`Successfully subscribed to ${tableName}`);
-          }
-        });
-      
-      // Simpan satu subscription saja untuk dibersihkan nanti
-      if (tableName === possibleTableNames[0]) {
-        subscriptionRef.current = channel;
+    // Setup subscription untuk semua tabel yang mungkin
+    let subscribedCount = 0;
+    let hadError = false;
+
+    possibleTableNames.forEach((tableName) => {
+      try {
+        const channel = supabaseClient.channel(`realtime-${tableName}`);
+
+        channel
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: tableName,
+            },
+            () => {
+              const currentTime = new Date().toISOString();
+              setLastRealtimeUpdate(currentTime);
+              fetchCourierLocations();
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              subscribedCount += 1;
+            }
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              hadError = true;
+            }
+          });
+
+        channelsRef.current.push(channel);
+      } catch {
+        hadError = true;
       }
     });
+
+    // Jika error atau tidak ada yang ter-subscribe, jalankan retry backoff ringan
+    if (hadError || subscribedCount === 0) {
+      // Bersihkan channel yang gagal
+      if (channelsRef.current.length > 0) {
+        channelsRef.current.forEach((ch) => {
+          try { supabaseClient.removeChannel(ch); } catch { /* noop */ }
+        });
+        channelsRef.current = [];
+      }
+
+      const maxAttempts = 5;
+      const attempt = retryStateRef.current.attempts + 1;
+      retryStateRef.current.attempts = attempt;
+
+      if (attempt <= maxAttempts) {
+        const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1)); // 1s, 2s, 4s, 8s, 16s, max 30s
+        if (retryStateRef.current.timer) {
+          window.clearTimeout(retryStateRef.current.timer);
+        }
+        retryStateRef.current.timer = window.setTimeout(() => {
+          setupRealtimeSubscription();
+        }, delay);
+      }
+      // Jika melebihi maxAttempts, fallback ke polling saja (sudah aktif via startPolling)
+    } else {
+      // Reset retry counter saat sukses
+      retryStateRef.current.attempts = 0;
+      if (retryStateRef.current.timer) {
+        window.clearTimeout(retryStateRef.current.timer);
+        retryStateRef.current.timer = null;
+      }
+    }
   }, [fetchCourierLocations, possibleTableNames]);
 
   // Fungsi untuk polling manual (backup untuk realtime)
@@ -941,26 +988,24 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
     });
     clusterGroupRef.current.addTo(mapRef.current);
 
-    // Provide external control API to parent
-    if (externalControls) {
-      externalControls({
-        zoomIn: () => { if (mapRef.current) mapRef.current.zoomIn(); },
-        zoomOut: () => { if (mapRef.current) mapRef.current.zoomOut(); },
-        fitAll: () => {
-          if (!mapRef.current) return;
-          const markers = Object.values(markersRef.current);
-            const b = new L.LatLngBounds([]);
-            markers.forEach(m => b.extend(m.getLatLng()));
-            if (markers.length > 0 && b.isValid()) {
-              mapRef.current.fitBounds(b.pad(0.2));
-            } else {
-              mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
-            }
-        },
-        toggleHeatmap: () => { toggleHeatmap(); },
-        toggleCluster: () => { setClusterEnabled(prev => !prev); }
-      });
-    }
+    // Siapkan API kontrol dan simpan dalam ref agar referensinya stabil
+    controlsApiRef.current = {
+      zoomIn: () => { if (mapRef.current) mapRef.current.zoomIn(); },
+      zoomOut: () => { if (mapRef.current) mapRef.current.zoomOut(); },
+      fitAll: () => {
+        if (!mapRef.current) return;
+        const markers = Object.values(markersRef.current);
+        const b = new L.LatLngBounds([]);
+        markers.forEach(m => b.extend(m.getLatLng()));
+        if (markers.length > 0 && b.isValid()) {
+          mapRef.current.fitBounds(b.pad(0.2));
+        } else {
+          mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
+        }
+      },
+      toggleHeatmap: () => { toggleHeatmap(); },
+      toggleCluster: () => { setClusterEnabled(prev => !prev); }
+    };
 
     // Initial fetch
     fetchCourierLocations();
@@ -971,16 +1016,26 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
     // Set up polling interval as fallback
     const intervalId = startPolling();
 
+    // Capture retry timer untuk cleanup
+    const retryState = retryStateRef.current;
+
     return () => {
       // Clean up on component unmount
       clearInterval(intervalId);
-      
-      // Unsubscribe from all channels
-      possibleTableNames.forEach(tableName => {
-        supabaseClient.removeChannel(supabaseClient.channel(`realtime-${tableName}`));
-      });
-      
-      clearPathLayer();
+
+      // Unsubscribe from all channels yang aktif
+      if (channelsRef.current.length > 0) {
+        channelsRef.current.forEach((ch) => {
+          try { supabaseClient.removeChannel(ch); } catch { /* noop */ }
+        });
+        channelsRef.current = [];
+      }
+
+      // Bersihkan timer retry jika ada
+      if (retryState.timer) {
+        window.clearTimeout(retryState.timer);
+        retryState.timer = null;
+      }      clearPathLayer();
       activeCourierIdRef.current = null;
       if (heatLayerRef.current && mapRef.current) {
         mapRef.current.removeLayer(heatLayerRef.current);
@@ -994,7 +1049,13 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
         mapRef.current = null;
       }
     };
-  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers, clearPathLayer, clearPlayback, toggleHeatmap, externalControls]);
+  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers, clearPathLayer, clearPlayback, toggleHeatmap]);
+
+  // Beri tahu parent ketika externalControls berubah, tanpa re-init map
+  React.useEffect(() => {
+    if (!externalControls || !controlsApiRef.current) return;
+    externalControls(controlsApiRef.current);
+  }, [externalControls]);
 
   React.useEffect(() => {
       if (mapRef.current) {

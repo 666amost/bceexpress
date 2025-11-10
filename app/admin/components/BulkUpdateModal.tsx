@@ -51,13 +51,14 @@ export function BulkUpdateModal({
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-lg">
+      <DialogContent className="max-w-md rounded-lg" aria-describedby="bulk-update-desc">
         <DialogHeader>
           <DialogTitle className="text-orange-600 font-bold flex items-center gap-2">
             <RefreshIcon className="h-5 w-5" />
             Bulk Update Courier Status
           </DialogTitle>
         </DialogHeader>
+        <p id="bulk-update-desc" className="sr-only">Form untuk update status kurir secara massal</p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
