@@ -141,10 +141,12 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   const [totalPendingByCourier, setTotalPendingByCourier] = useState<Record<string, number>>({});
 
   const [activeCourierCount, setActiveCourierCount] = useState<number>(0);
-  const handleCouriersUpdated = useCallback((lastUpdate: string | null, activeCount: number) => {
+  const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
     setLastMapUpdateTime(lastUpdate);
-    setActiveCourierCount(activeCount);
-    setHasActiveCouriers(activeCount > 0);
+    setHasActiveCouriers(hasCouriers);
+  }, []);
+  const handleActiveCountUpdated = useCallback((count: number) => {
+    setActiveCourierCount(count);
   }, []);
 
   const fetchTotalPendingByCourier = useCallback(async () => {
@@ -539,7 +541,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     loadDashboardData();
   };
 
-  const handleFixSync = async (mismatches: Array<{awb: string; shipmentStatus: string; historyStatus: string}>) => {
+  const handleFixSync = useCallback(async (mismatches: Array<{awb: string; shipmentStatus: string; historyStatus: string}>) => {
     try {
       const currentDate = new Date().toISOString();
       let fixedCount = 0;
@@ -563,7 +565,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     } catch (err) {
       alert('Error fixing sync: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
-  };
+  }, [loadDashboardData]);
 
   const handleVerifySync = useCallback(async (courierId: string) => {
     try {
@@ -623,7 +625,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
     } catch (err) {
       alert('Error verifying sync: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
-  }, [loadDashboardData]);
+  }, [handleFixSync]);
 
   const handleRangeChange = (days: number) => {
     setDataRange(days);
@@ -1339,7 +1341,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           </div>
           <p id="map-dialog-desc" className="sr-only">Peta lokasi kurir dengan fitur cluster, heatmap, dan replay 30 menit.</p>
           <div className="w-full h-[55vh]">
-            <LeafletMap externalControls={(api) => setMapControls(api)} onCouriersUpdated={handleCouriersUpdated} autoFitOnLoad={false} />
+            <LeafletMap externalControls={(api) => setMapControls(api)} onCouriersUpdated={handleCouriersUpdated} onActiveCountUpdated={handleActiveCountUpdated} autoFitOnLoad={false} />
           </div>
         </DialogContent>
       </Dialog>

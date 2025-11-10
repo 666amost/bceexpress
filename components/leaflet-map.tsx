@@ -97,12 +97,13 @@ interface MapExternalControlsApi {
 }
 
 interface LeafletMapProps {
-  onCouriersUpdated?: (lastUpdate: string | null, activeCount: number) => void;
+  onCouriersUpdated?: (lastUpdate: string | null, hasCouriers: boolean) => void;
+  onActiveCountUpdated?: (activeCount: number) => void;
   externalControls?: (api: MapExternalControlsApi) => void;
   autoFitOnLoad?: boolean; // if true, map fits all markers first time
 }
 
-export function LeafletMap({ onCouriersUpdated, externalControls, autoFitOnLoad = false }: LeafletMapProps) {
+export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalControls, autoFitOnLoad = false }: LeafletMapProps) {
   const [courierLocations, setCourierLocations] = React.useState<CourierLocation[]>([])
   const [mapKey, setMapKey] = React.useState<number>(Date.now()) // Add key to force re-render
   const lastFetchTime = React.useRef<number>(0) // Track last successful fetch time
@@ -311,11 +312,14 @@ export function LeafletMap({ onCouriersUpdated, externalControls, autoFitOnLoad 
     setLastMapUpdateTime(currentUpdateTime);
 
     if (onCouriersUpdated) {
-      onCouriersUpdated(currentUpdateTime, mergedData.length);
+      onCouriersUpdated(currentUpdateTime, mergedData.length > 0);
+    }
+    if (onActiveCountUpdated) {
+      onActiveCountUpdated(mergedData.length);
     }
     
     lastFetchTime.current = Date.now();
-  }, [onCouriersUpdated]);
+  }, [onCouriersUpdated, onActiveCountUpdated]);
 
   const fetchCourierLocations = React.useCallback(async () => {
     // Prevent concurrent fetches
@@ -990,7 +994,7 @@ export function LeafletMap({ onCouriersUpdated, externalControls, autoFitOnLoad 
         mapRef.current = null;
       }
     };
-  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers, clearPathLayer, clearPlayback, toggleHeatmap]);
+  }, [mapKey, fetchCourierLocations, setupRealtimeSubscription, startPolling, possibleTableNames, clearAllMarkers, clearPathLayer, clearPlayback, toggleHeatmap, externalControls]);
 
   React.useEffect(() => {
       if (mapRef.current) {
@@ -1078,7 +1082,7 @@ export function LeafletMap({ onCouriersUpdated, externalControls, autoFitOnLoad 
         mapRef.current.setView([DEFAULT_LAT, DEFAULT_LNG], 10);
       }
     }
-  }, [clearPathLayer, courierLocations, getDefaultPopupContent, handleCourierMarkerClick, getFreshnessBorderColor, clusterEnabled]); // Rerun when courierLocations or cluster setting changes
+  }, [clearPathLayer, courierLocations, getDefaultPopupContent, handleCourierMarkerClick, getFreshnessBorderColor, clusterEnabled, autoFitOnLoad]);
 
   // React to cluster toggle by attaching/removing cluster layer
   React.useEffect(() => {
