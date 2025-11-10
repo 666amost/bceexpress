@@ -92,6 +92,20 @@ export async function getShipmentHistory(awbNumber: string): Promise<ShipmentHis
 export async function addShipmentHistory(
   historyEntry: Omit<ShipmentHistory, "id" | "created_at">,
 ): Promise<ShipmentHistory | null> {
+  // CRITICAL: Check current status before updating
+  // This is lightweight query using primary key index (~1-5ms)
+  const { data: currentShipment } = await supabase
+    .from("shipments")
+    .select("current_status")
+    .eq("awb_number", historyEntry.awb_number)
+    .maybeSingle()
+
+  // Prevent overriding delivered status with any other status
+  // This is the final safety net - protects against any bypass
+  if (currentShipment?.current_status === "delivered" && historyEntry.status !== "delivered") {
+    return null
+  }
+
   // Update the current status in the shipments table
   const { error: updateError } = await supabase
     .from("shipments")

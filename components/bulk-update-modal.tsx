@@ -351,21 +351,20 @@ export function BulkUpdateModal({ isOpen, onClose, onSuccess, currentUser }: Bul
           const client = await getPooledClient()
           
           // Quick check existing shipment with explicit columns
-          // Checking shipment in database (log removed for ESLint compliance)
           const { data: existing, error: existingError } = await client
             .from("shipments")
             .select("awb_number,current_status,courier_id")
             .eq("awb_number", awb)
             .maybeSingle()
-          // Database check result (log removed for ESLint compliance)
           
           if (existingError) {
             console.error(`Error checking existing shipment for ${awb}:`, existingError);
             return { awb, success: false, error: `Database error: ${existingError.message}` }
           }
-          // Skip jika sudah delivered
-          if (existing?.current_status && existing.current_status.toLowerCase() === 'delivered') {
-            return { awb, success: false, error: 'Already delivered' }
+          
+          // PENTING: Skip jika sudah delivered - TIDAK BOLEH di-override
+          if (existing?.current_status === 'delivered') {
+            return { awb, success: false, error: 'Already delivered - cannot override' }
           }
           let shipmentSuccess = false
           let historySuccess = false

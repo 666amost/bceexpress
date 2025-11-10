@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { addShipmentHistory } from "@/lib/db"
+import { addShipmentHistory, supabase } from "@/lib/db"
 import { sendScanKeluarToBranch, sendScanTTDToBranch, extractCourierName } from "@/lib/branch-sync"
 
 export async function POST(request: NextRequest) {
@@ -14,6 +14,21 @@ export async function POST(request: NextRequest) {
 
     if (!awb_number || !status || !location) {
       return NextResponse.json({ error: "AWB number, status, and location are required" }, { status: 400 })
+    }
+
+    // Validasi: Cek status saat ini sebelum update
+    const { data: currentShipment } = await supabase
+      .from("shipments")
+      .select("current_status")
+      .eq("awb_number", awb_number)
+      .single()
+
+    // Jangan allow update ke status lain jika sudah delivered
+    if (currentShipment?.current_status === "delivered" && status !== "delivered") {
+      return NextResponse.json({ 
+        error: "Cannot update shipment that is already delivered",
+        current_status: "delivered"
+      }, { status: 400 })
     }
 
     // Add shipment history
