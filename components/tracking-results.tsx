@@ -68,7 +68,13 @@ export function TrackingResults({ awbNumber, isPublicView = true }: { awbNumber:
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`/api/tracking?awb=${encodeURIComponent(awbNumber)}`);
+        const response = await fetch(`/api/tracking?awb=${encodeURIComponent(awbNumber)}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         const result = await response.json();
 
         if (!response.ok || result.error) {
