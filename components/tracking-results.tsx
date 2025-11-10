@@ -21,7 +21,20 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
 }
 
-export function TrackingResults({ awbNumber }: { awbNumber: string }) {
+function censorPhone(phone: string): string {
+  if (!phone || phone === 'N/A') return 'N/A';
+  if (phone.length <= 4) return '****';
+  return phone.substring(0, 4) + '****' + phone.substring(phone.length - 2);
+}
+
+function censorAddress(address: string): string {
+  if (!address || address === 'N/A') return 'N/A';
+  const words = address.split(' ');
+  if (words.length <= 3) return words[0] + ' ****';
+  return words.slice(0, 2).join(' ') + ' ****';
+}
+
+export function TrackingResults({ awbNumber, isPublicView = true }: { awbNumber: string; isPublicView?: boolean }) {
   const [shipment, setShipment] = useState<Shipment | null>(null)
   const [history, setHistory] = useState<ShipmentHistory[]>([])
   const [manifestCabang, setManifestCabang] = useState<ManifestCabangData | null>(null)
@@ -63,12 +76,42 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
           return;
         }
 
-        if (result.type === "manifest") {
-          setManifestCabang(result.data.manifestCabang);
-          setHistory(result.data.syntheticHistory);
+        const { shipment: shipmentData, manifestCabang: manifestData, history: historyData } = result.data;
+
+        if (shipmentData) {
+          setShipment(shipmentData);
+        }
+
+        if (manifestData) {
+          setManifestCabang(manifestData);
+        }
+
+        if (historyData && historyData.length > 0) {
+          setHistory(historyData);
+
+          const latestEntry = historyData[0];
           
-          const manifestData = result.data.manifestCabang;
-          setLastUpdateTime(new Date(manifestData.created_at || new Date()).toLocaleString("id-ID", { 
+          if (shipmentData && latestEntry.notes) {
+            const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
+            const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
+            const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i);
+
+            if (byMatch && byMatch[1]) {
+              setCourierName(byMatch[1]);
+            } else if (dashMatch && dashMatch[1]) {
+              setCourierName(dashMatch[1]);
+            } else if (bulkMatch && bulkMatch[1]) {
+              setCourierName(bulkMatch[1]);
+            } else {
+              setCourierName("Unknown");
+            }
+          } else if (!shipmentData && manifestData) {
+            setCourierName("Warehouse");
+          } else {
+            setCourierName("Unknown");
+          }
+
+          setLastUpdateTime(new Date(latestEntry.created_at).toLocaleString("id-ID", { 
             timeZone: "Asia/Jakarta", 
             year: "numeric", 
             month: "numeric", 
@@ -77,45 +120,8 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
             minute: "numeric", 
             second: "numeric" 
           }));
-          setCourierName("Warehouse");
-        } else if (result.type === "shipment") {
-          const shipmentData = result.data.shipment;
-          const historyData = result.data.history;
-
-          setShipment(shipmentData);
-          setHistory(historyData);
-
-          if (historyData && historyData.length > 0) {
-            const latestEntry = historyData[0];
-            if (latestEntry.notes) {
-              const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
-              const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
-              const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i);
-
-              if (byMatch && byMatch[1]) {
-                setCourierName(byMatch[1]);
-              } else if (dashMatch && dashMatch[1]) {
-                setCourierName(dashMatch[1]);
-              } else if (bulkMatch && bulkMatch[1]) {
-                setCourierName(bulkMatch[1]);
-              } else {
-                setCourierName("Unknown");
-              }
-            } else {
-              setCourierName("Unknown");
-            }
-            setLastUpdateTime(new Date(latestEntry.created_at).toLocaleString("id-ID", { 
-              timeZone: "Asia/Jakarta", 
-              year: "numeric", 
-              month: "numeric", 
-              day: "numeric", 
-              hour: "numeric", 
-              minute: "numeric", 
-              second: "numeric" 
-            }));
-          } else if (shipmentData) {
-            setCourierName(shipmentData.courier || "Unknown");
-          }
+        } else if (shipmentData) {
+          setCourierName(shipmentData.courier || "Unknown");
         }
       } catch (err) {
         setError("Terjadi kesalahan saat mengambil data tracking")
@@ -242,7 +248,7 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
           <div className="mt-2 text-xl sm:text-2xl font-bold text-blue-500 bg-muted p-3 rounded-md shadow-sm text-center sm:text-left">
             AWB: {awbNumber}
           </div>
-          {shipment && (
+          {(shipment || manifestCabang) && (
             <div className="mt-4 text-sm sm:text-base text-muted-foreground bg-muted p-4 rounded-md flex flex-col sm:flex-row justify-between items-center gap-4">
               <p className="font-medium bg-yellow-100 p-2 rounded-md shadow-sm">Handled by: {courierName}</p>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-blue-500">
@@ -263,8 +269,18 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                     <div className="text-center sm:text-left">
                       <h3 className="text-base font-semibold mb-1 text-primary">Sender Information</h3>
                       <p className="font-medium text-sm">{shipment?.sender_name || manifestCabang?.nama_pengirim}</p>
-                      <p className="text-xs text-muted-foreground">{shipment?.sender_address || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground">{shipment?.sender_phone || manifestCabang?.nomor_pengirim || 'N/A'}</p>
+                      {!isPublicView && (
+                        <>
+                          <p className="text-xs text-muted-foreground">{shipment?.sender_address || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{shipment?.sender_phone || manifestCabang?.nomor_pengirim || 'N/A'}</p>
+                        </>
+                      )}
+                      {isPublicView && (
+                        <>
+                          <p className="text-xs text-muted-foreground">{censorAddress(shipment?.sender_address || '')}</p>
+                          <p className="text-xs text-muted-foreground">{censorPhone(shipment?.sender_phone || manifestCabang?.nomor_pengirim || '')}</p>
+                        </>
+                      )}
                     </div>
                   )}
                   {((shipment?.receiver_name && shipment.receiver_name !== 'Auto Generated') || 
@@ -272,8 +288,18 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                     <div className="text-center sm:text-left">
                       <h3 className="text-base font-semibold mb-1 text-primary">Receiver Information</h3>
                       <p className="font-medium text-sm">{shipment?.receiver_name || manifestCabang?.nama_penerima}</p>
-                      <p className="text-xs text-muted-foreground">{shipment?.receiver_address || manifestCabang?.alamat_penerima || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground">{shipment?.receiver_phone || manifestCabang?.nomor_penerima || 'N/A'}</p>
+                      {!isPublicView && (
+                        <>
+                          <p className="text-xs text-muted-foreground">{shipment?.receiver_address || manifestCabang?.alamat_penerima || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{shipment?.receiver_phone || manifestCabang?.nomor_penerima || 'N/A'}</p>
+                        </>
+                      )}
+                      {isPublicView && (
+                        <>
+                          <p className="text-xs text-muted-foreground">{censorAddress(shipment?.receiver_address || manifestCabang?.alamat_penerima || '')}</p>
+                          <p className="text-xs text-muted-foreground">{censorPhone(shipment?.receiver_phone || manifestCabang?.nomor_penerima || '')}</p>
+                        </>
+                      )}
                     </div>
                   )}
                   {manifestCabang && (
@@ -286,9 +312,9 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
                   )}
                 </div>
               ) : null}
-              <div className="w-full bg-gray-200 rounded-full h-6 mt-6 relative shadow-sm">
-                <div id="progress-bar" className="h-full rounded-full flex items-center justify-center text-center text-white font-medium transition-all duration-300" style={{ width: '0%', backgroundColor: 'blue' }}>
-                  {shipment ? formatStatus(shipment.current_status) : 'At Warehouse'}
+              <div className="w-full bg-gray-200 rounded-full h-6 mt-6 relative shadow-sm overflow-hidden">
+                <div id="progress-bar" className="h-full rounded-full flex items-center justify-center text-center text-white font-medium text-xs sm:text-sm transition-all duration-300" style={{ width: '0%', backgroundColor: 'blue' }}>
+                  <span className="truncate px-2">{shipment ? formatStatus(shipment.current_status) : 'At Warehouse'}</span>
                 </div>
               </div>
             </>

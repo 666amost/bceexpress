@@ -1071,7 +1071,7 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
                           <CardContent className="p-0">
                             {/* Render TrackingResults untuk setiap hasil pencarian resi */}
                             <div className="w-full max-w-full overflow-x-auto">
-                              <TrackingResults awbNumber={shipment.awb_number} />
+                              <TrackingResults awbNumber={shipment.awb_number} isPublicView={false} />
                             </div>
                             <div className="flex flex-col sm:flex-row gap-2 justify-end p-4 border-t mt-2">
                               <Button

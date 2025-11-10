@@ -68,85 +68,51 @@ export async function GET(request: Request) {
       .eq("awb_number", awbNumber)
       .maybeSingle()
 
-    if (!shipmentData) {
-      
-      const { data: manifestData, error: manifestError } = await supabaseAdmin
-        .from("manifest_cabang")
-        .select("*")
-        .eq("awb_no", awbNumber)
-        .maybeSingle()
-
-      if (manifestError) {
-        console.error('[Tracking API] Manifest query error:', manifestError)
-      }
-
-      if (!manifestData) {
-        
-        const { data: manifestDataInsensitive, error: manifestErrorInsensitive } = await supabaseAdmin
-          .from("manifest_cabang")
-          .select("*")
-          .ilike("awb_no", awbNumber)
-          .maybeSingle()
-
-        if (manifestDataInsensitive) {
-          const warehouseLocation = manifestDataInsensitive.origin_branch?.toLowerCase().includes('bangka')
-            ? 'WAREHOUSE_BANGKA'
-            : manifestDataInsensitive.origin_branch?.toLowerCase().includes('tanjung')
-            ? 'WAREHOUSE_TJQ'
-            : `WAREHOUSE_${manifestDataInsensitive.origin_branch?.toUpperCase() || 'UNKNOWN'}`
-
-          return NextResponse.json({
-            type: "manifest",
-            data: {
-              manifestCabang: manifestDataInsensitive,
-              syntheticHistory: [{
-                id: 'manifest-entry',
-                awb_number: awbNumber,
-                status: 'processed',
-                location: warehouseLocation,
-                notes: `Package received at ${manifestDataInsensitive.origin_branch || 'branch'} warehouse`,
-                created_at: manifestDataInsensitive.created_at || new Date().toISOString()
-              }]
-            }
-          })
-        }
-
-        return NextResponse.json({ error: "Shipment not found" }, { status: 404 })
-      }
-
-      const warehouseLocation = manifestData.origin_branch?.toLowerCase().includes('bangka')
-        ? 'WAREHOUSE_BANGKA'
-        : manifestData.origin_branch?.toLowerCase().includes('tanjung')
-        ? 'WAREHOUSE_TJQ'
-        : `WAREHOUSE_${manifestData.origin_branch?.toUpperCase() || 'UNKNOWN'}`
-
-      return NextResponse.json({
-        type: "manifest",
-        data: {
-          manifestCabang: manifestData,
-          syntheticHistory: [{
-            id: 'manifest-entry',
-            awb_number: awbNumber,
-            status: 'processed',
-            location: warehouseLocation,
-            notes: `Package received at ${manifestData.origin_branch || 'branch'} warehouse`,
-            created_at: manifestData.created_at || new Date().toISOString()
-          }]
-        }
-      })
-    }
-
     const { data: historyData } = await supabaseAdmin
       .from("shipment_history")
       .select("*")
       .eq("awb_number", awbNumber)
       .order("created_at", { ascending: false })
 
+    const { data: manifestData } = await supabaseAdmin
+      .from("manifest_cabang")
+      .select("*")
+      .or(`awb_no.eq.${awbNumber},awb_no.ilike.${awbNumber}`)
+      .maybeSingle()
+
+    if (!shipmentData && !manifestData) {
+      return NextResponse.json({ error: "Shipment not found" }, { status: 404 })
+    }
+
+    let combinedHistory = historyData || []
+
+    if (manifestData) {
+      const warehouseLocation = manifestData.origin_branch?.toLowerCase().includes('bangka')
+        ? 'WAREHOUSE_BANGKA'
+        : manifestData.origin_branch?.toLowerCase().includes('tanjung')
+        ? 'WAREHOUSE_TJQ'
+        : `WAREHOUSE_${manifestData.origin_branch?.toUpperCase() || 'UNKNOWN'}`
+
+      const warehouseEntry = {
+        id: 'manifest-entry',
+        awb_number: awbNumber,
+        status: 'processed',
+        location: warehouseLocation,
+        notes: `Package received at ${manifestData.origin_branch || 'branch'} warehouse`,
+        created_at: manifestData.created_at || new Date().toISOString()
+      }
+
+      combinedHistory = [...combinedHistory, warehouseEntry].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    }
+
     return NextResponse.json({
-      type: "shipment",
+      type: shipmentData ? "shipment" : "manifest",
       data: {
         shipment: shipmentData,
-        history: historyData || []
+        manifestCabang: manifestData,
+        history: combinedHistory
       }
     })
 
