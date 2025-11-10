@@ -10,12 +10,12 @@ import {
   TimelineIcon,
   TimelineBody,
 } from "@/components/ui/timeline"
-import { type ShipmentHistory, type Shipment } from "@/lib/db"
+import { type ShipmentHistory, type Shipment, type ShipmentStatus } from "@/lib/db"
 import { Box } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { gsap } from 'gsap'
-import { supabaseClient } from "@/lib/auth"
+import type { ManifestCabangData } from "@/lib/db"
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
@@ -24,6 +24,7 @@ function formatDate(dateString: string): string {
 export function TrackingResults({ awbNumber }: { awbNumber: string }) {
   const [shipment, setShipment] = useState<Shipment | null>(null)
   const [history, setHistory] = useState<ShipmentHistory[]>([])
+  const [manifestCabang, setManifestCabang] = useState<ManifestCabangData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
@@ -34,6 +35,8 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
 
   const getProgress = (status: string) => {
     switch (status) {
+      case 'warehouse':
+        return 10;
       case 'processed':
         return 20;
       case 'shipped':
@@ -52,46 +55,67 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: shipmentData, error: shipmentError } = await supabaseClient.from("shipments").select("*").eq("awb_number", awbNumber).single();
-        if (shipmentError) {
-          setError("Shipment not found");
+        const response = await fetch(`/api/tracking?awb=${encodeURIComponent(awbNumber)}`);
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+          setError(result.error || "Shipment not found");
           return;
         }
 
-        const { data: historyData, error: historyError } = await supabaseClient.from("shipment_history").select("*").eq("awb_number", awbNumber).order("created_at", { ascending: false });
-        if (historyError) {
-          setError(`Error fetching history: ${historyError.message}`);
-        }
+        if (result.type === "manifest") {
+          setManifestCabang(result.data.manifestCabang);
+          setHistory(result.data.syntheticHistory);
+          
+          const manifestData = result.data.manifestCabang;
+          setLastUpdateTime(new Date(manifestData.created_at || new Date()).toLocaleString("id-ID", { 
+            timeZone: "Asia/Jakarta", 
+            year: "numeric", 
+            month: "numeric", 
+            day: "numeric", 
+            hour: "numeric", 
+            minute: "numeric", 
+            second: "numeric" 
+          }));
+          setCourierName("Warehouse");
+        } else if (result.type === "shipment") {
+          const shipmentData = result.data.shipment;
+          const historyData = result.data.history;
 
-        setShipment(shipmentData);
-        setHistory(historyData || []);
+          setShipment(shipmentData);
+          setHistory(historyData);
 
-        if (historyData && historyData.length > 0) {
-          const latestEntry = historyData[0];
-          if (latestEntry.notes) {
-            const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
-            const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
-            const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i);
+          if (historyData && historyData.length > 0) {
+            const latestEntry = historyData[0];
+            if (latestEntry.notes) {
+              const byMatch = latestEntry.notes.match(/by\s+(\w+)/i);
+              const dashMatch = latestEntry.notes.match(/-\s+(\w+)/i);
+              const bulkMatch = latestEntry.notes.match(/Bulk update - Shipped by\s+(\w+)/i);
 
-            if (byMatch && byMatch[1]) {
-              setCourierName(byMatch[1]);
-            } else if (dashMatch && dashMatch[1]) {
-              setCourierName(dashMatch[1]);
-            } else if (bulkMatch && bulkMatch[1]) {
-              setCourierName(bulkMatch[1]);
+              if (byMatch && byMatch[1]) {
+                setCourierName(byMatch[1]);
+              } else if (dashMatch && dashMatch[1]) {
+                setCourierName(dashMatch[1]);
+              } else if (bulkMatch && bulkMatch[1]) {
+                setCourierName(bulkMatch[1]);
+              } else {
+                setCourierName("Unknown");
+              }
             } else {
-              setCourierName("Unknown");  // Fallback jika tidak ada pola yang cocok
+              setCourierName("Unknown");
             }
-          } else {
-            setCourierName("Unknown");  // Fallback jika notes tidak ada
+            setLastUpdateTime(new Date(latestEntry.created_at).toLocaleString("id-ID", { 
+              timeZone: "Asia/Jakarta", 
+              year: "numeric", 
+              month: "numeric", 
+              day: "numeric", 
+              hour: "numeric", 
+              minute: "numeric", 
+              second: "numeric" 
+            }));
+          } else if (shipmentData) {
+            setCourierName(shipmentData.courier || "Unknown");
           }
-          setLastUpdateTime(new Date(latestEntry.created_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }));
-        } else if (shipmentData) {
-          setCourierName(shipmentData.courier || "Unknown");  // Fallback ke shipmentData jika history kosong
-        }
-
-        if (!shipmentData) {
-          setError(`No shipment found with AWB number ${awbNumber}`);
         }
       } catch (err) {
         setError("Terjadi kesalahan saat mengambil data tracking")
@@ -103,17 +127,30 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
   }, [awbNumber]);
 
   useEffect(() => {
-    if (shipment) {
-      const progressPercent = getProgress(shipment.current_status);
-      const color = shipment.current_status === 'delivered' ? 'green' : 'blue';
-      gsap.to('#progress-bar', {
-        width: `${progressPercent}%`,
-        backgroundColor: color,
-        duration: 1,
-        ease: 'power2.out',
-      });
+    if (!loading) {
+      const progressBar = document.getElementById('progress-bar');
+      if (!progressBar) return;
+
+      if (shipment) {
+        const progressPercent = getProgress(shipment.current_status);
+        const color = shipment.current_status === 'delivered' ? 'green' : 'blue';
+        gsap.to('#progress-bar', {
+          width: `${progressPercent}%`,
+          backgroundColor: color,
+          duration: 1,
+          ease: 'power2.out',
+        });
+      } else if (manifestCabang) {
+        const progressPercent = getProgress('warehouse');
+        gsap.to('#progress-bar', {
+          width: `${progressPercent}%`,
+          backgroundColor: 'orange',
+          duration: 1,
+          ease: 'power2.out',
+        });
+      }
     }
-  }, [shipment]);
+  }, [shipment, manifestCabang, loading]);
 
   const handleImageError = (id: string) => {
     setImageErrors((prev) => ({ ...prev, [id]: true }))
@@ -140,7 +177,7 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
     )
   }
 
-  if (!shipment && !loading) {
+  if (!shipment && !manifestCabang && !loading) {
     return (
       <Alert variant="destructive" className="mb-4">
         <AlertTitle>Not Found</AlertTitle>
@@ -162,6 +199,8 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "warehouse":
+        return "bg-orange-500"
       case "processed":
         return "bg-blue-500"
       case "shipped":
@@ -213,31 +252,43 @@ export function TrackingResults({ awbNumber }: { awbNumber: string }) {
           )}
         </CardHeader>
         <CardContent className="p-6">
-          {shipment && (
+          {(shipment || manifestCabang) && (
             <>
-              {(shipment.sender_name && shipment.sender_name !== 'Auto Generated') || (shipment.receiver_name && shipment.receiver_name !== 'Auto Generated') ? (
+              {((shipment?.sender_name && shipment.sender_name !== 'Auto Generated') || 
+                (shipment?.receiver_name && shipment.receiver_name !== 'Auto Generated') ||
+                manifestCabang) ? (
                 <div className="bg-muted p-4 rounded-lg shadow-sm space-y-4 mb-6">
-                  {shipment.sender_name && shipment.sender_name !== 'Auto Generated' && (
+                  {((shipment?.sender_name && shipment.sender_name !== 'Auto Generated') || 
+                    (manifestCabang?.nama_pengirim)) && (
                     <div className="text-center sm:text-left">
                       <h3 className="text-base font-semibold mb-1 text-primary">Sender Information</h3>
-                      <p className="font-medium text-sm">{shipment.sender_name}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.sender_address}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.sender_phone}</p>
+                      <p className="font-medium text-sm">{shipment?.sender_name || manifestCabang?.nama_pengirim}</p>
+                      <p className="text-xs text-muted-foreground">{shipment?.sender_address || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">{shipment?.sender_phone || manifestCabang?.nomor_pengirim || 'N/A'}</p>
                     </div>
                   )}
-                  {shipment.receiver_name && shipment.receiver_name !== 'Auto Generated' && (
+                  {((shipment?.receiver_name && shipment.receiver_name !== 'Auto Generated') || 
+                    (manifestCabang?.nama_penerima)) && (
                     <div className="text-center sm:text-left">
                       <h3 className="text-base font-semibold mb-1 text-primary">Receiver Information</h3>
-                      <p className="font-medium text-sm">{shipment.receiver_name}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.receiver_address}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.receiver_phone}</p>
+                      <p className="font-medium text-sm">{shipment?.receiver_name || manifestCabang?.nama_penerima}</p>
+                      <p className="text-xs text-muted-foreground">{shipment?.receiver_address || manifestCabang?.alamat_penerima || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">{shipment?.receiver_phone || manifestCabang?.nomor_penerima || 'N/A'}</p>
+                    </div>
+                  )}
+                  {manifestCabang && (
+                    <div className="text-center sm:text-left">
+                      <h3 className="text-base font-semibold mb-1 text-primary">Destination Information</h3>
+                      <p className="text-xs text-muted-foreground">Kota: {manifestCabang.kota_tujuan || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">Kecamatan: {manifestCabang.kecamatan || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">Wilayah: {manifestCabang.wilayah || 'N/A'}</p>
                     </div>
                   )}
                 </div>
               ) : null}
               <div className="w-full bg-gray-200 rounded-full h-6 mt-6 relative shadow-sm">
                 <div id="progress-bar" className="h-full rounded-full flex items-center justify-center text-center text-white font-medium transition-all duration-300" style={{ width: '0%', backgroundColor: 'blue' }}>
-                  {shipment && formatStatus(shipment.current_status)}
+                  {shipment ? formatStatus(shipment.current_status) : 'At Warehouse'}
                 </div>
               </div>
             </>

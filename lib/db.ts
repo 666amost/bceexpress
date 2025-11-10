@@ -345,3 +345,36 @@ export async function createBooking(bookingData: BookingData): Promise<boolean> 
     return false;
   }
 }
+
+export interface ManifestCabangData {
+  awb_no: string;
+  origin_branch: string;
+  nama_pengirim: string;
+  nomor_pengirim: string;
+  nama_penerima: string;
+  nomor_penerima: string;
+  alamat_penerima: string;
+  kota_tujuan: string;
+  wilayah: string;
+  kecamatan: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getManifestCabangByAwb(awbNumber: string): Promise<ManifestCabangData | null> {
+  try {
+    const { data, error } = await supabase
+      .from("manifest_cabang")
+      .select("awb_no, origin_branch, nama_pengirim, nomor_pengirim, nama_penerima, nomor_penerima, alamat_penerima, kota_tujuan, wilayah, kecamatan, created_at, updated_at")
+      .eq("awb_no", awbNumber)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data as ManifestCabangData;
+  } catch (error: unknown) {
+    return null;
+  }
+}
