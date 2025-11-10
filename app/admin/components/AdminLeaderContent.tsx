@@ -4,10 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   UserMultiple as UserMultipleIcon,
-  Package as PackageIcon,
   WarningFilled as WarningIcon,
   CheckmarkFilled as CheckmarkIcon,
   Search as SearchIcon,
@@ -23,11 +21,13 @@ import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Oval as LoadingIcon } from 'react-loading-icons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TrackingResults } from "@/components/tracking-results";
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { StatsCard } from './StatsCard';
+import { CourierCard } from './CourierCard';
+import { BulkUpdateModal } from './BulkUpdateModal';
 
 const CourierShipmentList = dynamic(() => import('@/components/courier-shipment-list').then(mod => mod.CourierShipmentList), { 
   ssr: false, 
@@ -134,11 +134,123 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
   const liveListRef = useRef<HTMLDivElement>(null);
   const [courierDailySummary, setCourierDailySummary] = useState<Array<{id:string; name:string; delivered:number; total:number; otd:number; lastAwbs:string[]}>>([]);
   const [courierSummarySort, setCourierSummarySort] = useState<'best'|'worst'>('best');
+  const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
+  const [bulkUpdateCourierId, setBulkUpdateCourierId] = useState<string>('');
+  const [bulkUpdateStatus, setBulkUpdateStatus] = useState<string>('delivered');
+  const [bulkUpdateNotes, setBulkUpdateNotes] = useState<string>('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkUpdateError, setBulkUpdateError] = useState<string>('');
+  const [totalPendingByCourier, setTotalPendingByCourier] = useState<Record<string, number>>({});
 
   const handleCouriersUpdated = useCallback((lastUpdate: string | null, hasCouriers: boolean) => {
     setLastMapUpdateTime(lastUpdate);
     setHasActiveCouriers(hasCouriers);
   }, []);
+
+  const fetchTotalPendingByCourier = useCallback(async () => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
+      const { data: allPending } = await supabaseClient
+        .from("shipments")
+        .select("courier_id")
+        .neq("current_status", "delivered")
+        .lt("created_at", sevenDaysAgoISO);
+
+      if (allPending) {
+        const counts: Record<string, number> = {};
+        allPending.forEach(s => {
+          counts[s.courier_id] = (counts[s.courier_id] || 0) + 1;
+        });
+        setTotalPendingByCourier(counts);
+      }
+    } catch {
+      setTotalPendingByCourier({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isBulkUpdateModalOpen) {
+      fetchTotalPendingByCourier();
+    }
+  }, [isBulkUpdateModalOpen, fetchTotalPendingByCourier]);
+
+  const handleBulkUpdateSubmit = async () => {
+    if (!bulkUpdateCourierId) {
+      setBulkUpdateError("Please select a courier");
+      return;
+    }
+    
+    setIsBulkUpdating(true);
+    setBulkUpdateError("");
+    
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
+      const { data: pendingShipmentsList, error: fetchError } = await supabaseClient
+        .from("shipments")
+        .select("awb_number, current_status, created_at")
+        .eq("courier_id", bulkUpdateCourierId)
+        .neq("current_status", "delivered")
+        .lt("created_at", sevenDaysAgoISO)
+        .order("created_at", { ascending: true });
+
+      if (fetchError) throw new Error(fetchError.message);
+
+      if (!pendingShipmentsList || pendingShipmentsList.length === 0) {
+        setBulkUpdateError("No old pending shipments found (older than 7 days).");
+        setIsBulkUpdating(false);
+        return;
+      }
+
+      const currentDate = new Date().toISOString();
+      const awbNumbers = pendingShipmentsList.map(s => s.awb_number);
+      
+      const { error: updateError } = await supabaseClient
+        .from("shipments")
+        .update({ 
+          current_status: bulkUpdateStatus, 
+          updated_at: currentDate 
+        })
+        .in("awb_number", awbNumbers);
+
+      if (updateError) throw new Error(updateError.message);
+
+      const historyRecords = pendingShipmentsList.map((shipment) => ({
+        awb_number: shipment.awb_number,
+        status: bulkUpdateStatus,
+        location: "Admin Bulk Update",
+        notes: bulkUpdateNotes || `Bulk updated by admin to ${bulkUpdateStatus}`,
+        created_at: currentDate,
+      }));
+
+      const batchSize = 100;
+      for (let i = 0; i < historyRecords.length; i += batchSize) {
+        const batch = historyRecords.slice(i, i + batchSize);
+        const { error: historyError } = await supabaseClient
+          .from("shipment_history")
+          .insert(batch);
+        
+        if (historyError) throw new Error(historyError.message);
+      }
+
+      alert(`Successfully updated ${pendingShipmentsList.length} old pending shipments (>7 days) to ${bulkUpdateStatus}`);
+      setIsBulkUpdateModalOpen(false);
+      setBulkUpdateCourierId('');
+      setBulkUpdateStatus('delivered');
+      setBulkUpdateNotes('');
+      await loadDashboardData();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setBulkUpdateError(errorMessage);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   const fetchLiveShipments = useCallback(async () => {
     try {
@@ -644,37 +756,42 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
-          <h3 className="text-lg font-bold text-blue-900 dark:text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white h-12 w-full text-sm sm:text-base"
-              onClick={() => setIsLocationMapOpen(true)}
-            >
-              <LocationPointIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-              View Courier Locations
-            </Button>
-            <Button 
-              variant="outline" 
-              className="border-red-200 text-red-700 hover:bg-red-50 h-12 w-full text-sm sm:text-base"
-              onClick={() => setIsPendingModalOpen(true)}
-            >
-              <WarningIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-              View Pending Shipments
-            </Button>
-            <Button 
-              variant="outline" 
-              className="border-green-200 text-green-700 hover:bg-green-50 h-12 w-full text-sm sm:text-base sm:col-span-2 lg:col-span-1"
-              onClick={() => setIsManifestModalOpen(true)}
-            >
-              <ChartIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-              View Manifest ({manifestTotal})
-            </Button>
-          </div>
-        </div>
-
-        {/* Courier daily summary (delivered/total/otd) */}
+          {/* Quick Actions */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
+            <h3 className="text-lg font-bold text-blue-900 dark:text-white mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white h-12 w-full text-sm sm:text-base"
+                onClick={() => setIsLocationMapOpen(true)}
+              >
+                <LocationPointIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                View Courier Locations
+              </Button>
+              <Button 
+                variant="outline" 
+                className="border-red-200 text-red-700 hover:bg-red-50 h-12 w-full text-sm sm:text-base"
+                onClick={() => setIsPendingModalOpen(true)}
+              >
+                <WarningIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                View Pending Shipments
+              </Button>
+              <Button 
+                variant="outline" 
+                className="border-green-200 text-green-700 hover:bg-green-50 h-12 w-full text-sm sm:text-base"
+                onClick={() => setIsManifestModalOpen(true)}
+              >
+                <ChartIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                View Manifest ({manifestTotal})
+              </Button>
+              <Button 
+                className="bg-orange-600 hover:bg-orange-700 text-white h-12 w-full text-sm sm:text-base"
+                onClick={() => setIsBulkUpdateModalOpen(true)}
+              >
+                <RefreshIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                Bulk Update Status
+              </Button>
+            </div>
+          </div>        {/* Courier daily summary (delivered/total/otd) */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-bold text-blue-900 dark:text-white">Courier Summary (Today)</h3>
@@ -795,64 +912,18 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedCouriers.map((courier) => (
-            <div
+            <CourierCard
               key={courier.id}
-              className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg border p-4 transition-all duration-300 cursor-pointer hover:shadow-xl ${
-                selectedCourier === courier.id 
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400" 
-                  : courierStats[courier.id]?.pending > highPriorityThreshold
-                  ? "border-red-300 dark:border-red-500"
-                  : "border-blue-100 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500"
-              }`}
+              courier={courier}
+              stats={courierStats[courier.id] || { total: 0, pending: 0, completed: 0 }}
+              isSelected={selectedCourier === courier.id}
+              isHighPriority={(courierStats[courier.id]?.pending || 0) > highPriorityThreshold}
               onClick={() => setSelectedCourier(courier.id)}
               onDoubleClick={() => {
                 setSelectedCourier(courier.id);
                 onTabChange("shipments");
               }}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-12 h-12 rounded-full ${
-                  courierStats[courier.id]?.pending > highPriorityThreshold
-                  ? 'bg-red-100 dark:bg-red-900/30'
-                  : 'bg-blue-100 dark:bg-blue-900/30'
-                } flex items-center justify-center`}>
-                  <UserMultipleIcon className={`h-6 w-6 ${
-                    courierStats[courier.id]?.pending > highPriorityThreshold
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-blue-600 dark:text-blue-400'
-                  }`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-blue-900 dark:text-white truncate">
-                    {courier.name}
-                    {courierStats[courier.id]?.pending > highPriorityThreshold && (
-                      <span className="inline-flex items-center ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200">
-                        Priority
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{courier.email}</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2">
-                  <BoxIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
-                  <span className="text-base font-bold text-blue-900 dark:text-blue-100 block">{courierStats[courier.id]?.total || 0}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Total</span>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-2">
-                  <WarningIcon className="h-4 w-4 text-red-600 dark:text-red-400 mx-auto mb-1" />
-                  <span className="text-base font-bold text-red-600 dark:text-red-100 block">{courierStats[courier.id]?.pending || 0}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Pending</span>
-                </div>
-                <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-2">
-                  <CheckmarkIcon className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto mb-1" />
-                  <span className="text-base font-bold text-green-600 dark:text-green-100 block">{courierStats[courier.id]?.completed || 0}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Done</span>
-                </div>
-              </div>
-            </div>
+            />
           ))}
         </div>
       </div>
@@ -1227,6 +1298,26 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Update Modal */}
+      <BulkUpdateModal
+        open={isBulkUpdateModalOpen}
+        onOpenChange={(open) => {
+          setIsBulkUpdateModalOpen(open);
+          if (!open) setBulkUpdateError('');
+        }}
+        couriers={couriers}
+        totalPendingByCourier={totalPendingByCourier}
+        selectedCourierId={bulkUpdateCourierId}
+        selectedStatus={bulkUpdateStatus}
+        notes={bulkUpdateNotes}
+        error={bulkUpdateError}
+        isUpdating={isBulkUpdating}
+        onCourierChange={setBulkUpdateCourierId}
+        onStatusChange={setBulkUpdateStatus}
+        onNotesChange={setBulkUpdateNotes}
+        onSubmit={handleBulkUpdateSubmit}
+      />
       </>
     );
   }

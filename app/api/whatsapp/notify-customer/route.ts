@@ -1,109 +1,114 @@
 // app/api/whatsapp/notify-customer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
-  // DISABLED: Mencegah spam WhatsApp - jangan chat duluan ke customer
-  // Return success immediately tanpa processing
-  return NextResponse.json({ 
-    ok: true, 
-    skipped: true, 
-    reason: 'customer_notification_disabled',
-    message: 'Customer notifications are disabled to prevent WhatsApp spam. Use auto-reply instead.'
-  });
+// Rate limiting: max 15 customer notifications per day
+const MAX_DAILY_NOTIFICATIONS = 15;
+const notificationLog = new Map<string, { count: number; resetAt: number }>();
 
-  /* ORIGINAL CODE - DISABLED
+function canSendNotification(): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const log = notificationLog.get(today);
+  const now = Date.now();
+
+  if (!log || now > log.resetAt) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    notificationLog.set(today, { count: 0, resetAt: tomorrow.getTime() });
+    return true;
+  }
+
+  return log.count < MAX_DAILY_NOTIFICATIONS;
+}
+
+function incrementNotificationCount() {
+  const today = new Date().toISOString().split('T')[0];
+  const log = notificationLog.get(today);
+  if (log) {
+    log.count++;
+  }
+}
+
+export async function POST(req: NextRequest) {
+  // Check rate limit first
+  if (!canSendNotification()) {
+    return NextResponse.json({ 
+      ok: true, 
+      skipped: true, 
+      reason: 'daily_limit_reached',
+      message: `Daily notification limit (${MAX_DAILY_NOTIFICATIONS}) reached`
+    });
+  }
   try {
-    // Untuk mencegah error bila webhook dipanggil tanpa body
     let body;
     try {
       body = await req.json();
     } catch (e) {
-      // Invalid request body
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_body' });
     }
 
-    // --- AUTH (sama seperti notify) ---
     const rawAuth = req.headers.get('authorization') ?? '';
     const token = rawAuth.replace(/^Bearer\s+/i, '').trim();
     if (!process.env.WA_WEBHOOK_SECRET) {
-      // Webhook secret not configured
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
     if (token !== process.env.WA_WEBHOOK_SECRET) {
-      // Unauthorized webhook call
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // --- Validasi tipe webhook Supabase (harus UPDATE dari tabel shipment) ---
     const { type, table } = body;
     if (type !== 'UPDATE' || table !== 'shipments') {
-// Skipping: Invalid trigger type or table
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_trigger' });
     }
 
-    // --- Ambil record lama/baru (format Supabase pg_net) ---
-    const src = body.new ?? body.record ?? null; // Untuk UPDATE, harus ada new record
-    const oldSrc = body.old ?? body.old_record ?? null; // Untuk UPDATE, harus ada old record
+    const src = body.new ?? body.record ?? null;
+    const oldSrc = body.old ?? body.old_record ?? null;
 
     if (!src || !oldSrc) {
-// Skipping: Missing new or old record data
       return NextResponse.json({ ok: true, skipped: true, reason: 'missing_record_data' });
     }
 
-    // ===>> TABLE SHIPMENTS FIELDS
     const awb_number = src.awb_number;
     const status = (src.current_status ?? src.status ?? '').toLowerCase();
     const oldStatus = (oldSrc.current_status ?? oldSrc.status ?? '').toLowerCase();
     const phoneRaw = src.receiver_phone;
     const receiverNameRaw = src?.receiver_name;
 
-    // Log the incoming data for debugging
-    // console.log('Incoming webhook data:', {
-    //   type,
-    //   awb_number,
-    //   status,
-    //   oldStatus,
-    //   phoneRaw,
-    //   receiverNameRaw,
-    //   bodyKeys: Object.keys(body)
-    // });
-
-    // Validate required fields
     if (!awb_number || !status) {
-      // console.log('Skipping: Missing required fields', { awb_number, status });
       return NextResponse.json({ ok: true, skipped: true, warning: 'missing fields', keys: Object.keys(src || {}) });
     }
 
-    // 1. Validasi perubahan status ke delivered
+    // FILTER: Only BCE prefix (not BE)
+    if (!awb_number.toUpperCase().startsWith('BCE')) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'not_bce_prefix' });
+    }
+
+    // Random selection: 50% chance to skip (untuk randomize 15 dari banyak request)
+    if (Math.random() > 0.5) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'random_skip' });
+    }
+
     const isDeliveredStatusChange = status === 'delivered' && oldStatus !== 'delivered';
     
     if (!isDeliveredStatusChange) {
-      // console.log('Skipping: Not a change to delivered status', { status, oldStatus });
       return NextResponse.json({ ok: true, skipped: true, reason: 'not_delivered_status_change' });
     }
 
-    // 2. Validasi nomor telepon
     if (!phoneRaw) {
-      // console.log('Skipping: No receiver phone number', { awb_number });
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_phone_number' });
     }
 
-    // Validate phone number format
     let chatId;
     try {
       chatId = toChatId(phoneRaw);
     } catch (phoneError) {
-      // console.log('Skipping: Invalid phone number format', { awb_number, phoneRaw, error: phoneError.message });
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_phone_format' });
     }
 
-    // 3. Validasi konfigurasi WAHA
     if (!process.env.WAHA_API_URL) {
-      // console.log('Skipping: WAHA not configured');
       return NextResponse.json({ ok: true, skipped: true, reason: 'waha_not_configured' });
     }
 
-    // Check WAHA connection first
     try {
       const healthCheck = await fetch(`${process.env.WAHA_API_URL}/api/sessions`, {
         headers: process.env.WAHA_API_KEY ? { 'X-Api-Key': process.env.WAHA_API_KEY } : {}
@@ -120,17 +125,13 @@ export async function POST(req: NextRequest) {
 
     const message = buildDeliveredMsg(awb_number, receiverNameRaw);
 
-    // console.log('Attempting to send WhatsApp message:', { 
-    //   awb_number, 
-    //   chatId, 
-    //   messageLength: message.length,
-    //   receiverName: receiverNameRaw 
-    // });
-
     try {
       await sendMessageSequence(chatId, message);
-      // console.log('WhatsApp message sent successfully:', { awb_number, chatId });
-      return NextResponse.json({ ok: true });
+      
+      // Increment counter after successful send
+      incrementNotificationCount();
+      
+      return NextResponse.json({ ok: true, sent: true, awb: awb_number });
     } catch (error) {
       console.error('WhatsApp notification error:', error);
       return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed' });
@@ -138,7 +139,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-  */
 }
 
 /* ================== Templates ================== */
