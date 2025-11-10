@@ -359,29 +359,53 @@ Detail lengkap: bcexp.id`;
 async function getShipmentByAWB(awbNumber: string): Promise<ShipmentData | null> {
   const supabase = getSupabaseClient();
   
-    // Try shipment_history first (latest status) - this is where webhook updates go
-    let { data, error } = await supabase
+  // Try shipment_history first (latest status) - this is where webhook updates go
+  let { data, error } = await supabase
+    .from('shipment_history')
+    .select('awb_number, status, location, notes')
+    .eq('awb_number', awbNumber)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // If not found in history, try case-insensitive search
+  if (!data && !error) {
+    const historyResult = await supabase
       .from('shipment_history')
       .select('awb_number, status, location, notes')
-      .eq('awb_number', awbNumber)
+      .ilike('awb_number', awbNumber)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
   
-    // If not found in history, try case-insensitive search
-    if (!data && !error) {
-      const historyResult = await supabase
-        .from('shipment_history')
-        .select('awb_number, status, location, notes')
-        .ilike('awb_number', awbNumber)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-    
-      data = historyResult.data;
-      error = historyResult.error;
+    data = historyResult.data;
+    error = historyResult.error;
+  }
+
+  // If still not found, check manifest_cabang (warehouse data)
+  if (!data && !error) {
+    const manifestResult = await supabase
+      .from('manifest_cabang')
+      .select('awb_no, origin_branch, created_at')
+      .or(`awb_no.eq.${awbNumber},awb_no.ilike.${awbNumber}`)
+      .maybeSingle();
+
+    if (manifestResult.data) {
+      const warehouseLocation = manifestResult.data.origin_branch?.toLowerCase().includes('bangka')
+        ? 'WAREHOUSE_BANGKA'
+        : manifestResult.data.origin_branch?.toLowerCase().includes('tanjung')
+        ? 'WAREHOUSE_TJQ'
+        : `WAREHOUSE_${manifestResult.data.origin_branch?.toUpperCase() || 'UNKNOWN'}`;
+
+      return {
+        awb_number: manifestResult.data.awb_no,
+        status: 'processed',
+        location: warehouseLocation,
+        notes: `Package at ${manifestResult.data.origin_branch || 'branch'} warehouse`
+      };
     }
-  
+  }
+
   if (error || !data) {
     return null;
   }
