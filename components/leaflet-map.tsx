@@ -262,7 +262,7 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
         color: #6b7280;
         margin-top: 4px;
       }
-      /* Make Leaflet popup wrapper responsive */
+      /* Make Leaflet popup wrapper responsive and stay below controls */
       .leaflet-popup-content-wrapper {
         max-width: 320px;
         border-radius: 10px;
@@ -270,9 +270,18 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
       .leaflet-popup-content {
         margin: 8px 10px;
       }
+      .leaflet-popup-pane {
+        z-index: 600 !important;
+      }
+      .leaflet-popup {
+        margin-bottom: 70px;
+      }
       @media (max-width: 640px) {
         .leaflet-popup-content-wrapper { max-width: 84vw; }
         .courier-popup { min-width: 0; }
+        .leaflet-popup {
+          margin-bottom: 90px;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -600,7 +609,7 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
         <div class="courier-popup__title">${courierName}</div>
         <div class="courier-popup__subtitle">Update terakhir ${formatTimestamp(location.updated_at)} · ${rel}</div>
         <div class="courier-popup__coords">Lat ${location.latitude.toFixed(4)}, Lng ${location.longitude.toFixed(4)}</div>
-        <div class="courier-popup__hint">Klik marker untuk perjalanan & AWB terakhir. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+        <div class="courier-popup__hint">Klik marker untuk perjalanan & AWB terakhir. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 1 jam</button></div>
       </div>
     `;
   }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
@@ -635,7 +644,7 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
           ${summary.previousAwbNumber ? `<div class="courier-popup__meta">Sebelumnya: <span class="courier-popup__awb">${escapeHtml(summary.previousAwbNumber)}</span></div>` : ''}
           <div class="courier-popup__empty">Tidak ada titik lokasi pada AWB terbaru ini.</div>
         </div>
-        <div class="courier-popup__hint">Klik marker lagi untuk menutup. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+        <div class="courier-popup__hint">Klik marker lagi untuk menutup. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 1 jam</button></div>
       </div>
     `;
   }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
@@ -654,7 +663,7 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
           <div class="courier-popup__meta">Terbaru: <span class="courier-popup__awb">${escapeHtml(route.awbNumber)}</span></div>
           ${route.previousAwbNumber ? `<div class="courier-popup__meta">Sebelumnya: <span class="courier-popup__awb">${escapeHtml(route.previousAwbNumber)}</span></div>` : ''}
         </div>
-        <div class="courier-popup__hint">Klik marker lagi untuk sembunyikan perjalanan. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 30 menit</button></div>
+        <div class="courier-popup__hint">Klik marker lagi untuk sembunyikan perjalanan. <button class="replay-btn" data-courier="${location.courier_id}" style="margin-left:6px;color:#1d4ed8;">Replay 1 jam</button></div>
       </div>
     `;
   }, [escapeHtml, formatRelativeMinutes, formatTimestamp]);
@@ -680,20 +689,18 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
   }, []);
 
   const fetchCourierPlaybackPoints = React.useCallback(async (courierId: string): Promise<Array<{lat:number; lng:number; t?: string}>> => {
-    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    // Prefer courier_current_locations (verified table) using updated_at only
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     try {
       const { data: currentLocs, error: curErr } = await supabaseClient
         .from('courier_current_locations')
         .select('latitude, longitude, updated_at')
         .eq('courier_id', courierId)
-        .gte('updated_at', thirtyMinAgo)
+        .gte('updated_at', oneHourAgo)
         .order('updated_at', { ascending: true })
         .limit(100);
       if (!curErr && currentLocs && currentLocs.length > 1) {
         return (currentLocs as Array<{latitude:number; longitude:number; updated_at?:string}>).map(r => ({ lat: r.latitude, lng: r.longitude, t: r.updated_at }));
       }
-      // If still less than 2 points, take last 20 by time regardless of window and sort asc
       const { data: lastLocs } = await supabaseClient
         .from('courier_current_locations')
         .select('latitude, longitude, updated_at')
@@ -724,12 +731,12 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
           hint.style.fontSize = '0.75rem';
           hint.style.color = '#ef4444';
           hint.style.marginTop = '6px';
-          hint.textContent = 'Replay tidak tersedia (tidak ada jejak lokasi 30 menit).';
+          hint.textContent = 'Replay tidak tersedia (tidak ada jejak lokasi 1 jam terakhir).';
           el.appendChild(hint);
         }
       }
       if (btn) {
-        btn.title = 'Replay tidak tersedia (tidak ada jejak lokasi 30 menit)';
+        btn.title = 'Replay tidak tersedia (tidak ada jejak lokasi 1 jam terakhir)';
         btn.style.color = '#ef4444';
         setTimeout(() => { btn.style.color = '#1d4ed8'; }, 1500);
       }
@@ -864,6 +871,11 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
       activeCourierIdRef.current = null;
       marker.setPopupContent(getDefaultPopupContent(location));
       marker.openPopup();
+      
+      if (mapRef.current) {
+        mapRef.current.setView([location.latitude, location.longitude], 16, { animate: true });
+      }
+      
       wireReplayButton(marker, courierId);
       return;
     }
@@ -877,6 +889,10 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
       marker.setPopupContent(getLoadingPopupContent(courierName));
     }
     marker.openPopup();
+    
+    if (mapRef.current) {
+      mapRef.current.setView([location.latitude, location.longitude], 16, { animate: true });
+    }
 
     const routeSummary = await fetchCourierRecentPath(courierId);
 
@@ -899,15 +915,9 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
       return;
     }
 
-    // If the latest AWB has no coordinates, just show its info without drawing a path
     if (routeSummary.latitude == null || routeSummary.longitude == null) {
       marker.setPopupContent(getLatestAwbPopupContent(location, routeSummary));
       marker.openPopup();
-      if (mapRef.current) {
-        // nudge view a bit to keep popup fully visible
-        const currentCenter = mapRef.current.getCenter();
-        mapRef.current.panTo(currentCenter, { animate: true });
-      }
       wireReplayButton(marker, courierId);
       return;
     }
@@ -942,20 +952,15 @@ export function LeafletMap({ onCouriersUpdated, onActiveCountUpdated, externalCo
     pathLayerRef.current = pathGroup;
 
     const bounds = L.latLngBounds(routePoints);
-    mapRef.current.fitBounds(bounds.pad(0.2), {
+    mapRef.current.fitBounds(bounds.pad(0.3), {
       animate: true,
-      paddingTopLeft: [32, 140] as unknown as L.PointExpression, // extra top space for popup
-      paddingBottomRight: [32, 32] as unknown as L.PointExpression
+      paddingTopLeft: [50, 100] as unknown as L.PointExpression,
+      paddingBottomRight: [50, 120] as unknown as L.PointExpression
     });
 
     marker.setPopupContent(getRoutePopupContent(location, routeSummary));
     marker.openPopup();
-    // Wire replay button
     wireReplayButton(marker, courierId);
-    // After opening the popup, nudge map down a bit so the popup does not cover the origin point
-    if (mapRef.current) {
-      mapRef.current.panBy([0, 80], { animate: true });
-    }
   }, [clearPathLayer, escapeHtml, fetchCourierRecentPath, getDefaultPopupContent, getLoadingPopupContent, getNoHistoryPopupContent, getRoutePopupContent, getLatestAwbPopupContent, clearPlayback, wireReplayButton]);
 
   React.useEffect(() => {

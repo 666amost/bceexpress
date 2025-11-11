@@ -1318,32 +1318,36 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
 
       {/* Modal: View Courier Locations (LeafletMap) */}
       <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
-        <DialogContent className="max-w-3xl w-full h-[70vh] p-0 overflow-hidden rounded-lg" aria-describedby="map-dialog-desc">
-          <DialogHeader>
-            <DialogTitle className="text-blue-900 dark:text-white font-bold flex items-center gap-2">
-              <LocationPointIcon className="h-5 w-5" /> Courier Locations
+        <DialogContent className="max-w-3xl w-full h-[80vh] sm:h-[80vh] p-0 overflow-hidden rounded-lg" aria-describedby="map-dialog-desc">
+          <DialogHeader className="px-4 pt-3 pb-2">
+            <DialogTitle className="text-blue-900 dark:text-white font-bold flex items-center gap-2 text-sm sm:text-base">
+              <LocationPointIcon className="h-4 w-4 sm:h-5 sm:w-5" /> Courier Locations
             </DialogTitle>
           </DialogHeader>
-          <div className="px-4 pb-2 flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mr-2">Controls:</span>
-              <Button variant="outline" onClick={() => mapControls?.zoomIn()} aria-label="Zoom in" className="h-8 px-3 text-xs">Zoom +</Button>
-              <Button variant="outline" onClick={() => mapControls?.zoomOut?.()} aria-label="Zoom out" className="h-8 px-3 text-xs">Zoom −</Button>
-              <Button variant="outline" onClick={() => mapControls?.fitAll()} aria-label="Fit all" className="h-8 px-3 text-xs">Fit</Button>
-              <Button variant="outline" onClick={() => mapControls?.toggleHeatmap()} aria-label="Toggle heatmap" className="h-8 px-3 text-xs">Heat</Button>
-              <Button variant="outline" onClick={() => mapControls?.toggleCluster()} aria-label="Toggle clustering" className="h-8 px-3 text-xs">Cluster</Button>
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <span className={"inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium " + (activeCourierCount>0?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500")}>{activeCourierCount} aktif</span>
-              {lastMapUpdateTime && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">Update: {new Date(lastMapUpdateTime).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
-              )}
-            </div>
-          </div>
-          <p id="map-dialog-desc" className="sr-only">Peta lokasi kurir dengan fitur cluster, heatmap, dan replay 30 menit.</p>
-          <div className="w-full h-[55vh]">
+          
+          <div className="relative w-full h-[calc(80vh-60px)]">
             <LeafletMap externalControls={(api) => setMapControls(api)} onCouriersUpdated={handleCouriersUpdated} onActiveCountUpdated={handleActiveCountUpdated} autoFitOnLoad={false} />
+            
+            {/* Floating controls at bottom - visible above popup */}
+            <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-lg p-2">
+              <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap">
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+                  <span className="hidden sm:inline text-[10px] font-semibold text-gray-600 dark:text-gray-300 mr-1">Controls:</span>
+                  <Button variant="outline" onClick={() => mapControls?.zoomOut?.()} aria-label="Zoom out" className="h-7 sm:h-8 px-2 sm:px-3 text-[10px] sm:text-xs">Zoom −</Button>
+                  <Button variant="outline" onClick={() => mapControls?.fitAll()} aria-label="Fit all" className="h-7 sm:h-8 px-2 sm:px-3 text-[10px] sm:text-xs">Fit</Button>
+                  <Button variant="outline" onClick={() => mapControls?.toggleHeatmap()} aria-label="Toggle heatmap" className="h-7 sm:h-8 px-2 sm:px-3 text-[10px] sm:text-xs">Heat</Button>
+                  <Button variant="outline" onClick={() => mapControls?.toggleCluster()} aria-label="Toggle clustering" className="h-7 sm:h-8 px-2 sm:px-3 text-[10px] sm:text-xs">Cluster</Button>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={"inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[11px] font-medium " + (activeCourierCount>0?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500")}>{activeCourierCount} aktif</span>
+                  {lastMapUpdateTime && (
+                    <span className="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400">Update: {new Date(lastMapUpdateTime).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
+          <p id="map-dialog-desc" className="sr-only">Peta lokasi kurir dengan fitur cluster, heatmap, dan replay 1 jam terakhir.</p>
         </DialogContent>
       </Dialog>
 

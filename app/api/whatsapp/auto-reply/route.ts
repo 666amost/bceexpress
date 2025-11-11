@@ -30,6 +30,7 @@ interface MessageData {
   fromMe: boolean;
   body?: string;
   source?: string;
+  id?: string;
 }
 interface WahaWebhookBody {
   event: 'message' | 'ack' | 'presence' | string;
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored` });
     }
 
-    const { from, fromMe } = body.payload;
+    const { from, fromMe, id: messageId } = body.payload;
     const messageText = (body.payload.body || '').trim();
     
     // Skip messages from bot, group chats, or API-sent messages
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
         
         if (shipmentData) {
           const replyText = formatShipmentInfo(shipmentData);
-          await sendTextSafe(from, replyText);
+          await sendTextSafe(from, replyText, messageId);
           
           return NextResponse.json({ 
             ok: true, 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           const notFoundText = `Nomor resi ${awbNumber} tidak ditemukan.\n\nPastikan nomor resi benar atau hubungi admin pengiriman untuk bantuan.`;
-          await sendTextSafe(from, notFoundText);
+          await sendTextSafe(from, notFoundText, messageId);
           
           return NextResponse.json({ 
             ok: true, 
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (dbError) {
         const errorText = `Maaf, terjadi kesalahan saat mengambil data resi ${awbNumber}.\n\nSilakan coba lagi atau hubungi admin pengiriman.`;
-        await sendTextSafe(from, errorText);
+        await sendTextSafe(from, errorText, messageId);
         
         return NextResponse.json({ 
           ok: true, 
@@ -151,11 +152,11 @@ export async function POST(req: NextRequest) {
       
       try {
         const ongkirResult = await calculateOngkir(asalRaw, tujuanRaw, berat);
-        await sendTextSafe(from, ongkirResult);
+        await sendTextSafe(from, ongkirResult, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir calculated' });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        await sendTextSafe(from, errorMsg);
+        await sendTextSafe(from, errorMsg, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir error', error: errorMsg });
       }
     }
@@ -180,7 +181,7 @@ Atau kunjungi: https://bcexp.id
 TERIMA KASIH! 🙏`;
       
       try {
-        await sendTextSafe(from, ongkirText);
+        await sendTextSafe(from, ongkirText, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir info sent' });
       } catch (sendError) {
         return NextResponse.json({ 
@@ -256,10 +257,8 @@ TERIMA KASIH! 🙏`;
     }
 
     try {
-      await sendTextSafe(from, replyText); // fast send, no typing/delay to avoid 524
+      await sendTextSafe(from, replyText, messageId);
     } catch (sendError) {
-      // Log error but still return success to prevent retry loops
-      // Return 200 OK even for WAHA API errors
       return NextResponse.json({ 
         ok: true, 
         warning: 'Failed to send message but webhook accepted',
@@ -434,8 +433,7 @@ function formatShipmentInfo(shipment: ShipmentData): string {
  * Send text quickly to WAHA without long delays/typing to prevent CF 524 timeout.
  * We add a local timeout using AbortController and log WAHA responses.
  */
-async function sendTextSafe(phoneOrGroup: string, text: string) {
-  // Exit early if WAHA not configured
+async function sendTextSafe(phoneOrGroup: string, text: string, replyToMessageId?: string) {
   if (!process.env.WAHA_API_URL) {
     throw new Error('WAHA_API_URL not configured');
   }
@@ -449,26 +447,31 @@ async function sendTextSafe(phoneOrGroup: string, text: string) {
 
   const session = process.env.WAHA_SESSION || 'default';
 
-  // Use a shorter timeout for webhook calls to prevent 524 errors
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.WAHA_TIMEOUT_MS ?? 8000); // 8s default, faster than previous 15s
+  const timeoutMs = Number(process.env.WAHA_TIMEOUT_MS ?? 8000);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let retryCount = 0;
-  const maxRetries = 1; // Only retry once for webhook calls
+  const maxRetries = 1;
   
   try {
     while (true) {
       try {
+        const requestBody: Record<string, unknown> = { 
+          chatId, 
+          text, 
+          session,
+          linkPreview: false
+        };
+
+        if (replyToMessageId) {
+          requestBody.reply_to = replyToMessageId;
+        }
+
         const res = await fetch(`${process.env.WAHA_API_URL}/api/sendText`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ 
-            chatId, 
-            text, 
-            session,
-            linkPreview: false // Disable link preview to speed up responses
-          }),
+          body: JSON.stringify(requestBody),
           signal: controller.signal
         });
 
@@ -476,7 +479,7 @@ async function sendTextSafe(phoneOrGroup: string, text: string) {
         try {
           bodyText = await res.text();
         } catch (e) {
-          // If we can't get response text, continue with empty response
+          // ignore
         }
 
         if (!res.ok) {
@@ -491,7 +494,6 @@ async function sendTextSafe(phoneOrGroup: string, text: string) {
           throw error;
         }
         
-        // Wait briefly before retry
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
