@@ -48,7 +48,7 @@ export function Hero({ onScanClickAction }: HeroProps) {
   return (
     <div ref={heroRef} className="bg-background text-foreground">
       <div className="container mx-auto px-4 text-center">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-4 md:mb-6 flex justify-center">
           {/* Logo hitam untuk light mode */}
           <Image
             src="/images/bce-logo.png"
@@ -68,12 +68,12 @@ export function Hero({ onScanClickAction }: HeroProps) {
             priority
           />
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold mb-4">Your Reliable Logistics Partner</h1>
-        <p className="text-xl mb-8 max-w-2xl mx-auto text-muted-foreground">
+        <h1 className="text-3xl md:text-5xl font-bold mb-2 md:mb-4">Your Reliable Logistics Partner</h1>
+        <p className="text-base md:text-xl mb-4 md:mb-6 max-w-2xl mx-auto text-muted-foreground">
           Solusi pengiriman ekspres dengan notifikasi real-time
         </p>
         <Card className="max-w-md mx-auto shadow-xl border-0">
-          <CardHeader className="bg-primary text-white p-4 rounded-t-lg">
+          <CardHeader className="bg-primary text-primary-foreground p-4 rounded-t-lg">
             <h2 className="text-xl font-semibold">Lacak Kiriman Anda</h2>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
@@ -87,13 +87,13 @@ export function Hero({ onScanClickAction }: HeroProps) {
                 className="w-full h-11 sm:flex-1 sm:min-w-0 sm:rounded-r-none focus:ring-primary"
               />
               <div className="flex items-stretch gap-2">
-                <Button type="submit" className="h-11 sm:rounded-l-none px-4 whitespace-nowrap">
+                <Button type="submit" className="h-11 flex-1 sm:flex-none sm:rounded-l-none px-4 whitespace-nowrap">
                   <SearchIcon className="h-4 w-4 mr-2" /> Track
                 </Button>
                 <Button
                   type="button"
                   aria-label="Scan QR Code"
-                  className="h-11 w-11 p-0 flex items-center justify-center"
+                  className="h-11 w-11 flex-shrink-0 p-0 flex items-center justify-center"
                   onClick={() => onScanClickAction?.()}
                   title="Scan QR Code"
                 >

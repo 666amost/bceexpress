@@ -1,9 +1,9 @@
 // app/api/whatsapp/notify-customer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// Rate limiting: max 15 customer notifications per day
 const MAX_DAILY_NOTIFICATIONS = 15;
 const notificationLog = new Map<string, { count: number; resetAt: number }>();
+const sentToCustomers = new Map<string, Set<string>>();
 
 function canSendNotification(): boolean {
   const today = new Date().toISOString().split('T')[0];
@@ -15,6 +15,7 @@ function canSendNotification(): boolean {
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
     notificationLog.set(today, { count: 0, resetAt: tomorrow.getTime() });
+    sentToCustomers.clear();
     return true;
   }
 
@@ -29,16 +30,25 @@ function incrementNotificationCount() {
   }
 }
 
-export async function POST(req: NextRequest) {
-  // Check rate limit first
-  if (!canSendNotification()) {
-    return NextResponse.json({ 
-      ok: true, 
-      skipped: true, 
-      reason: 'daily_limit_reached',
-      message: `Daily notification limit (${MAX_DAILY_NOTIFICATIONS}) reached`
-    });
+function hasNotifiedCustomerToday(phone: string): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const todaySet = sentToCustomers.get(today);
+  if (!todaySet) {
+    sentToCustomers.set(today, new Set([phone]));
+    return false;
   }
+  return todaySet.has(phone);
+}
+
+function markCustomerNotified(phone: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const todaySet = sentToCustomers.get(today);
+  if (todaySet) {
+    todaySet.add(phone);
+  }
+}
+
+export async function POST(req: NextRequest) {
   try {
     let body;
     try {
@@ -78,14 +88,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: true, warning: 'missing fields', keys: Object.keys(src || {}) });
     }
 
-    // FILTER: Only BCE prefix (not BE)
     if (!awb_number.toUpperCase().startsWith('BCE')) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'not_bce_prefix' });
-    }
-
-    // Random selection: 50% chance to skip (untuk randomize 15 dari banyak request)
-    if (Math.random() > 0.5) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'random_skip' });
     }
 
     const isDeliveredStatusChange = status === 'delivered' && oldStatus !== 'delivered';
@@ -96,6 +100,26 @@ export async function POST(req: NextRequest) {
 
     if (!phoneRaw) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_phone_number' });
+    }
+
+    const normalizedPhone = normalizePhone(phoneRaw);
+    
+    if (hasNotifiedCustomerToday(normalizedPhone)) {
+      return NextResponse.json({ 
+        ok: true, 
+        skipped: true, 
+        reason: 'customer_already_notified_today',
+        phone: normalizedPhone.slice(0, 4) + '****'
+      });
+    }
+
+    if (!canSendNotification()) {
+      return NextResponse.json({ 
+        ok: true, 
+        skipped: true, 
+        reason: 'daily_limit_reached',
+        message: `Daily notification limit (${MAX_DAILY_NOTIFICATIONS}) reached`
+      });
     }
 
     let chatId;
@@ -115,11 +139,9 @@ export async function POST(req: NextRequest) {
       });
       
       if (!healthCheck.ok) {
-        console.error('WAHA health check failed:', await healthCheck.text());
         return NextResponse.json({ ok: true, warning: 'WAHA service unavailable' });
       }
     } catch (error) {
-      console.error('WAHA connection check failed:', error);
       return NextResponse.json({ ok: true, warning: 'WAHA connection failed' });
     }
 
@@ -128,12 +150,16 @@ export async function POST(req: NextRequest) {
     try {
       await sendMessageSequence(chatId, message);
       
-      // Increment counter after successful send
       incrementNotificationCount();
+      markCustomerNotified(normalizedPhone);
       
-      return NextResponse.json({ ok: true, sent: true, awb: awb_number });
+      return NextResponse.json({ 
+        ok: true, 
+        sent: true, 
+        awb: awb_number,
+        phone: normalizedPhone.slice(0, 4) + '****'
+      });
     } catch (error) {
-      console.error('WhatsApp notification error:', error);
       return NextResponse.json({ ok: true, warning: 'WhatsApp notification failed' });
     }
   } catch {
@@ -171,12 +197,16 @@ function buildDeliveredMsg(awb: string, rawName?: string) {
 }
 
 /* ================== Helpers ================== */
-function toChatId(phone: string): string {
+function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, '');
   if (digits.startsWith('0')) digits = '62' + digits.slice(1);
   if (!digits.startsWith('62')) digits = '62' + digits;
+  return digits;
+}
+
+function toChatId(phone: string): string {
+  const digits = normalizePhone(phone);
   
-  // Validate Indonesian phone number format
   if (digits.length < 10 || digits.length > 15) {
     throw new Error(`Invalid phone number format: ${phone} (${digits})`);
   }
