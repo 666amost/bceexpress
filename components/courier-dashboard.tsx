@@ -753,7 +753,7 @@ export function CourierDashboard() {
       {/* Push Notification Component */}
       <PushNotification userId={currentUser.id} />
       {/* Header with AWB search and scan icon */}
-  <header className="px-4 py-3 bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] text-white rounded-b-2xl shadow-sm border-b border-white/10 sticky top-0 z-10">
+  <header className="px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] text-white rounded-b-2xl shadow-sm border-b border-white/10 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded brightness-0 invert" />
@@ -915,7 +915,7 @@ export function CourierDashboard() {
               ) : (
                 <>
                   {sortedAssignments.slice(0, showAllAssignments ? sortedAssignments.length : 5).map((shipment) => (
-                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 pb-12 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{shipment.awb_number}</div>
@@ -999,7 +999,7 @@ export function CourierDashboard() {
               ) : (
                 <>
                   {completedTodayShipments.slice(0, 5).map((shipment) => (
-                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 pb-12 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono font-bold text-green-700 dark:text-green-300 text-sm">{shipment.awb_number}</div>
                         <div className="text-xs text-green-700 dark:text-green-400">{shipment.status}</div>
@@ -1066,7 +1066,7 @@ export function CourierDashboard() {
                 </div>
               ) : (
                 pendingShipments.map((shipment) => (
-                  <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                  <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 pb-12 dark:bg-slate-700/70 dark:border-slate-600">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="font-mono font-bold text-yellow-700 dark:text-yellow-300 text-base">{shipment.awb_number}</div>
