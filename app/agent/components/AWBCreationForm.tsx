@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FaCheckCircle, FaPrint, FaExclamationTriangle, FaRedo, FaUsers } from 'react-icons/fa';
+import { FaCheckCircle, FaPrint, FaExclamationTriangle, FaRedo, FaUsers, FaUser, FaBoxOpen } from 'react-icons/fa';
 import { useAgent } from '../context/AgentContext';
 import { CustomerSelector } from './CustomerSelector';
+import { supabaseClient } from '@/lib/auth';
 
 // Tambahkan mapping kode bandara dan kode area dengan explicit typing
 interface CityData {
@@ -434,18 +435,42 @@ export const AWBCreationForm: React.FC = () => {
   const [submittedAWB, setSubmittedAWB] = useState<string>('');
   const [showCustomerSelector, setShowCustomerSelector] = useState<boolean>(false);
   const [isImportingCustomer, setIsImportingCustomer] = useState<boolean>(false);
+  const [recentCustomers, setRecentCustomers] = useState<AgentCustomer[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState<boolean>(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   
   // Use ref for more reliable import tracking
   const importingRef = useRef<boolean>(false);
   // Refs to ensure kecamatan is applied after kota options are mounted
   const pendingCityRef = useRef<string | null>(null);
   const pendingDistrictRef = useRef<string | null>(null);
+  
+  // Refs for form fields to manage focus
+  const namaPengirimRef = useRef<HTMLInputElement>(null);
+  const nomorPengirimRef = useRef<HTMLInputElement>(null);
+  const namaPenerimaRef = useRef<HTMLInputElement>(null);
+  const nomorPenerimaRef = useRef<HTMLInputElement>(null);
+  const alamatPenerimaRef = useRef<HTMLInputElement>(null);
+  const beratKgRef = useRef<HTMLInputElement>(null);
+  const isiBarangRef = useRef<HTMLInputElement>(null);
 
   // State for tracking display values of numeric fields
   const [numericDisplay, setNumericDisplay] = useState<NumericDisplayState>({
     coli: '1',
     berat_kg: '1'
   });
+
+  // Common isi barang presets
+  const isiBarangPresets = [
+    'Pakaian',
+    'Makanan',
+    'Elektronik', 
+    'Dokumen',
+    'Spare Part',
+    'Obat-obatan',
+    'Kosmetik',
+    'Aksesoris'
+  ];
 
   // Helper to get local date string in Asia/Jakarta timezone using Intl
   function getLocalDateString(): string {
@@ -564,6 +589,19 @@ export const AWBCreationForm: React.FC = () => {
       }
       return prev;
     });
+  }, []);
+
+  // Handle Enter key navigation
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>, nextRef?: React.RefObject<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextRef?.current) {
+        nextRef.current.focus();
+        if (nextRef.current.type === 'number') {
+          nextRef.current.select();
+        }
+      }
+    }
   }, []);
 
   // Handle focus events for numeric fields to clear them
@@ -932,6 +970,59 @@ export const AWBCreationForm: React.FC = () => {
     }
   }, [currentAgent?.email, formData.awb_no, generateNewAWBNumber]);
 
+  // Load recent customers on mount
+  useEffect(() => {
+    const loadRecentCustomers = async () => {
+      if (!currentAgent?.email) return;
+      
+      try {
+        setLoadingRecent(true);
+        
+        // Load favorites from localStorage
+        const storageKey = `agent_favorites_${currentAgent.email}`;
+        const stored = localStorage.getItem(storageKey);
+        let favorites = new Set<string>();
+        if (stored) {
+          try {
+            favorites = new Set(JSON.parse(stored));
+            setFavoriteIds(favorites);
+          } catch (error) {
+            console.error('Error loading favorites:', error);
+          }
+        }
+        
+        const { data, error } = await supabaseClient
+          .from('agent_customers')
+          .select('*')
+          .eq('agent_email', currentAgent.email)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(10);
+
+        if (!error && data) {
+          // Sort: favorites first, then by updated_at
+          const sorted = data.sort((a, b) => {
+            const aIsFav = favorites.has(a.id);
+            const bIsFav = favorites.has(b.id);
+            
+            if (aIsFav && !bIsFav) return -1;
+            if (!aIsFav && bIsFav) return 1;
+            
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          });
+          
+          setRecentCustomers(sorted.slice(0, 3));
+        }
+      } catch (error) {
+        console.error('Error loading recent customers:', error);
+      } finally {
+        setLoadingRecent(false);
+      }
+    };
+
+    loadRecentCustomers();
+  }, [currentAgent?.email]);
+
   // Show loading while agent data loads
   if (isLoading) {
     return (
@@ -973,46 +1064,91 @@ export const AWBCreationForm: React.FC = () => {
             <h3 className="text-xl font-semibold mb-2">Booking Created Successfully!</h3>
             <p className="text-gray-600 mb-2">Resi Number: <span className="font-bold text-blue-600">{submittedAWB}</span></p>
             <p className="text-sm text-gray-500 mb-6">Form akan reset otomatis dalam 10 detik</p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={handlePrintAWB} className="bg-blue-600 hover:bg-blue-700">
-                <FaPrint className="h-4 w-4 mr-2" />
-                Print Resi
-              </Button>
-              <Button 
-                onClick={() => {
-                  setShowSuccess(false);
-                  setFormData({
-                    awb_no: '',
-                    awb_date: new Date().toISOString().split('T')[0],
-                    kirim_via: 'udara',
-                    kota_tujuan: '',
-                    wilayah: '',
-                    kecamatan: '',
-                    metode_pembayaran: 'CASH',
-                    agent_customer: currentAgent?.email || '',
-                    nama_pengirim: '',
-                    nomor_pengirim: '',
-                    nama_penerima: '',
-                    nomor_penerima: '',
-                    alamat_penerima: '',
-                    coli: 1,
-                    berat_kg: 1,
-                    harga_per_kg: 0,
-                    sub_total: 0,
-                    biaya_admin: 0,
-                    biaya_packaging: 0,
-                    biaya_transit: 0,
-                    total: 0,
-                    isi_barang: '',
-                    catatan: ''
-                  });
-                  generateNewAWBNumber();
-                }} 
-                variant="outline"
-              >
-                <FaRedo className="h-4 w-4 mr-2" />
-                Create New Booking
-              </Button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 justify-center">
+                <Button onClick={handlePrintAWB} className="bg-blue-600 hover:bg-blue-700">
+                  <FaPrint className="h-4 w-4 mr-2" />
+                  Print Resi
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setShowSuccess(false);
+                    setFormData({
+                      awb_no: '',
+                      awb_date: new Date().toISOString().split('T')[0],
+                      kirim_via: 'udara',
+                      kota_tujuan: '',
+                      wilayah: '',
+                      kecamatan: '',
+                      metode_pembayaran: 'CASH',
+                      agent_customer: currentAgent?.email || '',
+                      nama_pengirim: '',
+                      nomor_pengirim: '',
+                      nama_penerima: '',
+                      nomor_penerima: '',
+                      alamat_penerima: '',
+                      coli: 1,
+                      berat_kg: 1,
+                      harga_per_kg: 0,
+                      sub_total: 0,
+                      biaya_admin: 0,
+                      biaya_packaging: 0,
+                      biaya_transit: 0,
+                      total: 0,
+                      isi_barang: '',
+                      catatan: ''
+                    });
+                    generateNewAWBNumber();
+                  }} 
+                  variant="outline"
+                >
+                  <FaRedo className="h-4 w-4 mr-2" />
+                  Create New Booking
+                </Button>
+              </div>
+              
+              <div className="border-t pt-3 mt-2">
+                <p className="text-sm text-gray-600 mb-3">Quick Actions:</p>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button 
+                    onClick={() => {
+                      setShowSuccess(false);
+                      generateNewAWBNumber();
+                    }} 
+                    variant="outline"
+                    className="border-green-300 text-green-700 hover:bg-green-50"
+                  >
+                    <FaUser className="h-4 w-4 mr-2" />
+                    Buat Lagi untuk Customer Sama
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setShowSuccess(false);
+                      setFormData(prev => ({
+                        ...prev,
+                        awb_no: '',
+                        nama_penerima: '',
+                        nomor_penerima: '',
+                        alamat_penerima: '',
+                        coli: 1,
+                        berat_kg: 1,
+                        harga_per_kg: 0,
+                        sub_total: 0,
+                        biaya_admin: 0,
+                        biaya_packaging: 0,
+                        total: 0,
+                        catatan: ''
+                      }));
+                      generateNewAWBNumber();
+                    }} 
+                    variant="outline"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <FaBoxOpen className="h-4 w-4 mr-2" />
+                    Buat Lagi ke Lokasi Sama
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1125,25 +1261,64 @@ export const AWBCreationForm: React.FC = () => {
             </Button>
           </div>
 
+          {/* Quick Access Recent Customers */}
+          {recentCustomers.length > 0 && (
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                Recent Customers
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {recentCustomers.map((customer) => {
+                  const isFavorite = favoriteIds.has(customer.id);
+                  return (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => handleCustomerSelect(customer)}
+                      className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-colors text-left text-sm"
+                    >
+                      {isFavorite && (
+                        <span className="text-gray-400 text-xs">★</span>
+                      )}
+                      <FaUser className="h-3 w-3 text-gray-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 truncate">
+                          {customer.nama_pengirim}
+                        </div>
+                        <div className="text-xs text-gray-600 truncate">
+                          → {customer.nama_penerima} ({customer.kota_tujuan})
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Sender Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="nama_pengirim">Nama Pengirim</Label>
               <Input
+                ref={namaPengirimRef}
                 id="nama_pengirim"
                 name="nama_pengirim"
                 value={formData.nama_pengirim}
                 onChange={handleInputChange}
+                onKeyPress={(e) => handleKeyPress(e, nomorPengirimRef)}
                 required
               />
             </div>
             <div>
               <Label htmlFor="nomor_pengirim">Nomor Pengirim</Label>
               <Input
+                ref={nomorPengirimRef}
                 id="nomor_pengirim"
                 name="nomor_pengirim"
                 value={formData.nomor_pengirim}
                 onChange={handleInputChange}
+                onKeyPress={(e) => handleKeyPress(e, namaPenerimaRef)}
                 required
               />
             </div>
@@ -1154,20 +1329,24 @@ export const AWBCreationForm: React.FC = () => {
             <div>
               <Label htmlFor="nama_penerima">Nama Penerima</Label>
               <Input
+                ref={namaPenerimaRef}
                 id="nama_penerima"
                 name="nama_penerima"
                 value={formData.nama_penerima}
                 onChange={handleInputChange}
+                onKeyPress={(e) => handleKeyPress(e, nomorPenerimaRef)}
                 required
               />
             </div>
             <div>
               <Label htmlFor="nomor_penerima">Nomor Penerima</Label>
               <Input
+                ref={nomorPenerimaRef}
                 id="nomor_penerima"
                 name="nomor_penerima"
                 value={formData.nomor_penerima}
                 onChange={handleInputChange}
+                onKeyPress={(e) => handleKeyPress(e, alamatPenerimaRef)}
                 required
               />
             </div>
@@ -1176,6 +1355,7 @@ export const AWBCreationForm: React.FC = () => {
           <div>
             <Label htmlFor="alamat_penerima">Alamat Penerima</Label>
             <Input
+              ref={alamatPenerimaRef}
               id="alamat_penerima"
               name="alamat_penerima"
               value={formData.alamat_penerima}
@@ -1197,12 +1377,14 @@ export const AWBCreationForm: React.FC = () => {
                 onChange={handleInputChange}
                 onFocus={() => handleNumericFocus('coli')}
                 onBlur={() => handleNumericBlur('coli')}
+                onKeyPress={(e) => handleKeyPress(e, beratKgRef)}
                 required
               />
             </div>
             <div>
               <Label htmlFor="berat_kg">Berat (Kg)</Label>
               <Input
+                ref={beratKgRef}
                 id="berat_kg"
                 name="berat_kg"
                 type="number"
@@ -1212,6 +1394,7 @@ export const AWBCreationForm: React.FC = () => {
                 onChange={handleInputChange}
                 onFocus={() => handleNumericFocus('berat_kg')}
                 onBlur={() => handleNumericBlur('berat_kg')}
+                onKeyPress={(e) => handleKeyPress(e, isiBarangRef)}
                 required
               />
             </div>
@@ -1219,11 +1402,34 @@ export const AWBCreationForm: React.FC = () => {
 
           <div>
             <Label htmlFor="isi_barang">Isi Barang</Label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {isiBarangPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, isi_barang: preset }));
+                    if (isiBarangRef.current) {
+                      isiBarangRef.current.focus();
+                    }
+                  }}
+                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                    formData.isi_barang === preset
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <Input
+              ref={isiBarangRef}
               id="isi_barang"
               name="isi_barang"
               value={formData.isi_barang}
               onChange={handleInputChange}
+              placeholder="Atau ketik manual..."
               required
             />
           </div>

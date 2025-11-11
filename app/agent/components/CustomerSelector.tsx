@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/db'
-import { Search, UserPlus, X, Check, Users } from 'lucide-react'
+import { Search, UserPlus, X, Check, Users, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +29,7 @@ interface AgentCustomer {
   agent_customer: string | null
   notes: string | null
   is_active: boolean
+  is_favorite?: boolean
   created_at: string
   updated_at: string
 }
@@ -131,6 +132,7 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
   // Form state untuk create customer
@@ -149,18 +151,72 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
     notes: ''
   })
 
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    const storageKey = `agent_favorites_${agentEmail}`
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        setFavoriteIds(new Set(parsed))
+      } catch (error) {
+        console.error('Error loading favorites:', error)
+      }
+    }
+  }, [agentEmail])
+
+  // Save favorites to localStorage
+  const saveFavorites = (favorites: Set<string>) => {
+    const storageKey = `agent_favorites_${agentEmail}`
+    localStorage.setItem(storageKey, JSON.stringify(Array.from(favorites)))
+    setFavoriteIds(favorites)
+  }
+
+  // Toggle favorite
+  const toggleFavorite = (customerId: string) => {
+    const newFavorites = new Set(favoriteIds)
+    if (newFavorites.has(customerId)) {
+      newFavorites.delete(customerId)
+      toast({
+        title: "Success",
+        description: "Removed from favorites",
+        variant: "default"
+      })
+    } else {
+      newFavorites.add(customerId)
+      toast({
+        title: "Success",
+        description: "Added to favorites",
+        variant: "default"
+      })
+    }
+    saveFavorites(newFavorites)
+  }
+
+  // Sort customers with favorites first
+  const sortCustomersWithFavorites = useCallback((customerList: AgentCustomer[]) => {
+    return [...customerList].sort((a, b) => {
+      const aIsFav = favoriteIds.has(a.id)
+      const bIsFav = favoriteIds.has(b.id)
+      
+      if (aIsFav && !bIsFav) return -1
+      if (!aIsFav && bIsFav) return 1
+      
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    })
+  }, [favoriteIds])
+
   // Fetch customers
   const fetchCustomers = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true)
       
-      // Filter customers by agent email in the codebase (simple RLS)
       const { data, error } = await supabase
         .from('agent_customers')
         .select('*')
-        .eq('agent_email', agentEmail) // Only fetch customers for this agent
+        .eq('agent_email', agentEmail)
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching customers:', error)
@@ -172,8 +228,9 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
         return
       }
 
-      setCustomers(data || [])
-      setFilteredCustomers(data || [])
+      const sorted = sortCustomersWithFavorites(data || [])
+      setCustomers(sorted)
+      setFilteredCustomers(sorted)
     } catch (error) {
       console.error('Error:', error)
       toast({
@@ -184,12 +241,13 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
     } finally {
       setIsLoading(false)
     }
-  }, [toast, agentEmail]) // Removed supabase as it's an outer scope value
+  }, [toast, agentEmail, sortCustomersWithFavorites])
 
   // Filter customers based on search term
   const filterCustomers = useCallback((searchTerm: string): void => {
     if (!searchTerm.trim()) {
-      setFilteredCustomers(customers)
+      const sorted = sortCustomersWithFavorites(customers)
+      setFilteredCustomers(sorted)
       return
     }
 
@@ -201,8 +259,9 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
       customer.alamat_penerima?.toLowerCase().includes(searchTerm.toLowerCase())
     )
     
-    setFilteredCustomers(filtered)
-  }, [customers])
+    const sorted = sortCustomersWithFavorites(filtered)
+    setFilteredCustomers(sorted)
+  }, [customers, sortCustomersWithFavorites])
 
   // Handle search
   const handleSearch = (value: string): void => {
@@ -572,56 +631,80 @@ export function CustomerSelector({ onSelect, onClose, agentEmail }: CustomerSele
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredCustomers.map((customer) => (
-                <Card 
-                  key={customer.id} 
-                  className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => onSelect(customer)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-medium">{customer.nama_pengirim}</h4>
-                        {customer.nomor_pengirim && (
-                          <Badge variant="outline" className="text-xs">
-                            {customer.nomor_pengirim}
-                          </Badge>
-                        )}
+              {filteredCustomers.map((customer) => {
+                const isFavorite = favoriteIds.has(customer.id)
+                return (
+                  <Card 
+                    key={customer.id} 
+                    className={`p-3 hover:bg-gray-50 transition-colors ${
+                      isFavorite ? 'border-yellow-400 bg-yellow-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-1" onClick={() => onSelect(customer)} role="button" tabIndex={0}>
+                        <div className="flex items-center gap-2">
+                          {isFavorite && (
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          )}
+                          <h4 className="font-medium">{customer.nama_pengirim}</h4>
+                          {customer.nomor_pengirim && (
+                            <Badge variant="outline" className="text-xs">
+                              {customer.nomor_pengirim}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="text-sm text-gray-600">
+                          <div>Penerima: {customer.nama_penerima}</div>
+                          {customer.nomor_penerima && (
+                            <div>No. Penerima: {customer.nomor_penerima}</div>
+                          )}
+                          {customer.wilayah && (
+                            <div>Tujuan: {customer.wilayah}</div>
+                          )}
+                          {customer.isi_barang && (
+                            <div>Barang: {customer.isi_barang}</div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2 text-xs">
+                          {customer.kirim_via && (
+                            <Badge variant="secondary">
+                              {customer.kirim_via}
+                            </Badge>
+                          )}
+                          {customer.metode_pembayaran && (
+                            <Badge variant="outline">
+                              {customer.metode_pembayaran}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="text-sm text-gray-600">
-                        <div>Penerima: {customer.nama_penerima}</div>
-                        {customer.nomor_penerima && (
-                          <div>No. Penerima: {customer.nomor_penerima}</div>
-                        )}
-                        {customer.wilayah && (
-                          <div>Tujuan: {customer.wilayah}</div>
-                        )}
-                        {customer.isi_barang && (
-                          <div>Barang: {customer.isi_barang}</div>
-                        )}
-                      </div>
-                      
-                      <div className="flex gap-2 text-xs">
-                        {customer.kirim_via && (
-                          <Badge variant="secondary">
-                            {customer.kirim_via}
-                          </Badge>
-                        )}
-                        {customer.metode_pembayaran && (
-                          <Badge variant="outline">
-                            {customer.metode_pembayaran}
-                          </Badge>
-                        )}
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleFavorite(customer.id)
+                          }}
+                          className="hover:bg-yellow-100"
+                        >
+                          <Star className={`h-4 w-4 ${isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => onSelect(customer)}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    
-                    <Button variant="outline" size="sm">
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
           )}
         </CardContent>

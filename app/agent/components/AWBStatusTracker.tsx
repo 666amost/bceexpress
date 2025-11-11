@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { FaSearch, FaEye, FaPrint, FaDownload, FaFilter, FaUser, FaCalendarAlt, FaDollarSign, FaClock, FaCheckCircle, FaLayerGroup } from 'react-icons/fa';
+import { FaSearch, FaEye, FaPrint, FaDownload, FaFilter, FaUser, FaCalendarAlt, FaClock, FaCheckCircle, FaLayerGroup } from 'react-icons/fa';
 import { useAgent } from '../context/AgentContext';
 import { supabaseClient } from '../../../lib/auth';
 import { type ShipmentHistory } from '@/lib/db';
@@ -472,7 +472,7 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
                           <span>{new Date(awb.awb_date).toLocaleDateString('id-ID')}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <FaDollarSign className="h-3 w-3 text-gray-400" />
+                          <span className="text-xs font-medium text-gray-500">IDR</span>
                           <span>Rp {awb.total.toLocaleString()}</span>
                         </div>
                       </div>
