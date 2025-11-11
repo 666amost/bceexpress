@@ -14,7 +14,7 @@ import { type ShipmentHistory, type Shipment, type ShipmentStatus } from "@/lib/
 import { Box } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { gsap } from 'gsap'
+// gsap will be loaded dynamically when needed
 import type { ManifestCabangData } from "@/lib/db"
 
 function formatDate(dateString: string): string {
@@ -139,30 +139,27 @@ export function TrackingResults({ awbNumber, isPublicView = true }: { awbNumber:
   }, [awbNumber]);
 
   useEffect(() => {
-    if (!loading) {
-      const progressBar = document.getElementById('progress-bar');
-      if (!progressBar) return;
+    if (loading) return
+    const progressBar = document.getElementById('progress-bar')
+    if (!progressBar) return
+
+    const animate = async () => {
+      const mod = await import('gsap')
+      const gsap = mod.gsap || mod.default
+      if (!gsap) return
 
       if (shipment) {
-        const progressPercent = getProgress(shipment.current_status);
-        const color = shipment.current_status === 'delivered' ? 'green' : 'blue';
-        gsap.to('#progress-bar', {
-          width: `${progressPercent}%`,
-          backgroundColor: color,
-          duration: 1,
-          ease: 'power2.out',
-        });
+        const progressPercent = getProgress(shipment.current_status)
+        const color = shipment.current_status === 'delivered' ? 'green' : 'blue'
+        gsap.to('#progress-bar', { width: `${progressPercent}%`, backgroundColor: color, duration: 1, ease: 'power2.out' })
       } else if (manifestCabang) {
-        const progressPercent = getProgress('warehouse');
-        gsap.to('#progress-bar', {
-          width: `${progressPercent}%`,
-          backgroundColor: 'orange',
-          duration: 1,
-          ease: 'power2.out',
-        });
+        const progressPercent = getProgress('warehouse')
+        gsap.to('#progress-bar', { width: `${progressPercent}%`, backgroundColor: 'orange', duration: 1, ease: 'power2.out' })
       }
     }
-  }, [shipment, manifestCabang, loading]);
+
+    void animate()
+  }, [shipment, manifestCabang, loading])
 
   const handleImageError = (id: string) => {
     setImageErrors((prev) => ({ ...prev, [id]: true }))

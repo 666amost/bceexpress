@@ -9,8 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@capacitor/core": "^7.4.2",
-    "@capacitor/inappbrowser": "^2.2.1",
     "@carbon/icons-react": "^11.61.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
@@ -84,7 +82,7 @@
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "qrcode.react": "^4.2.0",
-    "react": "^18.2.0",
+  "react": "^18.3.1",
     "react-barcode": "^1.6.1",
     "react-chartjs-2": "^5.3.0",
     "react-day-picker": "^8.10.0",

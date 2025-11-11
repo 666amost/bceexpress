@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import gsap from "gsap"
+// gsap will be loaded dynamically when needed
 
 
 const CourierShipmentList = dynamic(() => import('./courier-shipment-list').then(mod => mod.CourierShipmentList), { 
@@ -189,15 +189,23 @@ export function LeaderDashboard() {
         // Hitung tinggi satu item (ambil node pertama)
         const firstItem = liveListRef.current.children[0] as HTMLElement | undefined;
         const itemHeight = firstItem ? firstItem.offsetHeight + 8 : 60; // 8 = gap-2
-        gsap.to(liveListRef.current, {
-          y: itemHeight,
-          duration: 0.5,
-          ease: "power2.inOut",
-          onComplete: () => {
+        ;(async () => {
+          const mod = await import('gsap')
+          const gsap = mod.gsap || mod.default
+          if (!gsap) {
             setDisplayedShipments(liveShipments.slice(0, 3))
-            gsap.set(liveListRef.current, { y: 0 })
+            return
           }
-        })
+          gsap.to(liveListRef.current, {
+            y: itemHeight,
+            duration: 0.5,
+            ease: 'power2.inOut',
+            onComplete: () => {
+              setDisplayedShipments(liveShipments.slice(0, 3))
+              gsap.set(liveListRef.current, { y: 0 })
+            }
+          })
+        })()
       } else {
         setDisplayedShipments(liveShipments.slice(0, 3))
       }

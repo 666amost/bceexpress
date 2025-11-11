@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Image from "next/image"
-import { gsap } from 'gsap'
+// gsap will be loaded dynamically only on track action
 
 type HeroProps = {
   onScanClickAction?: () => void
@@ -22,18 +22,27 @@ export function Hero({ onScanClickAction }: HeroProps) {
 
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault()
-    if (awbNumber.trim()) {
-      if (heroRef.current) {
-        gsap.to(heroRef.current, {
-          opacity: 0,
-          scale: 0.95,
-          duration: 0.5,
-          onComplete: () => {
-            router.push(`/track/${awbNumber}`)
-          }
-        })
-      }
+    if (!awbNumber.trim()) return
+    if (!heroRef.current) {
+      router.push(`/track/${awbNumber}`)
+      return
     }
+    ;(async () => {
+      const mod = await import('gsap')
+      const gsap = mod.gsap || mod.default
+      if (!gsap) {
+        router.push(`/track/${awbNumber}`)
+        return
+      }
+      gsap.to(heroRef.current, {
+        opacity: 0,
+        scale: 0.95,
+        duration: 0.5,
+        onComplete: () => {
+          router.push(`/track/${awbNumber}`)
+        }
+      })
+    })()
   }
 
   return (

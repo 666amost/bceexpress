@@ -18,23 +18,13 @@ import OutstandingReport from '@/components/OutstandingReport'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Oval as LoadingIcon } from 'react-loading-icons'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
-import { Bar, Doughnut } from 'react-chartjs-2';
+import dynamic from 'next/dynamic'
 import BranchDashboard from "@/components/branchdashboard";
 import BranchDebugger from "@/components/BranchDebugger";
 import { supabaseClient } from "../../lib/auth"
 import type { UserRole, AWBFormData } from "@/types/branch"
 import { isValidUserRole, validateBranchAccess } from "@/types/branch"
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
 
 export default function BranchPage() {
   const [selectedMenu, setSelectedMenu] = useState("transaction")

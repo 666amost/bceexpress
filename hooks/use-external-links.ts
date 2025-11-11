@@ -1,24 +1,13 @@
 /**
- * Hook untuk handle external URLs dengan Capacitor InAppBrowser
- * Fallback ke window.open jika tidak di environment Capacitor
+ * Hook untuk handle external URLs di web browser.
  */
-import { InAppBrowser } from '@capacitor/inappbrowser';
-import { Capacitor } from '@capacitor/core';
 
 export const useExternalLinks = () => {
   const openExternalLink = async (url: string) => {
     try {
-      // Check if running in Capacitor (native app)
-      if (Capacitor.isNativePlatform()) {
-        // Use InAppBrowser for Capacitor apps - opens in external browser
-        await InAppBrowser.openInExternalBrowser({ url });
-      } else {
-        // Fallback for web browsers
-        window.open(url, "_blank");
-      }
+      window.open(url, "_blank", 'noopener,noreferrer');
     } catch (error) {
       console.error('Error opening external link:', error);
-      // Fallback to window.open if InAppBrowser fails
       window.open(url, "_blank");
     }
   };
