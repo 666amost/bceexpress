@@ -359,21 +359,21 @@ export const AWBStatusTracker: React.FC<AWBStatusTrackerProps> = ({ selectedAWB:
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="bg-yellow-50">
-                  Pending: {filteredAWBs.filter(awb => {
-                    const currentStatus = awb.shipment_status || awb.status || 'pending';
-                    return currentStatus.toLowerCase() === 'pending';
+                  Processed: {filteredAWBs.filter(awb => {
+                    const currentStatus = (awb.shipment_status || awb.status || 'pending').toLowerCase();
+                    return currentStatus === 'warehouse' || currentStatus === 'processed' || currentStatus === 'shipped' || currentStatus === 'pending';
                   }).length}
                 </Badge>
                 <Badge variant="outline" className="bg-blue-50">
-                  In Transit: {filteredAWBs.filter(awb => {
-                    const currentStatus = awb.shipment_status || awb.status || 'pending';
-                    return currentStatus.toLowerCase() === 'in transit' || currentStatus.toLowerCase() === 'in_transit';
+                  Out For Delivery: {filteredAWBs.filter(awb => {
+                    const currentStatus = (awb.shipment_status || awb.status || 'pending').toLowerCase();
+                    return currentStatus === 'in_transit' || currentStatus === 'in transit' || currentStatus === 'out_for_delivery' || currentStatus === 'out for delivery';
                   }).length}
                 </Badge>
                 <Badge variant="outline" className="bg-green-50">
                   Delivered: {filteredAWBs.filter(awb => {
-                    const currentStatus = awb.shipment_status || awb.status || 'pending';
-                    return currentStatus.toLowerCase() === 'delivered';
+                    const currentStatus = (awb.shipment_status || awb.status || 'pending').toLowerCase();
+                    return currentStatus === 'delivered';
                   }).length}
                 </Badge>
               </div>
