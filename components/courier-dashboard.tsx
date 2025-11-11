@@ -141,6 +141,9 @@ export function CourierDashboard() {
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [isPickupFormOpen, setIsPickupFormOpen] = useState(false);
   const [expandedAwbs, setExpandedAwbs] = useState<Record<string, boolean>>({});
+  const assignmentsRef = useRef<HTMLDivElement | null>(null)
+  const completedRef = useRef<HTMLDivElement | null>(null)
+  const pendingRef = useRef<HTMLDivElement | null>(null)
   const toggleAwbExpand = (awb: string): void => {
     setExpandedAwbs(prev => ({ ...prev, [awb]: !prev[awb] }));
   };
@@ -879,8 +882,8 @@ export function CourierDashboard() {
       {/* Quick Stats as Accordions */}
   <div className="flex flex-col gap-3 px-3 py-3">
   {/* Assignments Card */}
-  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
-          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandAssignments(v => !v)}>
+  <div ref={assignmentsRef} style={{scrollMarginBottom: bottomBarHeight + 24}} className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
+    <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandAssignments(v => { const n=!v; if(!v && assignmentsRef.current){ assignmentsRef.current.scrollIntoView({behavior:'smooth', block:'nearest'});} return n; })}>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="h-6 w-6 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0" aria-label="Assignments">
                 <DeliveryParcel className="h-5 w-5" aria-hidden="true" />
@@ -912,7 +915,7 @@ export function CourierDashboard() {
               ) : (
                 <>
                   {sortedAssignments.slice(0, showAllAssignments ? sortedAssignments.length : 5).map((shipment) => (
-                    <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{shipment.awb_number}</div>
@@ -963,8 +966,8 @@ export function CourierDashboard() {
           )}
         </div>
   {/* Completed Card */}
-  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
-          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandCompleted(v => !v)}>
+  <div ref={completedRef} style={{scrollMarginBottom: bottomBarHeight + 24}} className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
+    <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandCompleted(v => { const n=!v; if(!v && completedRef.current){ completedRef.current.scrollIntoView({behavior:'smooth', block:'nearest'});} return n; })}>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="h-6 w-6 text-green-600 dark:text-green-400 flex items-center justify-center flex-shrink-0" aria-label="Completed">
                 <CheckmarkFilled className="h-5 w-5" aria-hidden="true" />
@@ -996,7 +999,7 @@ export function CourierDashboard() {
               ) : (
                 <>
                   {completedTodayShipments.slice(0, 5).map((shipment) => (
-                    <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                    <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono font-bold text-green-700 dark:text-green-300 text-sm">{shipment.awb_number}</div>
                         <div className="text-xs text-green-700 dark:text-green-400">{shipment.status}</div>
@@ -1033,8 +1036,8 @@ export function CourierDashboard() {
           )}
         </div>
   {/* Pending Card */}
-  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
-          <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandPending(v => !v)}>
+  <div ref={pendingRef} style={{scrollMarginBottom: bottomBarHeight + 24}} className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
+    <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandPending(v => { const n=!v; if(!v && pendingRef.current){ pendingRef.current.scrollIntoView({behavior:'smooth', block:'nearest'});} return n; })}>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="h-6 w-6 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0" aria-label="Pending">
                 <PendingFilled className="h-5 w-5" aria-hidden="true" />
@@ -1063,7 +1066,7 @@ export function CourierDashboard() {
                 </div>
               ) : (
                 pendingShipments.map((shipment) => (
-                  <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                  <div key={shipment.awb_number} style={{scrollMarginBottom: bottomBarHeight + 24}} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="font-mono font-bold text-yellow-700 dark:text-yellow-300 text-base">{shipment.awb_number}</div>
