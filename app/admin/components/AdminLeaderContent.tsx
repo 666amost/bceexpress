@@ -1326,7 +1326,15 @@ export function AdminLeaderContent({ activeView, onTabChange }: AdminLeaderConte
           </DialogHeader>
           
           <div className="relative w-full h-[calc(80vh-60px)]">
-            <LeafletMap externalControls={(api) => setMapControls(api)} onCouriersUpdated={handleCouriersUpdated} onActiveCountUpdated={handleActiveCountUpdated} autoFitOnLoad={false} />
+            {isLocationMapOpen && (
+              <LeafletMap 
+                key={isLocationMapOpen ? 'map-open' : 'map-closed'}
+                externalControls={(api) => setMapControls(api)} 
+                onCouriersUpdated={handleCouriersUpdated} 
+                onActiveCountUpdated={handleActiveCountUpdated} 
+                autoFitOnLoad={false} 
+              />
+            )}
             
             {/* Floating controls at bottom - visible above popup */}
             <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-lg p-2">
