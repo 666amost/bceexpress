@@ -3,8 +3,8 @@ import { ErrorBoundary } from "@/components/error-boundary"
 
 export default function CourierDashboardPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <main className="flex-1 container mx-auto px-4 py-8">
+    <div className="min-h-screen flex flex-col">
+      <main className="flex-1">
         <ErrorBoundary>
           <CourierDashboard />
         </ErrorBoundary>

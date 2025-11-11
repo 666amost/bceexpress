@@ -12,7 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { supabaseClient } from "@/lib/auth"
 // Import ikon yang dibutuhkan dari lucide-react
 import { Loader2, Eye, EyeOff } from "lucide-react"
-import { isInCapacitor, handleCapacitorLoginSuccess } from "@/lib/capacitor-utils"
 
 export function CourierAuth() {
   const [isLoading, setIsLoading] = useState(false)
@@ -32,6 +31,28 @@ export function CourierAuth() {
       setLoginPassword(password)
       setRememberMe(rememberMe)
     }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function checkAuthSession() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession()
+        if (!cancelled && session) {
+          // Check if user just logged out by checking a flag
+          const justLoggedOut = sessionStorage.getItem("courierJustLoggedOut")
+          if (justLoggedOut) {
+            // Clear the flag and don't redirect
+            sessionStorage.removeItem("courierJustLoggedOut")
+            return
+          }
+          window.location.href = "/courier/dashboard"
+        }
+      } catch {
+      }
+    }
+    checkAuthSession()
+    return () => { cancelled = true }
   }, [])
 
   // Fungsi untuk mengganti status visibilitas password
@@ -77,15 +98,6 @@ export function CourierAuth() {
       }
 
       // Redirect to dashboard
-      if (isInCapacitor()) {
-        console.warn('CourierAuth: Using Capacitor login success flow');
-        handleCapacitorLoginSuccess();
-        setIsLoading(false);
-        return; // Don't redirect in Capacitor
-      }
-
-      // Normal web redirect
-      console.warn('CourierAuth: Using web browser redirect flow');
       window.location.href = "/courier/dashboard"
 
     } catch (err) {

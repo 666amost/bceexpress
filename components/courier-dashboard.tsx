@@ -30,10 +30,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSpinner, faSignOutAlt, faEye, faCheckCircle, faComment, faMapMarkerAlt, faExclamationTriangle, faBarcode } from '@fortawesome/free-solid-svg-icons'
-import { Box, ChevronDown, ChevronUp, X, Search } from 'lucide-react'
-import { ScanAlt } from "@carbon/icons-react"
+import { ScanAlt, Search, ChevronDown, ChevronUp, Close, DeliveryParcel, CheckmarkFilled, PendingFilled, Logout, Chat, Location, Task, Package } from "@carbon/icons-react"
 import { supabaseClient } from "@/lib/auth"
 import { BulkUpdateModal } from "./bulk-update-modal"
 import { ContinuousScanModal } from "./continuous-scan-modal"
@@ -42,6 +39,7 @@ import { PushNotification } from "./push-notification"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useExternalLinks } from "@/hooks/use-external-links"
 import { isInCapacitor, handleCapacitorLogout } from "@/lib/capacitor-utils"
 import { Input } from "@/components/ui/input"
@@ -73,13 +71,15 @@ const WhatsAppButton = ({ phoneNumber, recipientName, courierName }: { phoneNumb
   
   return (
     <Button
-      variant="outline"
-      size="sm"
-      className="ml-2 h-6 px-2 text-xs bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+      variant="ghost"
+      size="icon"
+      className="ml-1 h-7 w-7 text-green-600 hover:text-green-700"
       onClick={handleWhatsAppClick}
+      aria-label="WhatsApp"
+      title="WhatsApp"
     >
-      <FontAwesomeIcon icon={faComment} className="h-3 w-3 mr-1" />
-      WA
+      <Chat className="h-4 w-4" aria-hidden="true" />
+      <span className="sr-only">WhatsApp</span>
     </Button>
   );
 };
@@ -105,13 +105,15 @@ const MapsButton = ({ address }: { address: string }) => {
   
   return (
     <Button
-      variant="outline"
-      size="sm"
-      className="ml-2 h-6 px-2 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+      variant="ghost"
+      size="icon"
+      className="ml-1 h-7 w-7 text-blue-600 hover:text-blue-700"
       onClick={handleMapsClick}
+      aria-label="Maps"
+      title="Maps"
     >
-      <FontAwesomeIcon icon={faMapMarkerAlt} className="h-3 w-3 mr-1" />
-      Maps
+      <Location className="h-4 w-4" aria-hidden="true" />
+      <span className="sr-only">Maps</span>
     </Button>
   );
 };
@@ -138,6 +140,10 @@ export function CourierDashboard() {
   const [showAllAssignments, setShowAllAssignments] = useState(false);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [isPickupFormOpen, setIsPickupFormOpen] = useState(false);
+  const [expandedAwbs, setExpandedAwbs] = useState<Record<string, boolean>>({});
+  const toggleAwbExpand = (awb: string): void => {
+    setExpandedAwbs(prev => ({ ...prev, [awb]: !prev[awb] }));
+  };
 
   // Header search state
   const [awbQuery, setAwbQuery] = useState<string>("")
@@ -192,19 +198,20 @@ export function CourierDashboard() {
         .limit(30);  // Naikkan limit dari 15 ke 30 sesuai permintaan user
 
       // Get completed today (OPTIMASI: Kurangi field yang diambil)
-      const completedTodayPromise = supabaseClient
-        .from("shipment_history")
-        .select("awb_number, status, created_at, location")  // Hanya field yang perlu
-        .eq("status", "delivered")
-        .ilike("notes", `%${courierName}%`)
-        .gte("created_at", todayISOString)
-        .order("created_at", { ascending: false });
+      // Delivered today for this courier (lightweight: use shipments table)
+      const shipmentsDeliveredTodayPromise = supabaseClient
+        .from("shipments")
+        .select("awb_number, updated_at")
+        .eq("courier_id", courierId)
+        .eq("current_status", "delivered")
+        .gte("updated_at", todayISOString)
+        .order("updated_at", { ascending: false });
 
       // Execute all queries in parallel with timeout
       const [bulkShipmentsResult, pendingResult, completedTodayResult] = await Promise.allSettled([
         Promise.race([bulkShipmentsPromise, timeoutPromise]),
         Promise.race([pendingPromise, timeoutPromise]),
-        Promise.race([completedTodayPromise, timeoutPromise])
+        Promise.race([shipmentsDeliveredTodayPromise, timeoutPromise])
       ]);
 
       // Handle bulk shipments result
@@ -237,21 +244,27 @@ export function CourierDashboard() {
         setPendingShipments([]);
       }
 
-      // Handle completed today result
+      // Handle completed today result (based on shipments table)
       if (completedTodayResult.status === 'fulfilled') {
-        const { data: completedTodayData, error: completedTodayError } = completedTodayResult.value as { data: ShipmentHistory[] | null; error: unknown };
-        if (completedTodayError) {
+        const { data: deliveredTodayData, error: deliveredError } = completedTodayResult.value as { data: { awb_number: string; updated_at: string }[] | null; error: unknown };
+        if (deliveredError) {
           setCompletedCount(0);
           setCompletedTodayShipments([]);
           setLastCompletedAwb("");
         } else {
-          setCompletedCount(completedTodayData?.length || 0);
-          setCompletedTodayShipments(completedTodayData || []);
-          if (completedTodayData && completedTodayData.length > 0) {
-            const sortedData = [...completedTodayData].sort(
-              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-            );
-            setLastCompletedAwb(sortedData[0].awb_number);
+          const list = deliveredTodayData || [];
+          setCompletedCount(list.length);
+          // Map to ShipmentHistory shape for UI
+          const mapped: ShipmentHistory[] = list.map((s) => ({
+            awb_number: s.awb_number,
+            status: "delivered",
+            created_at: s.updated_at,
+            location: undefined,
+          }));
+          setCompletedTodayShipments(mapped);
+          if (list.length > 0) {
+            const latest = [...list].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+            setLastCompletedAwb(latest.awb_number);
           } else {
             setLastCompletedAwb("");
           }
@@ -559,6 +572,10 @@ export function CourierDashboard() {
       
       await handleCapacitorLogout(async () => {
         await supabaseClient.auth.signOut()
+        // Clear saved credentials
+        localStorage.removeItem("courierCredentials")
+        // Set flag to prevent auto-redirect
+        sessionStorage.setItem("courierJustLoggedOut", "true")
       });
       
       // Don't use router.push in Capacitor context
@@ -570,8 +587,13 @@ export function CourierDashboard() {
     console.warn('CourierDashboard: Using web browser logout flow');
     
     try {
+      // Set flag first before signOut
+      sessionStorage.setItem("courierJustLoggedOut", "true")
       await supabaseClient.auth.signOut()
-      router.push("/courier")
+      // Clear saved credentials
+      localStorage.removeItem("courierCredentials")
+      // Force page reload to clear any cached state
+      window.location.href = "/courier"
     } catch (error) {
       toast({
         title: "Error",
@@ -609,20 +631,29 @@ export function CourierDashboard() {
 
   const renderShipmentCard = (shipment: Shipment, type: "bulk" | "pending") => {
     const courierName = currentUser?.name || currentUser?.email?.split("@")[0] || ""
+    const isExpanded = !!expandedAwbs[shipment.awb_number];
     
     return (
-      <div key={shipment.awb_number} className="border rounded-lg p-2 mb-2 bg-white">
+      <div key={shipment.awb_number} className="border border-white/60 rounded-lg p-2 mb-2 bg-white/70 backdrop-blur-md dark:bg-slate-700/70 dark:border-slate-600">
         <div className="flex justify-between items-start mb-1">
           <div>
             <p className="font-semibold text-sm">{shipment.awb_number}</p>
-            <p className="text-xs text-gray-600 truncate">{shipment.receiver_name}</p>
+            <p className="text-xs text-slate-800 dark:text-slate-200 truncate">{shipment.receiver_name}</p>
           </div>
           <Badge variant={shipment.current_status === "out_for_delivery" ? "default" : "secondary"} className="text-xs">
             {shipment.current_status === "out_for_delivery" ? "OFD" : shipment.current_status}
           </Badge>
         </div>
-        {/* OPTIMASI: Hanya tampilkan alamat singkat untuk menghemat space dan rendering */}
-        <p className="text-xs text-gray-500 mb-1 truncate">{shipment.receiver_address}</p>
+        <p
+          role="button"
+          tabIndex={0}
+          aria-expanded={isExpanded}
+          onClick={() => toggleAwbExpand(shipment.awb_number)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAwbExpand(shipment.awb_number); } }}
+          className={`text-xs text-slate-700 dark:text-slate-300 mb-1 ${isExpanded ? 'whitespace-normal break-words' : 'truncate cursor-pointer hover:underline'}`}
+        >
+          {shipment.receiver_address}
+        </p>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <WhatsAppButton 
@@ -633,7 +664,7 @@ export function CourierDashboard() {
             <MapsButton address={shipment.receiver_address} />
           </div>
           {/* OPTIMASI: Tampilkan tanggal lebih sederhana */}
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {type === "bulk" ? 
               (shipment.updated_at ? new Date(shipment.updated_at).toLocaleDateString('id-ID') : "") :
               (shipment.created_at ? new Date(shipment.created_at).toLocaleDateString('id-ID') : "")
@@ -671,7 +702,9 @@ export function CourierDashboard() {
   if (isProfileLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <FontAwesomeIcon icon={faSpinner} spin className="h-8 w-8" />
+        <div className="animate-spin h-8 w-8 text-gray-600 flex items-center justify-center" aria-label="Loading">
+          <PendingFilled className="h-6 w-6" />
+        </div>
       </div>
     )
   }
@@ -697,44 +730,40 @@ export function CourierDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="relative min-h-screen bg-[#0E325E] dark:bg-slate-900 pb-2 overflow-x-hidden">
       {/* Push Notification Component */}
       <PushNotification userId={currentUser.id} />
-      
-      {/* Watermark Background */}
-      <div className="fixed inset-0 grid grid-cols-6 gap-x-12 gap-y-8 p-8 pointer-events-none select-none opacity-[0.04] z-0">
-        {Array.from({ length: 48 }).map((_, i) => (
-          <div key={i} className="text-black dark:text-white -rotate-[36deg]">
-            <span className="font-semibold text-sm whitespace-nowrap">BCE Express</span>
-          </div>
-        ))}
-      </div>
       {/* Header with AWB search and scan icon */}
-      <header className="px-4 py-3 bg-white/70 backdrop-blur rounded-b-2xl shadow-md border-b border-gray-200 sticky top-0 z-10">
+  <header className="px-4 py-3 bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] text-white rounded-b-2xl shadow-sm border-b border-white/10 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded" />
+            <img src={logoUrl} alt="BCE Logo" width={32} height={32} className="rounded brightness-0 invert" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-[11px] text-white/80">Hi,</span>
+              <span className="text-sm font-semibold text-white truncate max-w-[140px]">{displayName}</span>
+            </div>
           </div>
           <div className="flex-1 text-center">
-            <span className="font-bold text-lg text-gray-900">{displayName}</span>
             {lastCompletedAwb && (
-              <div className="text-xs text-blue-600 mt-1">
-                Last AWB job finished: <span className="font-mono">{lastCompletedAwb}</span>
+              <div className="text-xs text-white/80 mt-1">
+                Last AWB: <span className="font-mono">{lastCompletedAwb}</span>
               </div>
             )}
           </div>
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="h-8 px-2 text-xs font-bold text-gray-700"
+            className="h-8 px-2 text-xs font-bold text-white"
+            aria-label="Logout"
+            title="Logout"
           >
-            <FontAwesomeIcon icon={faSignOutAlt} className="h-5 w-5" />
+            <Logout className="h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
         {/* Search row */}
         <div className="mt-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden="true" />
             <Input
               value={awbQuery}
               onChange={(e) => setAwbQuery(e.target.value)}
@@ -752,7 +781,7 @@ export function CourierDashboard() {
                 }
               }}
               placeholder="Cari AWB / nama penerima"
-              className="pl-12 pr-10 h-10 py-2 text-[13px] leading-5 bg-white/80 border-gray-300 placeholder:text-gray-500 placeholder:text-[13px]"
+              className="pl-12 pr-10 h-10 py-2 text-[13px] leading-5 bg-white text-slate-800 border-slate-200 placeholder:text-slate-500 placeholder:text-[13px]"
               inputMode="search"
               enterKeyHint="search"
             />
@@ -770,28 +799,50 @@ export function CourierDashboard() {
         </div>
       </header>
 
-      {/* Search results */}
+  
+
+  {/* Search results */}
       {showSearchResults && (
         <div className="px-3 pt-3">
-          <Card className="border border-blue-200">
+          <Card className="border border-white/60 bg-white/70 backdrop-blur-md dark:bg-slate-800/70 dark:border-slate-600">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-gray-700">Hasil Pencarian ({awbSearchResults.length})</div>
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Hasil Pencarian ({awbSearchResults.length})</div>
                 <Button variant="ghost" size="sm" onClick={() => { setShowSearchResults(false); setAwbQuery(""); }} className="h-7 px-2 text-xs">Tutup</Button>
               </div>
               {isSearching ? (
-                <div className="text-sm text-gray-500">Mencari...</div>
+                <div className="flex flex-col gap-2">
+                  {[0,1].map((i) => (
+                    <div key={`search-skel-${i}`} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <Skeleton className="h-4 w-40 mb-1" />
+                        <Skeleton className="h-3 w-28 mb-1" />
+                        <Skeleton className="h-3 w-56" />
+                      </div>
+                      <Skeleton className="h-8 w-16 ml-2 rounded" />
+                    </div>
+                  ))}
+                </div>
               ) : awbSearchResults.length === 0 ? (
                 <div className="text-sm text-gray-400">Tidak ada hasil.</div>
               ) : (
                 <div className="flex flex-col gap-2">
                   {awbSearchResults.map((s) => (
-                    <div key={s.awb_number} className="flex items-center justify-between bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
+                    <div key={s.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="min-w-0">
-                        <div className="font-mono font-bold text-blue-700 text-sm">{s.awb_number}</div>
-                        <div className="text-xs text-gray-600 truncate">{s.receiver_name}</div>
-                        <div className={`text-[11px] ${s.current_status === 'delivered' ? 'text-green-600' : s.current_status === 'out_for_delivery' ? 'text-yellow-600' : 'text-gray-500'}`}>{s.current_status}</div>
-                        <div className="text-[11px] text-gray-500 truncate">{s.receiver_address}</div>
+                        <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{s.awb_number}</div>
+                        <div className="text-xs text-slate-800 dark:text-slate-200 truncate">{s.receiver_name}</div>
+                        <div className={`text-[11px] ${s.current_status === 'delivered' ? 'text-green-700 dark:text-green-400' : s.current_status === 'out_for_delivery' ? 'text-yellow-700 dark:text-yellow-400' : 'text-slate-600 dark:text-slate-400'}`}>{s.current_status}</div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={!!expandedAwbs[s.awb_number]}
+                          onClick={() => toggleAwbExpand(s.awb_number)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAwbExpand(s.awb_number); } }}
+                          className={`text-[11px] text-slate-700 dark:text-slate-300 ${expandedAwbs[s.awb_number] ? 'whitespace-normal break-words' : 'truncate cursor-pointer hover:underline'}`}
+                        >
+                          {s.receiver_address}
+                        </div>
                       </div>
                       <Button
                         size="sm"
@@ -810,33 +861,62 @@ export function CourierDashboard() {
       )}
 
       {/* Quick Stats as Accordions */}
-      <div className="flex flex-col gap-3 px-3 py-4">
-        {/* Assignments Card */}
-        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-blue-200 px-4 py-3">
-          <div className="absolute left-0 top-0 w-16 h-16 bg-blue-100 rounded-full opacity-30 blur-2xl z-0" />
+  <div className="flex flex-col gap-3 px-3 py-3">
+  {/* Assignments Card */}
+  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
           <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandAssignments(v => !v)}>
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-50 rounded-full p-2">
-                <Box className="h-7 w-7 text-blue-600" />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-6 w-6 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0" aria-label="Assignments">
+                <DeliveryParcel className="h-5 w-5" aria-hidden="true" />
               </div>
-              <div className="text-xs text-gray-500 font-semibold">Assignments</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Assignments</div>
             </div>
-            <div className="text-3xl font-black text-blue-700">{totalBulkShipments}</div>
-            {expandAssignments ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums min-w-[40px] text-right">{totalBulkShipments}</div>
+              {expandAssignments ? <ChevronUp className="h-6 w-6 text-gray-400 dark:text-gray-300" /> : <ChevronDown className="h-6 w-6 text-gray-400 dark:text-gray-300" />}
+            </div>
           </button>
           {expandAssignments && (
             <div className="mt-3 flex flex-col gap-2 z-10 relative">
-              {sortedAssignments.length === 0 ? (
-                <div className="text-gray-400 text-sm">No assignments for today.</div>
+              {isShipmentsLoading ? (
+                <div className="flex flex-col gap-2">
+                  {[0,1,2].map((i) => (
+                    <div key={`assign-skel-${i}`} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <Skeleton className="h-4 w-40 mb-1" />
+                        <Skeleton className="h-3 w-28 mb-1" />
+                        <Skeleton className="h-3 w-56" />
+                      </div>
+                      <Skeleton className="h-8 w-16 ml-2 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : sortedAssignments.length === 0 ? (
+                <div className="text-slate-600 dark:text-slate-400 text-sm">No assignments for today.</div>
               ) : (
                 <>
-                  {/* OPTIMASI: Tampilkan maksimal 5 items untuk low-end devices, sisanya dengan "Show More" */}
                   {sortedAssignments.slice(0, showAllAssignments ? sortedAssignments.length : 5).map((shipment) => (
-                    <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                    <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{shipment.awb_number}</div>
-                        <div className="text-xs text-gray-500 truncate">{shipment.receiver_name}</div>
-                        <div className="text-xs text-gray-400 truncate">{shipment.receiver_address}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">{shipment.awb_number}</div>
+                          {shipment.current_status && (
+                            <Badge variant="outline" className="text-[10px] px-2 py-0.5 capitalize">
+                              {shipment.current_status.replaceAll('_',' ')}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-800 dark:text-slate-200 truncate">{shipment.receiver_name}</div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={!!expandedAwbs[shipment.awb_number]}
+                          onClick={() => toggleAwbExpand(shipment.awb_number)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAwbExpand(shipment.awb_number); } }}
+                          className={`text-xs text-slate-700 dark:text-slate-300 ${expandedAwbs[shipment.awb_number] ? 'whitespace-normal break-words' : 'truncate cursor-pointer hover:underline'}`}
+                        >
+                          {shipment.receiver_address}
+                        </div>
                         <div className="flex gap-1 mt-1">
                           <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
                           <MapsButton address={shipment.receiver_address} />
@@ -851,7 +931,6 @@ export function CourierDashboard() {
                       </Button>
                     </div>
                   ))}
-                  {/* Show More/Less button jika ada lebih dari 5 items */}
                   {sortedAssignments.length > 5 && (
                     <Button 
                       variant="outline" 
@@ -867,35 +946,48 @@ export function CourierDashboard() {
             </div>
           )}
         </div>
-        {/* Completed Card */}
-        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-green-200 px-4 py-3">
-          <div className="absolute left-0 top-0 w-16 h-16 bg-green-100 rounded-full opacity-30 blur-2xl z-0" />
+  {/* Completed Card */}
+  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
           <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandCompleted(v => !v)}>
-            <div className="flex items-center gap-3">
-              <div className="bg-green-50 rounded-full p-2">
-                <FontAwesomeIcon icon={faCheckCircle} className="h-7 w-7 text-green-600" />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-6 w-6 text-green-600 dark:text-green-400 flex items-center justify-center flex-shrink-0" aria-label="Completed">
+                <CheckmarkFilled className="h-5 w-5" aria-hidden="true" />
               </div>
-              <div className="text-xs text-gray-500 font-semibold">Completed</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Completed</div>
             </div>
-            <div className="text-3xl font-black text-green-600">{completedCount}</div>
-            {expandCompleted ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums min-w-[40px] text-right">{completedCount}</div>
+              {expandCompleted ? <ChevronUp className="h-6 w-6 text-gray-400 dark:text-gray-300" /> : <ChevronDown className="h-6 w-6 text-gray-400 dark:text-gray-300" />}
+            </div>
           </button>
           {expandCompleted && (
             <div className="mt-3 flex flex-col gap-2 z-10 relative">
-              {completedTodayShipments.length === 0 ? (
-                <div className="text-gray-400 text-sm">No completed deliveries today.</div>
+              {isShipmentsLoading ? (
+                <div className="flex flex-col gap-2">
+                  {[0,1].map((i) => (
+                    <div key={`completed-skel-${i}`} className="flex items-center justify-between bg-white/70 dark:bg-green-900/40 rounded-lg border border-white/60 dark:border-green-700 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <Skeleton className="h-4 w-40 mb-1" />
+                        <Skeleton className="h-3 w-24 mb-1" />
+                        <Skeleton className="h-3 w-36" />
+                      </div>
+                      <div className="ml-2">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <>
-                  {/* OPTIMASI: Tampilkan maksimal 5 items untuk low-end devices, sisanya dengan "Show More" */}
                   {completedTodayShipments.slice(0, 5).map((shipment) => (
-                    <div key={shipment.awb_number} className="flex items-center justify-between bg-green-50 dark:bg-green-900 rounded-lg border border-green-100 dark:border-green-700 px-3 py-2">
+                    <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono font-bold text-green-700 dark:text-green-300 text-sm">{shipment.awb_number}</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">{shipment.status}</div>
+                        <div className="text-xs text-green-700 dark:text-green-400">{shipment.status}</div>
                         {shipment.location && (
-                          <div className="text-xs text-gray-500 truncate mt-1">{shipment.location}</div>
+                          <div className="text-xs text-slate-700 dark:text-slate-300 truncate mt-1">{shipment.location}</div>
                         )}
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                           {new Date(shipment.created_at).toLocaleString('id-ID', { 
                             day: '2-digit', 
                             month: '2-digit', 
@@ -904,12 +996,11 @@ export function CourierDashboard() {
                           })}
                         </div>
                       </div>
-                      <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2">
-                        <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
+                      <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2" aria-label="Delivered">
+                        <CheckmarkFilled className="h-4 w-4" aria-hidden="true" />
                       </div>
                     </div>
                   ))}
-                  {/* Show More/Less button jika ada lebih dari 5 items */}
                   {completedTodayShipments.length > 5 && (
                     <Button 
                       variant="outline" 
@@ -925,31 +1016,59 @@ export function CourierDashboard() {
             </div>
           )}
         </div>
-        {/* Pending Card */}
-        <div className="relative overflow-hidden bg-white/60 backdrop-blur rounded-2xl shadow border border-yellow-200 px-4 py-3">
-          <div className="absolute left-0 top-0 w-16 h-16 bg-yellow-100 rounded-full opacity-30 blur-2xl z-0" />
+  {/* Pending Card */}
+  <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-sm border border-white/60 px-4 py-3 dark:bg-slate-800/70 dark:border-slate-600">
           <button className="flex items-center w-full justify-between z-10 relative" onClick={() => setExpandPending(v => !v)}>
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-50 rounded-full p-2">
-                <FontAwesomeIcon icon={faExclamationTriangle} className="h-7 w-7 text-yellow-600" />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-6 w-6 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0" aria-label="Pending">
+                <PendingFilled className="h-5 w-5" aria-hidden="true" />
               </div>
-              <div className="text-xs text-gray-500 font-semibold">Pending</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Pending</div>
             </div>
-            <div className="text-3xl font-black text-yellow-600">{pendingDeliveries}</div>
-            {expandPending ? <ChevronUp className="h-6 w-6 text-gray-400 ml-2" /> : <ChevronDown className="h-6 w-6 text-gray-400 ml-2" />}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums min-w-[40px] text-right">{pendingDeliveries}</div>
+              {expandPending ? <ChevronUp className="h-6 w-6 text-gray-400 dark:text-gray-300" /> : <ChevronDown className="h-6 w-6 text-gray-400 dark:text-gray-300" />}
+            </div>
           </button>
           {expandPending && (
             <div className="mt-3 flex flex-col gap-2 z-10 relative">
-              {pendingShipments.length === 0 ? (
-                <div className="text-gray-400 text-sm">No pending deliveries.</div>
+              {isShipmentsLoading ? (
+                <div className="flex flex-col gap-2">
+                  {[0,1,2].map((i) => (
+                    <div key={`pending-skel-${i}`} className="flex items-center justify-between bg-white/70 dark:bg-slate-900 rounded-lg border border-white/60 dark:border-slate-700 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <Skeleton className="h-4 w-44 mb-1" />
+                        <Skeleton className="h-3 w-28 mb-1" />
+                        <Skeleton className="h-3 w-60" />
+                      </div>
+                      <Skeleton className="h-8 w-16 ml-2 rounded" />
+                    </div>
+                  ))}
+                </div>
               ) : (
                 pendingShipments.map((shipment) => (
-                  <div key={shipment.awb_number} className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
-                    <div>
-                      <div className="font-mono font-bold text-yellow-700 dark:text-yellow-300 text-base">{shipment.awb_number}</div>
-                      <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
-                      <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
-                      <div className="flex gap-2 mt-1">
+                  <div key={shipment.awb_number} className="flex items-center justify-between bg-white/70 rounded-lg border border-white/60 px-3 py-2 dark:bg-slate-700/70 dark:border-slate-600">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="font-mono font-bold text-yellow-700 dark:text-yellow-300 text-base">{shipment.awb_number}</div>
+                        {shipment.current_status && (
+                          <Badge variant="outline" className="text-[10px] px-2 py-0.5 capitalize">
+                            {shipment.current_status.replaceAll('_',' ')}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-800 dark:text-slate-200">{shipment.receiver_name}</div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!!expandedAwbs[shipment.awb_number]}
+                        onClick={() => toggleAwbExpand(shipment.awb_number)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAwbExpand(shipment.awb_number); } }}
+                        className={`text-xs text-slate-700 dark:text-slate-300 ${expandedAwbs[shipment.awb_number] ? 'whitespace-normal break-words' : 'truncate cursor-pointer hover:underline'}`}
+                      >
+                        {shipment.receiver_address}
+                      </div>
+                      <div className="flex gap-1 mt-1">
                         <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
                         <MapsButton address={shipment.receiver_address} />
                       </div>
@@ -969,17 +1088,22 @@ export function CourierDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="flex flex-col gap-3 px-3 mb-4">
-        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsContinuousScanOpen(true)}>
-          <FontAwesomeIcon icon={faBarcode} className="h-5 w-5" /> Scan Resi
-        </Button>
-        <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsBulkModalOpen(true)}>
-          <FontAwesomeIcon icon={faEye} className="h-5 w-5" /> Update Manual
-        </Button>
-        <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold text-base py-3 flex items-center justify-center gap-2 rounded-xl shadow" onClick={() => setIsPickupFormOpen(true)}>
-          <Box className="h-5 w-5" /> Pickup AWB
-        </Button>
+      {/* Quick Actions: sticky bottom bar for mobile (minimalist) */}
+  <div className="fixed bottom-0 left-0 right-0 z-20 bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] border-t border-white/10 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.25)] md:hidden pb-[env(safe-area-inset-bottom)]">
+    <div className="grid grid-cols-3 gap-1 p-2">
+          <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md flex items-center justify-center gap-1" onClick={() => setIsContinuousScanOpen(true)} aria-label="Scan AWB" title="Scan AWB">
+            <ScanAlt className="h-4 w-4" aria-hidden="true" />
+            <span className="text-[12px]">Scan</span>
+          </Button>
+          <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 rounded-md flex items-center justify-center gap-1" onClick={() => setIsBulkModalOpen(true)} aria-label="Bulk Update" title="Bulk Update">
+            <Task className="h-4 w-4" aria-hidden="true" />
+            <span className="text-[12px]">Update</span>
+          </Button>
+          <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 rounded-md flex items-center justify-center gap-1" onClick={() => setIsPickupFormOpen(true)} aria-label="Pickup" title="Pickup">
+            <Package className="h-4 w-4" aria-hidden="true" />
+            <span className="text-[12px]">Pickup</span>
+          </Button>
+        </div>
       </div>
 
       {/* Floating DLVD Scan Button removed and replaced with header icon */}
@@ -1030,7 +1154,7 @@ export function CourierDashboard() {
             <DialogDescription>Complete list of today's assignment AWBs.</DialogDescription>
           </DialogHeader>
           <DialogClose className="absolute right-4 top-4 rounded-full w-8 h-8 bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-900 border border-gray-200 transition-all">
-            <X className="h-4 w-4" />
+            <Close size={16} />
             <span className="sr-only">Close</span>
           </DialogClose>
           <div className="max-h-[60vh] overflow-y-auto mt-4 flex flex-col gap-2">
@@ -1039,7 +1163,16 @@ export function CourierDashboard() {
                 <div>
                   <div className="font-mono font-bold text-blue-700 dark:text-blue-300 text-base">{shipment.awb_number}</div>
                   <div className="text-xs text-gray-500">{shipment.receiver_name}</div>
-                  <div className="text-xs text-gray-400">{shipment.receiver_address}</div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={!!expandedAwbs[shipment.awb_number]}
+                    onClick={() => toggleAwbExpand(shipment.awb_number)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAwbExpand(shipment.awb_number); } }}
+                    className={`text-xs text-gray-400 ${expandedAwbs[shipment.awb_number] ? 'whitespace-normal break-words' : 'truncate cursor-pointer hover:underline'}`}
+                  >
+                    {shipment.receiver_address}
+                  </div>
                   <div className="flex gap-2 mt-1">
                     <WhatsAppButton phoneNumber={shipment.receiver_phone} recipientName={shipment.receiver_name || "Customer"} courierName={displayName} />
                     <MapsButton address={shipment.receiver_address} />
@@ -1066,7 +1199,7 @@ export function CourierDashboard() {
             <DialogDescription>Complete list of today's completed deliveries ({completedCount} total).</DialogDescription>
           </DialogHeader>
           <DialogClose className="absolute right-4 top-4 rounded-full w-8 h-8 bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-900 border border-gray-200 transition-all">
-            <X className="h-4 w-4" />
+            <Close size={16} />
             <span className="sr-only">Close</span>
           </DialogClose>
           <div className="max-h-[60vh] overflow-y-auto mt-4 flex flex-col gap-2">
@@ -1087,8 +1220,8 @@ export function CourierDashboard() {
                     })}
                   </div>
                 </div>
-                <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2">
-                  <FontAwesomeIcon icon={faCheckCircle} className="h-5 w-5" />
+                <div className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full p-2 ml-2" aria-label="Delivered">
+                  <CheckmarkFilled className="h-5 w-5" aria-hidden="true" />
                 </div>
               </div>
             ))}
