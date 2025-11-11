@@ -1457,6 +1457,7 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
   const [selectedAddress, setSelectedAddress] = React.useState<string | null>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   const handleCopyAddress = async () => {
     if (!selectedAddress) return;
@@ -1464,7 +1465,6 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
       if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(selectedAddress);
       } else {
-        // Fallback for older browsers
         const el = document.createElement('textarea');
         el.value = selectedAddress;
         document.body.appendChild(el);
@@ -1483,7 +1483,6 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
     if (!open) return;
     setLoading(true);
     setError(null);
-    // Fetch manifest_cabang data (include alamat_penerima)
     supabaseClient
       .from("manifest_cabang")
       .select("id, awb_no, awb_date, origin_branch, kota_tujuan, alamat_penerima")
@@ -1496,6 +1495,24 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
       });
   }, [open]);
 
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) return data;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return data.filter((row) => {
+      return (
+        row.awb_no?.toLowerCase().includes(query) ||
+        row.kota_tujuan?.toLowerCase().includes(query) ||
+        row.alamat_penerima?.toLowerCase().includes(query) ||
+        row.origin_branch?.toLowerCase().includes(query)
+      );
+    });
+  }, [data, searchQuery]);
+
+  const handleClearSearch = React.useCallback(() => {
+    setSearchQuery("");
+  }, []);
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1506,13 +1523,56 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
           </DialogTitle>
         </DialogHeader>
         <p id="manifest-dialog-desc" className="sr-only">Daftar manifest cabang hari ini</p>
+        
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <svg 
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" 
+              fill="none" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth="2" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari..."
+              className="w-full px-3 py-2 pl-10 pr-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="Clear search"
+              >
+                <svg className="h-4 w-4" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+              Ditemukan {filteredData.length} dari {data.length} data
+            </p>
+          )}
+        </div>
+
         <div className="overflow-x-auto max-h-[60vh]">
-            {loading ? (
+          {loading ? (
             <div className="text-center py-8 text-green-700 dark:text-green-400 font-semibold">Loading manifest...</div>
           ) : error ? (
             <div className="text-center py-8 text-red-600 dark:text-red-400 font-semibold">{error}</div>
-          ) : data.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">No manifest data found.</div>
+          ) : filteredData.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              {searchQuery ? `Tidak ditemukan data dengan kata kunci "${searchQuery}"` : 'No manifest data found.'}
+            </div>
           ) : (
             <table className="min-w-full text-xs sm:text-sm">
               <thead>
@@ -1524,7 +1584,7 @@ function ManifestModal({ open, onOpenChange }: ManifestModalProps) {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row) => (
+                {filteredData.map((row) => (
                   <tr key={row.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20">
                     <td className="px-2 py-1 font-mono text-gray-900 dark:text-gray-100">{row.awb_no}</td>
                     <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{row.awb_date}</td>
