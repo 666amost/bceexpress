@@ -155,6 +155,8 @@ export function CourierDashboard() {
   const [isShipmentsLoading, setIsShipmentsLoading] = useState(false)
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null)
   const locationUpdateInterval = useRef<NodeJS.Timeout | null>(null)
+  const bottomBarRef = useRef<HTMLDivElement | null>(null)
+  const [bottomBarHeight, setBottomBarHeight] = useState<number>(0)
 
   const router = useRouter()
   const { toast } = useToast()
@@ -524,6 +526,17 @@ export function CourierDashboard() {
     };
   }, [loadUserProfile]);
 
+  // Measure bottom bar height to avoid content being covered on small devices
+  useEffect(() => {
+    const measure = () => {
+      const h = bottomBarRef.current?.offsetHeight ?? 0
+      setBottomBarHeight(h)
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [])
+
   // Separate useEffect for location tracking that depends on hasCompletedFirstDelivery
   useEffect(() => {
     const setupLocationUpdates = async () => {
@@ -730,7 +743,10 @@ export function CourierDashboard() {
   });
 
   return (
-    <div className="relative min-h-screen bg-[#0E325E] dark:bg-slate-900 pb-2 overflow-x-hidden">
+    <div
+      className="relative min-h-screen bg-[#0E325E] dark:bg-slate-900 pb-24 md:pb-2 overflow-x-hidden"
+      style={{ paddingBottom: `calc(${bottomBarHeight}px + env(safe-area-inset-bottom))` }}
+    >
       {/* Push Notification Component */}
       <PushNotification userId={currentUser.id} />
       {/* Header with AWB search and scan icon */}
@@ -1088,8 +1104,8 @@ export function CourierDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions: sticky bottom bar for mobile (minimalist) */}
-  <div className="fixed bottom-0 left-0 right-0 z-20 bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] border-t border-white/10 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.25)] md:hidden pb-[env(safe-area-inset-bottom)]">
+    {/* Quick Actions: sticky bottom bar for mobile (minimalist) */}
+  <div ref={bottomBarRef} className="fixed bottom-0 left-0 right-0 z-20 bg-gradient-to-tr from-[#1C7FA6] via-[#1969A9] to-[#0D47A1] border-t border-white/10 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.25)] md:hidden pb-[env(safe-area-inset-bottom)]">
     <div className="grid grid-cols-3 gap-1 p-2">
           <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md flex items-center justify-center gap-1" onClick={() => setIsContinuousScanOpen(true)} aria-label="Scan AWB" title="Scan AWB">
             <ScanAlt className="h-4 w-4" aria-hidden="true" />
