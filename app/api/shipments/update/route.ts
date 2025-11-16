@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       try {
         // Pastikan env WAHA_API_URL dan WA_GROUP_ID terisi
         const WAHA_API_URL = process.env.WAHA_API_URL;
-        const WAHA_SESSION = process.env.WAHA_SESSION || 'default';
+        const WAHA_SESSION = process.env.WAHA_SESSION_GROUP || 'bot_group';
         const WA_GROUP_ID = process.env.WA_GROUP_ID;
         
         if (!WAHA_API_URL || !WA_GROUP_ID) {

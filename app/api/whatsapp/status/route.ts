@@ -11,9 +11,13 @@ export async function GET() {
         configured: !!process.env.WAHA_API_URL,
         value: process.env.WAHA_API_URL || 'NOT SET'
       },
-      waha_session: {
-        configured: !!process.env.WAHA_SESSION,
-        value: process.env.WAHA_SESSION || 'default'
+      waha_session_group: {
+        configured: !!process.env.WAHA_SESSION_GROUP,
+        value: process.env.WAHA_SESSION_GROUP || 'NOT SET'
+      },
+      waha_session_customer: {
+        configured: !!process.env.WAHA_SESSION_CUSTOMER,
+        value: process.env.WAHA_SESSION_CUSTOMER || 'NOT SET'
       },
       wa_group_id: {
         configured: !!process.env.WA_GROUP_ID,
