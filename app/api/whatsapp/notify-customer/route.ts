@@ -217,7 +217,7 @@ function toChatId(phone: string): string {
 async function sendMessageSequence(chatId: string, text: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
-  const session = process.env.WAHA_SESSION || 'default';
+  const session = process.env.WAHA_SESSION_CUSTOMER || 'bot_customer';
 
   // Helper function for retrying failed requests
   async function retryFetch(url: string, options: RequestInit, retries = 3) {

@@ -445,7 +445,7 @@ async function sendTextSafe(phoneOrGroup: string, text: string, replyToMessageId
     ? phoneOrGroup
     : `${normalizePhoneNumber(phoneOrGroup)}@c.us`;
 
-  const session = process.env.WAHA_SESSION || 'default';
+  const session = process.env.WAHA_SESSION_CUSTOMER || 'bot_customer';
 
   const controller = new AbortController();
   const timeoutMs = Number(process.env.WAHA_TIMEOUT_MS ?? 8000);

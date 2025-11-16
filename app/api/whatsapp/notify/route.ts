@@ -77,13 +77,14 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
   if (process.env.WAHA_API_KEY) {
     headers['X-Api-Key'] = process.env.WAHA_API_KEY;
   }
+  const session = process.env.WAHA_SESSION_GROUP || 'bot_group';
   // 1. Send seen
   await fetch(`${process.env.WAHA_API_URL}/api/sendSeen`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
       chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
+      session,
     })
   });
   // 2. Start typing
@@ -92,7 +93,7 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
     headers,
     body: JSON.stringify({
       chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
+      session,
     })
   });
   // 3. Wait random 5-30 seconds
@@ -103,7 +104,7 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
     headers,
     body: JSON.stringify({
       chatId: phoneOrGroup,
-      session: process.env.WAHA_SESSION || 'default',
+      session,
     })
   });
   // 5. Send text message
@@ -113,7 +114,7 @@ async function sendMessageSequence(phoneOrGroup: string, message: string) {
     body: JSON.stringify({
       chatId: phoneOrGroup,
       text: message,
-      session: process.env.WAHA_SESSION || 'default',
+      session,
       reply_to: null,
       linkPreview: true,
       linkPreviewHighQuality: false

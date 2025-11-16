@@ -52,12 +52,12 @@ export function Footer() {
               <li className="flex items-center">
                 <Phone className="h-4 w-4 mr-2 text-primary" />
                 <a 
-                  href="https://wa.me/6281770725237" 
+                  href="https://wa.me/6285117766429" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="hover:text-primary transition-colors"
                 >
-                  +62 817-7072-5237 (WA Bot)
+                  +62 851-1776-6429 (WA Bot)
                 </a>
               </li>
               <li className="flex items-center">
