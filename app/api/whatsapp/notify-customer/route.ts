@@ -1,7 +1,7 @@
 // app/api/whatsapp/notify-customer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const MAX_DAILY_NOTIFICATIONS = 15;
+const MAX_DAILY_NOTIFICATIONS = Number(process.env.WA_MAX_DAILY_NOTIFICATIONS ?? 30);
 const notificationLog = new Map<string, { count: number; resetAt: number }>();
 const sentToCustomers = new Map<string, Set<string>>();
 
@@ -199,18 +199,31 @@ function buildDeliveredMsg(awb: string, rawName?: string) {
 /* ================== Helpers ================== */
 function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('0')) digits = '62' + digits.slice(1);
-  if (!digits.startsWith('62')) digits = '62' + digits;
+  if (!digits) return '';
+
+  // Local Indonesian formats
+  if (digits.startsWith('0')) return '62' + digits.slice(1);
+  if (digits.startsWith('62')) return digits;
+  // Mobile local without leading 0 (e.g. 812345...) -> assume local
+  if (digits.startsWith('8')) return '62' + digits;
+
+  // If it looks like a full international number (length >= 10), keep as-is
+  if (digits.length >= 10) return digits;
+
+  // Fallback: return digits (do not force-prepend 62)
   return digits;
 }
 
 function toChatId(phone: string): string {
   const digits = normalizePhone(phone);
-  
-  if (digits.length < 10 || digits.length > 15) {
+
+  if (!digits) throw new Error(`Invalid phone number format: ${phone} -> empty after normalization`);
+
+  // Accept reasonable international lengths (8-15 digits)
+  if (digits.length < 8 || digits.length > 15) {
     throw new Error(`Invalid phone number format: ${phone} (${digits})`);
   }
-  
+
   return `${digits}@c.us`;
 }
 
@@ -263,16 +276,19 @@ async function sendMessageSequence(chatId: string, text: string) {
     await retryFetch(`${process.env.WAHA_API_URL}/api/sendSeen`, 
       { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
 
-    // Start typing
-    await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`,
-      { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+    // Optionally emulate typing (configurable). Keep typing short to avoid timeouts.
+    const enableTyping = (process.env.WA_ENABLE_TYPING ?? '1') === '1';
+    if (enableTyping) {
+      await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`,
+        { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
 
-    // Random delay (reduced for better performance)
-    await randomDelay(3000, 8000);
+      const minDelay = Number(process.env.WA_TYPING_MIN_MS ?? 300);
+      const maxDelay = Number(process.env.WA_TYPING_MAX_MS ?? 1000);
+      await randomDelay(minDelay, maxDelay);
 
-    // Stop typing
-    await retryFetch(`${process.env.WAHA_API_URL}/api/stopTyping`,
-      { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+      await retryFetch(`${process.env.WAHA_API_URL}/api/stopTyping`,
+        { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
+    }
 
     // Send the actual message
     const res = await retryFetch(`${process.env.WAHA_API_URL}/api/sendText`, {

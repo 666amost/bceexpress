@@ -457,6 +457,35 @@ async function sendTextSafe(phoneOrGroup: string, text: string, replyToMessageId
   try {
     while (true) {
       try {
+        // Optionally emulate typing to make replies more natural.
+        // Keep typing short to avoid hitting request timeout.
+        const enableTyping = (process.env.WA_ENABLE_TYPING ?? '1') === '1';
+        if (enableTyping) {
+          try {
+            // startTyping
+            await fetch(`${process.env.WAHA_API_URL}/api/startTyping`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ chatId, session }),
+              signal: controller.signal
+            });
+
+            const typingDelayMin = Number(process.env.WA_TYPING_MIN_MS ?? 300);
+            const typingDelayMax = Number(process.env.WA_TYPING_MAX_MS ?? 1000);
+            await new Promise(r => setTimeout(r, Math.floor(Math.random() * (typingDelayMax - typingDelayMin + 1)) + typingDelayMin));
+
+            // stopTyping
+            await fetch(`${process.env.WAHA_API_URL}/api/stopTyping`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ chatId, session }),
+              signal: controller.signal
+            });
+          } catch (e) {
+            // typing emulation failed — ignore and continue to send text
+          }
+        }
+
         const requestBody: Record<string, unknown> = { 
           chatId, 
           text, 
