@@ -63,6 +63,10 @@ function getSupabaseClient() {
 const userMessageCount: Map<string, { count: number; lastMessage: number }> = new Map();
 const MAX_REPLIES = 3;
 const RESET_AFTER_HOURS = 24; // Reset count after 24 hours
+// Short-lived dedupe cache to ignore duplicate webhook events for the same incoming message
+// Keyed by message id (if provided) or fallback to `from|body` signature. Entries expire quickly.
+const recentIncomingMessages: Map<string, number> = new Map();
+const RECENT_MSG_TTL_MS = 60 * 1000; // 60s
 
 // ================== Handler ==================
 export async function POST(req: NextRequest) {
@@ -78,9 +82,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'invalid_payload' });
     }
 
+    // Prune expired entries from recentIncomingMessages (simple cleanup)
+    const nowTs = Date.now();
+    recentIncomingMessages.forEach((ts, k) => {
+      if (nowTs - ts > RECENT_MSG_TTL_MS) recentIncomingMessages.delete(k);
+    });
+
     // Ignore non-message events or messages without text
     if (!body.event || !body.event.startsWith('message') || !body.payload?.body) {
       return NextResponse.json({ ok: true, info: `Event '${body.event}' ignored` });
+    }
+
+    // Deduplicate multiple webhook events for the same incoming message.
+    // Use payload.id when available (WAHA typically provides message id). Fallback to from|body signature.
+    const incomingId = body.payload?.id ? String(body.payload.id) : `${body.payload?.from || ''}|${(body.payload?.body || '').slice(0,200)}`;
+    if (incomingId) {
+      if (recentIncomingMessages.has(incomingId)) {
+        return NextResponse.json({ ok: true, skipped: true, reason: 'duplicate_event' });
+      }
+      recentIncomingMessages.set(incomingId, nowTs);
     }
 
     const { from, fromMe, id: messageId } = body.payload;

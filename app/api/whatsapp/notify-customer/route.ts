@@ -49,6 +49,10 @@ function markCustomerNotified(phone: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // TEMPORARY CHANGE: disable this route so the bot only sends to group and auto-reply.
+  // To re-enable, remove this early return.
+  return NextResponse.json({ ok: true, skipped: true, reason: 'notify_customer_temporarily_disabled' });
+
   try {
     let body;
     try {
@@ -134,10 +138,14 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      const healthHeaders: Record<string, string> = {};
+      const wahaKey = process.env.WAHA_API_KEY;
+      if (wahaKey) healthHeaders['X-Api-Key'] = wahaKey as string;
+
       const healthCheck = await fetch(`${process.env.WAHA_API_URL}/api/sessions`, {
-        headers: process.env.WAHA_API_KEY ? { 'X-Api-Key': process.env.WAHA_API_KEY } : {}
+        headers: Object.keys(healthHeaders).length ? healthHeaders : undefined
       });
-      
+
       if (!healthCheck.ok) {
         return NextResponse.json({ ok: true, warning: 'WAHA service unavailable' });
       }
@@ -229,7 +237,8 @@ function toChatId(phone: string): string {
 
 async function sendMessageSequence(chatId: string, text: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
+  const wahaKey2 = process.env.WAHA_API_KEY;
+  if (wahaKey2) headers['X-Api-Key'] = wahaKey2 as string;
   const session = process.env.WAHA_SESSION_CUSTOMER || 'bot_customer';
 
   // Helper function for retrying failed requests
