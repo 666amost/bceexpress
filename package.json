@@ -64,7 +64,7 @@
     "embla-carousel-react": "^8.0.0",
     "form-data": "^4.0.2",
     "framer-motion": "^12.10.0",
-    "glob": "^11.0.2",
+    "glob": "^11.1.0",
     "gsap": "^3.13.0",
     "html2pdf.js": "^0.10.3",
     "html5-qrcode": "^2.3.8",
