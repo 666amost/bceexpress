@@ -47,13 +47,22 @@ export function Footer() {
             <h4 className="font-semibold mb-4">Contact Us</h4>
             <ul className="space-y-2 text-gray-400">
               <li className="flex items-center">
-                <Phone className="h-4 w-4 mr-2 text-primary" /> +62 821-1409-7704
-              </li>
-              <li className="flex items-center">
                 <Phone className="h-4 w-4 mr-2 text-primary" />
-                <a 
-                  href="https://wa.me/6285117766429" 
-                  target="_blank" 
+                <a
+                  href="https://wa.me/6282114097704"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors"
+                  aria-label="WhatsApp +62 821-1409-7704"
+                >
+                  +62 821-1409-7704
+                </a>
+              </li>
+              <li className="hidden">
+                <Phone className="h-4 w-4 mr-2 text-primary" />
+                <a
+                  href="https://wa.me/6285117766429"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary transition-colors"
                 >
