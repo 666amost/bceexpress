@@ -479,7 +479,7 @@ async function sendTextSafe(phoneOrGroup: string, text: string, replyToMessageId
       try {
         // Optionally emulate typing to make replies more natural.
         // Keep typing short to avoid hitting request timeout.
-        const enableTyping = (process.env.WA_ENABLE_TYPING ?? '1') === '1';
+        const enableTyping = (process.env.WA_ENABLE_TYPING ?? '0') === '1';
         if (enableTyping) {
           try {
             // startTyping

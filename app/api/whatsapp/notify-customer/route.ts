@@ -286,7 +286,7 @@ async function sendMessageSequence(chatId: string, text: string) {
       { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
 
     // Optionally emulate typing (configurable). Keep typing short to avoid timeouts.
-    const enableTyping = (process.env.WA_ENABLE_TYPING ?? '1') === '1';
+    const enableTyping = (process.env.WA_ENABLE_TYPING ?? '0') === '1';
     if (enableTyping) {
       await retryFetch(`${process.env.WAHA_API_URL}/api/startTyping`,
         { method: 'POST', headers, body: JSON.stringify({ chatId, session }) });
