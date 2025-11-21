@@ -5,6 +5,7 @@ import { supabaseClient } from "../lib/auth"
 import PrintLayout from "./PrintLayout" // Pastikan ini merujuk ke PrintLayout.jsx yang sudah diperbarui
 import CustomerSelector from "./CustomerSelector"
 import { AwbFormData, ChangeEvent, FormEvent } from "../types"
+import { baseAgentListCentral } from "../lib/agents"
 
 interface Customer {
   id: string
@@ -60,41 +61,7 @@ const hargaPerKg = {
   "Denpasar": 30000,
 }
 
-const agentList = [
-  "UDR CASH",
-  "SEA CASH",
-  "GLC UDR TRF",
-  "GLC SEA TRF",
-  "COD UDR",
-  "COD SEA",
-  "KMY UDR TRF",
-  "KMY SEA TRF",
-  "KARTINI KIKI",
-  "DUTA GARDEN FRENITA",
-  "FELLISIA PORIS EX 3",
-  "OTTY OFFICIAL",
-  "CITRA 3 RENY",
-  "HENDI",
-  "PRALITA",
-  "SALIM",
-  "ISKANDAR",
-  "IMAM",
-  "DONI",
-  "HERFAN",
-  "EZZA",
-  "YANDRI",
-  "DIKY",
-  "YOS",
-  "INDAH SUSHI TIME",
-  "CENTRAL NURSERY BANGKA",
-  "MAMAPIA",
-  "AMELIA PEDINDANG",
-  "HENDRY LIMIA",
-  "JESS DOT",
-  "SEPIRING RASA BASO",
-  "CHRISTINE PADEMANGAN",
-  "AMERTHA / HOLAI RESTO"
-]
+const agentList = baseAgentListCentral
 
 const metodePembayaran = ["cash", "transfer", "cod"]
 const kirimVia = ["udara", "darat"]
