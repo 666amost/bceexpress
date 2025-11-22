@@ -107,13 +107,15 @@ export async function POST(req: NextRequest) {
     const messageText = (body.payload.body || '').trim();
     // Debug: log incoming payload key info to help map JIDs -> phone numbers
     try {
-      console.log('WA webhook payload key:', JSON.stringify((body.payload as any)._data?.key || body.payload));
+      const _p = body.payload as unknown as { _data?: { key?: unknown } };
+      const payloadKey = _p._data?.key || body.payload;
+      console.warn('WA webhook payload key:', JSON.stringify(payloadKey));
     } catch (e) {
       // ignore logging errors
     }
 
     // Derive reply chat id and normalized phone (used for sends and rate-limiting)
-    const _replyTarget = deriveReplyTarget(body.payload as any);
+    const _replyTarget = deriveReplyTarget(body.payload as unknown);
     const replyChatId = _replyTarget.chatId;
     // keep `from` variable but use `normalizedFrom` from replyTarget for rate-limiting
     const _normalizedFromFallback = normalizePhoneNumber(String(from || '').replace('@c.us', ''));
@@ -325,9 +327,10 @@ function normalizePhoneNumber(phone: string): string {
 }
 
 // Derive a reply chatId and normalized phone from various webhook fields.
-function deriveReplyTarget(payload: any): { chatId: string; phone: string } {
+function deriveReplyTarget(payload: unknown): { chatId: string; phone: string } {
   // Prefer the provider's stable whatsapp JID if available (example: remoteJidAlt = '62812...@s.whatsapp.net')
-  const alt = payload?._data?.key?.remoteJidAlt || payload?._data?.key?.remoteJid;
+  const p = payload as { _data?: { key?: { remoteJidAlt?: string; remoteJid?: string } }; from?: string };
+  const alt = p?._data?.key?.remoteJidAlt || p?._data?.key?.remoteJid;
   if (typeof alt === 'string') {
     // If it's an s.whatsapp.net jid, convert to c.us (the WAHA API expects @c.us)
     if (/@s\.whatsapp\.net$/.test(alt)) {
@@ -343,7 +346,7 @@ function deriveReplyTarget(payload: any): { chatId: string; phone: string } {
   }
 
   // Fallback to payload.from
-  const from = String(payload?.from || '');
+  const from = String(p.from || '');
   // If payload.from already ends with @c.us or @g.us, use as-is (but prefer numeric chat id)
   if (/@(c|g)\.us$/.test(from)) {
     const digits = from.replace(/@.*/, '').replace(/\D/g, '');
