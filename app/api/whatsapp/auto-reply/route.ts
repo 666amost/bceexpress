@@ -232,6 +232,15 @@ TERIMA KASIH! 🙏`;
     // Check and update user message count
     // Prefer the phone extracted from webhook (replyTarget.phone) when available
     const normalizedFrom = (_replyTarget && _replyTarget.phone) ? _replyTarget.phone : normalizePhoneNumber(from.replace('@c.us', ''));
+
+    // If the incoming JID is not a recognizable Indonesian phone number, do NOT send the automated
+    // welcome/reply messages. This avoids replying to internal/chat-list IDs like
+    // `133191331541097@c.us` or other non-phone JIDs. Explicit user-triggered flows (AWB/ongkir)
+    // above will still respond.
+    if (!isIndonesianPhone(normalizedFrom)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'non_indonesia_phone_jid', from });
+    }
+
     const now = Date.now();
     const userKey = normalizedFrom;
     
@@ -316,6 +325,14 @@ TERIMA KASIH! 🙏`;
   }
 }
 
+// Return true when the normalized phone looks like an Indonesian mobile/WA number.
+function isIndonesianPhone(normalizedPhone: string): boolean {
+  if (!normalizedPhone) return false;
+  // Must start with country code 62 and be 8-15 digits long overall (reasonable WA lengths)
+  // e.g. 6289626891707 => matches
+  return /^62\d{6,13}$/.test(normalizedPhone);
+}
+
 // ================== Helpers ==================
 function normalizePhoneNumber(phone: string): string {
   const digits = (phone || '').replace(/\D/g, '');
@@ -332,32 +349,73 @@ function deriveReplyTarget(payload: unknown): { chatId: string; phone: string } 
   const p = payload as { _data?: { key?: { remoteJidAlt?: string; remoteJid?: string } }; from?: string };
   const alt = p?._data?.key?.remoteJidAlt || p?._data?.key?.remoteJid;
   if (typeof alt === 'string') {
+    // If WAHA provided a LID (local identifier) like '123123123@lid', keep it as-is
+    if (/@lid$/.test(alt)) {
+      return { chatId: alt, phone: '' };
+    }
+
     // If it's an s.whatsapp.net jid, convert to c.us (the WAHA API expects @c.us)
     if (/@s\.whatsapp\.net$/.test(alt)) {
       const phone = alt.replace(/@s\.whatsapp\.net$/, '').replace(/\D/g, '');
       const normalized = normalizePhoneNumber(phone);
       return { chatId: `${normalized}@c.us`, phone: normalized };
     }
-    // If it's already a c.us/g.us/lid style jid, try to extract digits and normalize
-    const cleaned = String(alt).replace(/@.*/, '');
-    const digits = cleaned.replace(/\D/g, '');
-    const normalized = normalizePhoneNumber(digits);
-    return { chatId: `${normalized}@c.us`, phone: normalized };
+
+    // For other domains (e.g. c.us, g.us, or unusual), extract local-part and domain
+    const [local, domain] = String(alt).split('@');
+
+    // If domain explicitly indicates a lid (defensive), keep as-is
+    if (domain === 'lid') return { chatId: alt, phone: '' };
+
+    // If local-part contains non-digit chars, keep the original alt (it's not a pure phone number)
+    const digitsOnly = local.replace(/\D/g, '');
+    if (digitsOnly.length !== local.length) {
+      return { chatId: alt, phone: '' };
+    }
+
+    // All-digits local-part: try to normalize and verify it's an Indonesian phone number
+    const normalized = normalizePhoneNumber(digitsOnly);
+    if (isIndonesianPhone(normalized)) {
+      return { chatId: `${normalized}@c.us`, phone: normalized };
+    }
+
+    // Not a recognized Indonesian phone -> keep original alt as chatId
+    return { chatId: alt, phone: '' };
   }
 
   // Fallback to payload.from
   const from = String(p.from || '');
-  // If payload.from already ends with @c.us or @g.us, use as-is (but prefer numeric chat id)
-  if (/@(c|g)\.us$/.test(from)) {
-    const digits = from.replace(/@.*/, '').replace(/\D/g, '');
-    const normalized = normalizePhoneNumber(digits);
-    return { chatId: `${normalized}@c.us`, phone: normalized };
+  // If payload.from is a LID, keep it as-is
+  if (/@lid$/.test(from)) {
+    return { chatId: from, phone: '' };
   }
 
-  // Last-resort: strip domain and non-digits then normalize
-  const digits = from.replace(/@.*/, '').replace(/\D/g, '');
-  const normalized = normalizePhoneNumber(digits);
-  return { chatId: `${normalized}@c.us`, phone: normalized };
+  // If payload.from already ends with @c.us or @g.us, use as-is (but prefer numeric chat id)
+  if (/@(c|g)\.us$/.test(from)) {
+    const local = from.replace(/@.*/, '');
+    const digitsOnly = local.replace(/\D/g, '');
+    if (digitsOnly.length !== local.length) {
+      // local-part contains non-digits -> likely lid, return original from
+      return { chatId: from, phone: '' };
+    }
+
+    const normalized = normalizePhoneNumber(digitsOnly);
+    if (isIndonesianPhone(normalized)) {
+      return { chatId: `${normalized}@c.us`, phone: normalized };
+    }
+
+    return { chatId: from, phone: '' };
+  }
+
+  // Last-resort: try to interpret the left part as digits and normalize; otherwise keep original
+  const left = from.replace(/@.*/, '');
+  const digitsOnly = left.replace(/\D/g, '');
+  const normalizedLeft = normalizePhoneNumber(digitsOnly);
+  if (isIndonesianPhone(normalizedLeft)) {
+    return { chatId: `${normalizedLeft}@c.us`, phone: normalizedLeft };
+  }
+
+  return { chatId: from, phone: '' };
 }
 
 // ================== Ongkir Calculator ==================
@@ -511,9 +569,11 @@ async function sendTextSafe(phoneOrGroup: string, text: string, replyToMessageId
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
 
-  const chatId = /@(c|g)\.us$/.test(phoneOrGroup)
+  // Accept existing chatIds ending with @c.us, @g.us or @lid and otherwise build a normalized @c.us id
+  const chatId = /(@(c|g)\.us|@lid)$/.test(phoneOrGroup)
     ? phoneOrGroup
     : `${normalizePhoneNumber(phoneOrGroup)}@c.us`;
+  
 
   const session = process.env.WAHA_SESSION_CUSTOMER || 'bot_customer';
 
