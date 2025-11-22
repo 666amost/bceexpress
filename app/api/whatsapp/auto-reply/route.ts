@@ -105,6 +105,19 @@ export async function POST(req: NextRequest) {
 
     const { from, fromMe, id: messageId } = body.payload;
     const messageText = (body.payload.body || '').trim();
+    // Debug: log incoming payload key info to help map JIDs -> phone numbers
+    try {
+      console.log('WA webhook payload key:', JSON.stringify((body.payload as any)._data?.key || body.payload));
+    } catch (e) {
+      // ignore logging errors
+    }
+
+    // Derive reply chat id and normalized phone (used for sends and rate-limiting)
+    const _replyTarget = deriveReplyTarget(body.payload as any);
+    const replyChatId = _replyTarget.chatId;
+    // keep `from` variable but use `normalizedFrom` from replyTarget for rate-limiting
+    const _normalizedFromFallback = normalizePhoneNumber(String(from || '').replace('@c.us', ''));
+    // we'll set normalizedFrom later (after message flows) using replyTarget.phone where appropriate
     
     // Skip messages from bot, group chats, or API-sent messages
     // IMPORTANT: source='api' means message was sent by bot via API
@@ -128,7 +141,7 @@ export async function POST(req: NextRequest) {
         
         if (shipmentData) {
           const replyText = formatShipmentInfo(shipmentData);
-          await sendTextSafe(from, replyText, messageId);
+          await sendTextSafe(replyChatId, replyText, messageId);
           
           return NextResponse.json({ 
             ok: true, 
@@ -136,7 +149,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           const notFoundText = `Nomor resi ${awbNumber} tidak ditemukan.\n\nPastikan nomor resi benar atau hubungi admin pengiriman untuk bantuan.`;
-          await sendTextSafe(from, notFoundText, messageId);
+          await sendTextSafe(replyChatId, notFoundText, messageId);
           
           return NextResponse.json({ 
             ok: true, 
@@ -145,7 +158,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (dbError) {
         const errorText = `Maaf, terjadi kesalahan saat mengambil data resi ${awbNumber}.\n\nSilakan coba lagi atau hubungi admin pengiriman.`;
-        await sendTextSafe(from, errorText, messageId);
+        await sendTextSafe(replyChatId, errorText, messageId);
         
         return NextResponse.json({ 
           ok: true, 
@@ -166,17 +179,17 @@ export async function POST(req: NextRequest) {
       const berat = parseFloat(beratRaw);
       
       if (berat <= 0 || isNaN(berat)) {
-        await sendTextSafe(from, '❌ Berat harus lebih dari 0 kg');
+        await sendTextSafe(replyChatId, '❌ Berat harus lebih dari 0 kg');
         return NextResponse.json({ ok: true, info: 'Invalid weight' });
       }
       
       try {
         const ongkirResult = await calculateOngkir(asalRaw, tujuanRaw, berat);
-        await sendTextSafe(from, ongkirResult, messageId);
+        await sendTextSafe(replyChatId, ongkirResult, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir calculated' });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        await sendTextSafe(from, errorMsg, messageId);
+        await sendTextSafe(replyChatId, errorMsg, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir error', error: errorMsg });
       }
     }
@@ -201,7 +214,7 @@ Atau kunjungi: https://bcexp.id
 TERIMA KASIH! 🙏`;
       
       try {
-        await sendTextSafe(from, ongkirText, messageId);
+        await sendTextSafe(replyChatId, ongkirText, messageId);
         return NextResponse.json({ ok: true, info: 'Ongkir info sent' });
       } catch (sendError) {
         return NextResponse.json({ 
@@ -215,7 +228,8 @@ TERIMA KASIH! 🙏`;
     // No AWB detected - send welcome message with rate limiting
 
     // Check and update user message count
-    const normalizedFrom = normalizePhoneNumber(from.replace('@c.us', ''));
+    // Prefer the phone extracted from webhook (replyTarget.phone) when available
+    const normalizedFrom = (_replyTarget && _replyTarget.phone) ? _replyTarget.phone : normalizePhoneNumber(from.replace('@c.us', ''));
     const now = Date.now();
     const userKey = normalizedFrom;
     
@@ -277,7 +291,7 @@ TERIMA KASIH! 🙏`;
     }
 
     try {
-      await sendTextSafe(from, replyText, messageId);
+      await sendTextSafe(replyChatId, replyText, messageId);
     } catch (sendError) {
       return NextResponse.json({ 
         ok: true, 
@@ -308,6 +322,39 @@ function normalizePhoneNumber(phone: string): string {
   if (digits.startsWith('08')) return '62' + digits.slice(1);
   if (digits.startsWith('8')) return '62' + digits;
   return digits;
+}
+
+// Derive a reply chatId and normalized phone from various webhook fields.
+function deriveReplyTarget(payload: any): { chatId: string; phone: string } {
+  // Prefer the provider's stable whatsapp JID if available (example: remoteJidAlt = '62812...@s.whatsapp.net')
+  const alt = payload?._data?.key?.remoteJidAlt || payload?._data?.key?.remoteJid;
+  if (typeof alt === 'string') {
+    // If it's an s.whatsapp.net jid, convert to c.us (the WAHA API expects @c.us)
+    if (/@s\.whatsapp\.net$/.test(alt)) {
+      const phone = alt.replace(/@s\.whatsapp\.net$/, '').replace(/\D/g, '');
+      const normalized = normalizePhoneNumber(phone);
+      return { chatId: `${normalized}@c.us`, phone: normalized };
+    }
+    // If it's already a c.us/g.us/lid style jid, try to extract digits and normalize
+    const cleaned = String(alt).replace(/@.*/, '');
+    const digits = cleaned.replace(/\D/g, '');
+    const normalized = normalizePhoneNumber(digits);
+    return { chatId: `${normalized}@c.us`, phone: normalized };
+  }
+
+  // Fallback to payload.from
+  const from = String(payload?.from || '');
+  // If payload.from already ends with @c.us or @g.us, use as-is (but prefer numeric chat id)
+  if (/@(c|g)\.us$/.test(from)) {
+    const digits = from.replace(/@.*/, '').replace(/\D/g, '');
+    const normalized = normalizePhoneNumber(digits);
+    return { chatId: `${normalized}@c.us`, phone: normalized };
+  }
+
+  // Last-resort: strip domain and non-digits then normalize
+  const digits = from.replace(/@.*/, '').replace(/\D/g, '');
+  const normalized = normalizePhoneNumber(digits);
+  return { chatId: `${normalized}@c.us`, phone: normalized };
 }
 
 // ================== Ongkir Calculator ==================
